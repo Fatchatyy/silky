@@ -1,9 +1,15 @@
 import * as videoService from '../services/video.service.js';
 import * as productService from '../services/product.service.js';
-import { sendError } from '../utils/errors.js';
+import { AppError, sendError } from '../utils/errors.js';
 
 export async function listVideos(req, res) {
   try {
+    if (req.user?.role !== 'admin') {
+      const product = await productService.getProductById(req.params.id);
+      if (product.is_active === false) {
+        throw new AppError('Produit non trouvé', 404);
+      }
+    }
     const videos = await videoService.getProductVideos(req.params.id);
     res.json(videos);
   } catch (err) {

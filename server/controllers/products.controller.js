@@ -1,11 +1,13 @@
 import * as productService from '../services/product.service.js';
 import * as reviewService from '../services/review.service.js';
-import { sendError } from '../utils/errors.js';
+import { AppError, sendError } from '../utils/errors.js';
 
 export async function list(req, res) {
   try {
     const { category, search, page, limit, includeHidden } = req.query;
-    const shouldIncludeHidden = includeHidden === 'true' || includeHidden === true;
+    // Hidden (unpublished) products are admin-only; for everyone else the flag is ignored.
+    const shouldIncludeHidden =
+      req.user?.role === 'admin' && (includeHidden === 'true' || includeHidden === true);
     const hasFilters = category || search || page || limit;
 
     if (!hasFilters) {
@@ -34,6 +36,10 @@ export async function uploadImage(req, res) {
 export async function getById(req, res) {
   try {
     const product = await productService.getProductById(req.params.id);
+    // 404 (not 403) so a hidden product's existence is not confirmed to non-admins.
+    if (product.is_active === false && req.user?.role !== 'admin') {
+      throw new AppError('Produit non trouvé', 404);
+    }
     res.json(product);
   } catch (err) {
     sendError(res, err);

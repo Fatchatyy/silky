@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from './AuthContext';
 
@@ -55,38 +55,58 @@ function normalizeProductState(p) {
   };
 }
 
+// Hidden (unpublished) products are admin-only: the API only returns them to an admin token, and
+// the local state / cache must not keep them once the user is no longer an admin.
+function withoutHidden(list) {
+  return list.filter((p) => !p.isHidden);
+}
+
 export function ProductsProvider({ children }) {
   const { isAdmin } = useAuth();
   const [products, setProducts] = useState(() => {
     const stored = getStoredProducts();
-    return stored ? stored.map(normalizeProductState) : [];
+    if (!stored) return [];
+    const list = stored.map(normalizeProductState);
+    return isAdmin ? list : withoutHidden(list);
   });
   const [loading, setLoading] = useState(true);
+  // Only the latest refresh may update state (login/logout can start a refresh while another is in flight).
+  const refreshSeq = useRef(0);
 
   const refreshProducts = useCallback(async () => {
+    const seq = ++refreshSeq.current;
     try {
-      const data = await api.getProducts({ includeHidden: true });
+      const data = await api.getProducts({ includeHidden: isAdmin });
       const list = (data || []).map(normalizeProductState);
+      const visible = isAdmin ? list : withoutHidden(list);
 
-      setProducts(list);
-      saveStoredProducts(list);
-      return list;
+      if (seq === refreshSeq.current) {
+        setProducts(visible);
+        saveStoredProducts(visible);
+      }
+      return visible;
     } catch (err) {
       console.warn('Failed to fetch products from backend, using stored cache:', err);
       const stored = getStoredProducts();
-      if (stored && Array.isArray(stored)) {
-        const list = stored.map(normalizeProductState);
-        setProducts(list);
-        return list;
-      }
-      setProducts([]);
-      return [];
+      const cached = stored && Array.isArray(stored) ? stored.map(normalizeProductState) : [];
+      const list = isAdmin ? cached : withoutHidden(cached);
+      if (seq === refreshSeq.current) setProducts(list);
+      return list;
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) {
+      // Logout (or a guest's first load after this fix): drop hidden products from state and the cache now,
+      // without waiting for the refetch.
+      setProducts((current) => (current.some((p) => p.isHidden) ? withoutHidden(current) : current));
+      const stored = getStoredProducts();
+      if (Array.isArray(stored) && stored.some((p) => p.isHidden === true || p.is_active === false)) {
+        saveStoredProducts(withoutHidden(stored.map(normalizeProductState)));
+      }
+    }
     refreshProducts().finally(() => setLoading(false));
-  }, [refreshProducts]);
+  }, [refreshProducts, isAdmin]);
 
   const getProduct = useCallback((id) => products.find((p) => p.id === id), [products]);
 

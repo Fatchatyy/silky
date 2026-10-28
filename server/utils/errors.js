@@ -10,5 +10,8 @@ export function sendError(res, err, fallback = 'Internal server error') {
   if (status >= 500) {
     console.error(err);
   }
-  res.status(status).json({ error: err.message || fallback });
+  // Only AppError (and client errors below 500) carry a message meant for the client. Anything else that ends
+  // up as a 5xx (database driver, runtime errors) keeps its detail in the server log, never in the response.
+  const exposeMessage = err instanceof AppError || status < 500;
+  res.status(status).json({ error: (exposeMessage && err.message) || fallback });
 }
