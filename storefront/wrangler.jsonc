@@ -1,0 +1,14 @@
+{
+  "name": "silky-storefront",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  // Local values. Production values (Phase 7) are given at deploy time: API_URL=https://api.silky.tn.
+  "vars": {
+    "API_URL": "http://localhost:3001"
+  }
+}

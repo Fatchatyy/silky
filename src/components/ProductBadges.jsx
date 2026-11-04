@@ -1,8 +1,10 @@
 import { useAuth } from '../context/AuthContext';
-import { hasDiscount } from '../utils/price';
-import { isProductOutOfStock } from '../utils/stock';
+import { hasDiscount } from '../../shared/price';
+import { isProductOutOfStock } from '../../shared/stock';
+import { useT } from '../i18n/useT';
 
 export default function ProductBadges({ product, className = '' }) {
+  const { t } = useT();
   const { isAdmin } = useAuth();
   const productObj = product?.product || product;
   const isHidden = Boolean(productObj?.isHidden);
@@ -15,17 +17,17 @@ export default function ProductBadges({ product, className = '' }) {
     <div className={`product_badges ${className}`.trim()}>
       {isAdmin && isHidden && (
         <span className="product_badge product_badge_hidden">
-          ● Masqué du site
+          {t('badge.hidden')}
         </span>
       )}
       {isDiscounted && (
         <span className="product_badge product_badge_promo">
-          Promo!
+          {t('badge.promo')}
         </span>
       )}
       {isOutOfStock && (
         <span className="product_badge product_badge_out_of_stock">
-          Épuisé
+          {t('badge.soldOut')}
         </span>
       )}
     </div>

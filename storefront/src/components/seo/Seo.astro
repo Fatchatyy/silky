@@ -1,0 +1,23 @@
+---
+// The single place that writes <title>, the description, canonical, hreflang, Open Graph and JSON-LD.
+import { safeJson } from '../../lib/seo/text.ts';
+import type { SeoProps } from '../../lib/seo/types.ts';
+
+const { title, description, canonical, alternates, robots, og, jsonLd } = Astro.props as SeoProps;
+---
+<title>{title}</title>
+{description && <meta name="description" content={description} />}
+<link rel="canonical" href={canonical} />
+<meta name="robots" content={robots} />
+{alternates?.fr && <link rel="alternate" hreflang="fr" href={alternates.fr} />}
+{alternates?.ar && <link rel="alternate" hreflang="ar" href={alternates.ar} />}
+{alternates?.['x-default'] && <link rel="alternate" hreflang="x-default" href={alternates['x-default']} />}
+<meta property="og:site_name" content="Silky" />
+<meta property="og:title" content={title} />
+{description && <meta property="og:description" content={description} />}
+<meta property="og:type" content={og.type} />
+<meta property="og:url" content={canonical} />
+<meta property="og:locale" content={og.locale} />
+{og.image && <meta property="og:image" content={og.image} />}
+<meta name="twitter:card" content={og.image ? 'summary_large_image' : 'summary'} />
+{(jsonLd ?? []).map((data) => <script type="application/ld+json" set:html={safeJson(data)} />)}

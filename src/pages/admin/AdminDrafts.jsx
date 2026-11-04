@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice } from '../../../shared/formatPrice';
 import AdminDraftModal from './AdminDraftModal';
 
 function isDraftReady(draft) {

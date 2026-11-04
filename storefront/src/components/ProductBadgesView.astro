@@ -1,0 +1,18 @@
+---
+// Server-rendered twin of ProductBadges.jsx.
+import { hasDiscount } from '../../../shared/price.js';
+import { isProductOutOfStock } from '../../../shared/stock.js';
+import { translator } from '../lib/i18n.ts';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { product, locale } = Astro.props as { product: any; locale: Locale };
+const t = translator(locale);
+const discounted = hasDiscount(product);
+const soldOut = isProductOutOfStock(product);
+---
+{(discounted || soldOut) && (
+  <div class="product_badges">
+    {discounted && <span class="product_badge product_badge_promo">{t('badge.promo')}</span>}
+    {soldOut && <span class="product_badge product_badge_out_of_stock">{t('badge.soldOut')}</span>}
+  </div>
+)}

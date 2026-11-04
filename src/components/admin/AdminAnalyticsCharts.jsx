@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice } from '../../../shared/formatPrice';
 
 const LINE_METRIC_CONFIG = {
   revenue: {

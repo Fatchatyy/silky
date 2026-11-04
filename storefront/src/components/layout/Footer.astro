@@ -1,0 +1,81 @@
+---
+import { localizePath } from '../../../../shared/locales.js';
+import { translator } from '../../lib/i18n.ts';
+import type { Locale } from '../../lib/seo/types.ts';
+
+const { locale } = Astro.props as { locale: Locale };
+const t = translator(locale);
+const href = (path: string) => localizePath(path, locale);
+---
+<footer class="site_footer">
+  <div class="footer_tagline_container">
+    <p class="script_tagline">{t('footer.tagline')}</p>
+    <p class="tagline_text">{t('footer.text1')}</p>
+    <p class="tagline_text">{t('footer.text2')}</p>
+  </div>
+
+  <hr class="footer_divider" />
+
+  <div class="footer_main_container">
+    <div class="footer_brand_col">
+      <a href={href('/')} class="footer_logo_link" title={t('footer.backToTop')}>
+        <img src="/pictures/logo.png" alt="Silky Logo" class="footer_logo_img" />
+      </a>
+
+      <div class="social_links_wrapper">
+        <div class="social_icons">
+          <a href="https://www.instagram.com/silky.tn/" class="social_icon_link">
+            <img src="/pictures/instagram.png" alt="Instagram" />
+          </a>
+          <a href="https://www.tiktok.com/@silky4042" class="social_icon_link">
+            <img src="/pictures/tiktok.png" alt="TikTok" />
+          </a>
+          <a href="https://www.facebook.com/profile.php?id=61560630851600" class="social_icon_link">
+            <img src="/pictures/facebook.png" alt="Facebook" />
+          </a>
+          <a href="mailto:silky26tn@gmail.com" class="social_icon_link">
+            <img src="/pictures/gmail.png" alt="Email" />
+          </a>
+        </div>
+        <span class="follow_us_text">{t('footer.followUs')}</span>
+      </div>
+    </div>
+
+    <div class="footer_nav_cols">
+      <div class="footer_col">
+        <h4>SILKY</h4>
+        <ul>
+          <li><a href={href('/')}>{t('nav.home')}</a></li>
+          <li><a href={href('/collection/femme')}>{t('nav.women')}</a></li>
+          <li><a href={href('/collection/enfant')}>{t('nav.kids')}</a></li>
+        </ul>
+      </div>
+
+      <div class="footer_col">
+        <h4>{t('footer.about')}</h4>
+        <ul>
+          <li><a href={href('/about')}>{t('footer.aboutUs')}</a></li>
+        </ul>
+      </div>
+
+      <div class="footer_col">
+        <h4>{t('footer.help')}</h4>
+        <ul>
+          <li><a href={href('/service-client')}>{t('footer.customerService')}</a></li>
+          <li><a href={href('/contact')}>{t('footer.contactUs')}</a></li>
+          <li><a href={href('/livraison-retours') + '#livraison'}>{t('footer.deliveryInfo')}</a></li>
+          <li><a href={href('/livraison-retours') + '#retours'}>{t('footer.returnsPolicy')}</a></li>
+          <li><a href={href('/faq')}>{t('footer.faq')}</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer_copyright">
+    <p>
+      &copy; 2026 Silky
+      {' · by '}
+      <a href="https://github.com/HamedSallloua" target="_blank" rel="noopener noreferrer" class="footer_author_link">Hamed</a>
+    </p>
+  </div>
+</footer>

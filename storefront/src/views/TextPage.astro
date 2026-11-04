@@ -1,0 +1,52 @@
+---
+// About, FAQ, delivery/returns and customer-service pages: text only, the same markup as the old React pages.
+import { getTextPage } from '../../../shared/textPages.js';
+import RichParts from './RichParts.astro';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { id, locale } = Astro.props as { id: 'about' | 'faq' | 'delivery' | 'service'; locale: Locale };
+const page: any = getTextPage(id, locale);
+---
+{id === 'about' && (
+  <main>
+    <section class="about_section">
+      <h1 class="about_heading">{page.title}</h1>
+      {page.paragraphs.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
+    </section>
+  </main>
+)}
+{id === 'service' && (
+  <main>
+    <section class="about_section">
+      <h1 class="about_heading">{page.title}</h1>
+      {page.paragraphs.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
+    </section>
+  </main>
+)}
+{id === 'delivery' && (
+  <main>
+    <section class="about_section">
+      <h1 class="about_page_title">{page.title}</h1>
+      {page.sections.map((section: any) => (
+        <>
+          <h2 class="about_heading" id={section.id}>{section.heading}</h2>
+          {section.paragraphs.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
+        </>
+      ))}
+    </section>
+  </main>
+)}
+{id === 'faq' && (
+  <main>
+    <section class="legal_page">
+      <h1>{page.title}</h1>
+      {page.items.map((item: any) => (
+        <>
+          <h2>{item.question}</h2>
+          {item.answer.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
+        </>
+      ))}
+      {page.outro.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
+    </section>
+  </main>
+)}

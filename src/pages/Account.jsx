@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '../i18n/router';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useProducts } from '../context/ProductsContext';
 import { useFavorites } from '../context/FavoritesContext';
-import { formatPrice } from '../utils/formatPrice';
+import { formatPrice } from '../../shared/formatPrice';
 import '../styles/account.css';
+import { useT } from '../i18n/useT';
 
 const ORDER_STATUS_LABELS = {
   pending: 'En attente',
@@ -18,9 +20,10 @@ const ORDER_STATUS_LABELS = {
   cancelled: 'Annulée',
 };
 
-function formatDate(iso) {
+function formatDate(iso, locale = 'fr') {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('fr-FR', {
+  // Arabic: Tunisian month names, Western digits
+  return new Date(iso).toLocaleDateString(locale === 'ar' ? 'ar-TN-u-nu-latn' : 'fr-FR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -28,6 +31,8 @@ function formatDate(iso) {
 }
 
 export default function Account() {
+  const { t, known, locale, detailsLabel } = useT();
+  const { getProduct } = useProducts();
   const navigate = useNavigate();
   const { user, logout, refreshUser } = useAuth();
   const { itemCount } = useCart();
@@ -56,7 +61,7 @@ export default function Account() {
       const data = await api.getMyOrders();
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
-      setOrdersError(err.message || 'Impossible de charger vos commandes.');
+      setOrdersError(known(err.message) || t('account.loadOrdersFailed'));
     } finally {
       setOrdersLoading(false);
     }
@@ -81,22 +86,22 @@ export default function Account() {
     const phoneNumber = (form.get('phoneNumber') || '').trim();
 
     if (!fullName) {
-      setProfileError('Le nom complet est requis');
+      setProfileError(t('account.fullNameRequired'));
       return;
     }
 
     if (!email && !phoneNumber) {
-      setProfileError('Vous devez conserver au moins un e-mail ou un numéro de téléphone.');
+      setProfileError(t('account.keepOne'));
       return;
     }
 
     if (user?.email && !email) {
-      setProfileError("L'adresse e-mail est obligatoire.");
+      setProfileError(t('contact.emailRequired'));
       return;
     }
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setProfileError('Veuillez entrer une adresse e-mail valide.');
+      setProfileError(t('contact.emailInvalid'));
       return;
     }
 
@@ -109,10 +114,10 @@ export default function Account() {
         phoneNumber: phoneNumber || null,
       });
       await refreshUser();
-      setProfileSuccess('Profil mis à jour.');
+      setProfileSuccess(t('account.profileUpdated'));
       setEditingProfile(false);
     } catch (err) {
-      setProfileError(err.message || 'Mise à jour impossible.');
+      setProfileError(known(err.message) || t('account.updateFailed'));
     } finally {
       setProfileLoading(false);
     }
@@ -129,7 +134,7 @@ export default function Account() {
     const confirmPassword = form.get('confirmPassword');
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('Les mots de passe ne correspondent pas.');
+      setPasswordError(t('reset.mismatch'));
       setPasswordLoading(false);
       return;
     }
@@ -139,11 +144,11 @@ export default function Account() {
         currentPassword: form.get('currentPassword'),
         newPassword,
       });
-      setPasswordSuccess('Mot de passe mis à jour.');
+      setPasswordSuccess(t('account.passwordUpdated'));
       setChangingPassword(false);
       e.target.reset();
     } catch (err) {
-      setPasswordError(err.message || 'Modification impossible.');
+      setPasswordError(known(err.message) || t('account.changeFailed'));
     } finally {
       setPasswordLoading(false);
     }
@@ -158,37 +163,37 @@ export default function Account() {
     <main className="account-page">
       <header className="account-header">
         <img src="/pictures/logo.png" alt="Silky" className="account-logo" />
-        <h1 className="account-title">Mon compte</h1>
-        <p className="account-subtitle">Bienvenue, {user?.fullName || user?.email}</p>
+        <h1 className="account-title">{t('account.title')}</h1>
+        <p className="account-subtitle">{t('account.welcome', { name: user?.fullName || user?.email })}</p>
         <Link to="/" className="secondary-btn" style={{ display: 'inline-block', marginTop: 16 }}>
-          Découvrir nos produits
+          {t('fav.discover')}
         </Link>
       </header>
 
       <section className="account-section">
-        <h2 className="account-section-title">Informations personnelles</h2>
+        <h2 className="account-section-title">{t('account.personal')}</h2>
 
         {!editingProfile ? (
           <>
             <div className="account-info-grid">
               <div className="account-info-row">
-                <span className="account-info-label">Nom complet</span>
+                <span className="account-info-label">{t('account.fullName')}</span>
                 <span className="account-info-value">{user?.fullName || '—'}</span>
               </div>
               <div className="account-info-row">
-                <span className="account-info-label">E-mail</span>
+                <span className="account-info-label">{t('account.email')}</span>
                 <span className="account-info-value">{user?.email || '—'}</span>
               </div>
               {user?.phoneNumber && (
                 <div className="account-info-row">
-                  <span className="account-info-label">Téléphone</span>
+                  <span className="account-info-label">{t('account.phone')}</span>
                   <span className="account-info-value">{user.phoneNumber}</span>
                 </div>
               )}
               {user?.createdAt && (
                 <div className="account-info-row">
-                  <span className="account-info-label">Membre depuis</span>
-                  <span className="account-info-value">{formatDate(user.createdAt)}</span>
+                  <span className="account-info-label">{t('account.memberSince')}</span>
+                  <span className="account-info-value">{formatDate(user.createdAt, locale)}</span>
                 </div>
               )}
             </div>
@@ -202,7 +207,7 @@ export default function Account() {
                   setProfileSuccess('');
                 }}
               >
-                Modifier le profil
+                {t('account.editProfile')}
               </button>
               {!changingPassword && (
                 <button
@@ -214,7 +219,7 @@ export default function Account() {
                     setPasswordSuccess('');
                   }}
                 >
-                  Changer le mot de passe
+                  {t('account.changePassword')}
                 </button>
               )}
             </div>
@@ -222,7 +227,7 @@ export default function Account() {
         ) : (
           <form className="account-form" onSubmit={handleProfileSubmit} noValidate>
             <div className="form-group">
-              <label htmlFor="fullName">Nom complet</label>
+              <label htmlFor="fullName">{t('account.fullName')}</label>
               <input
                 type="text"
                 id="fullName"
@@ -234,7 +239,7 @@ export default function Account() {
             </div>
             <div className="form-group">
               <label htmlFor="email">
-                Adresse e-mail {user?.email ? '' : '(optionnel)'}
+                {t('contact.email')} {user?.email ? '' : t('account.optional')}
               </label>
               <input
                 type="email"
@@ -245,7 +250,7 @@ export default function Account() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="phoneNumber">Téléphone (optionnel)</label>
+              <label htmlFor="phoneNumber">{t('account.phoneOptional')}</label>
               <input
                 type="tel"
                 id="phoneNumber"
@@ -258,14 +263,14 @@ export default function Account() {
             {profileSuccess && <p className="account-form-success">{profileSuccess}</p>}
             <div className="account-form-actions">
               <button type="submit" className="account-link-btn" disabled={profileLoading}>
-                {profileLoading ? 'Enregistrement...' : 'Enregistrer'}
+                {profileLoading ? t('common.saving') : t('common.save')}
               </button>
               <button
                 type="button"
                 className="account-link-btn secondary"
                 onClick={() => setEditingProfile(false)}
               >
-                Annuler
+                {t('common.cancel')}
               </button>
             </div>
           </form>
@@ -274,10 +279,10 @@ export default function Account() {
 
       {changingPassword && (
         <section className="account-section">
-          <h2 className="account-section-title">Changer le mot de passe</h2>
+          <h2 className="account-section-title">{t('account.changePassword')}</h2>
           <form className="account-form" onSubmit={handlePasswordSubmit}>
             <div className="form-group">
-              <label htmlFor="currentPassword">Mot de passe actuel</label>
+              <label htmlFor="currentPassword">{t('account.currentPassword')}</label>
               <input
                 type="password"
                 id="currentPassword"
@@ -287,7 +292,7 @@ export default function Account() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="newPassword">Nouveau mot de passe</label>
+              <label htmlFor="newPassword">{t('reset.newPassword')}</label>
               <input
                 type="password"
                 id="newPassword"
@@ -298,7 +303,7 @@ export default function Account() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="confirmPassword">Confirmer le mot de passe</label>
+              <label htmlFor="confirmPassword">{t('reset.confirmPassword')}</label>
               <input
                 type="password"
                 id="confirmPassword"
@@ -312,14 +317,14 @@ export default function Account() {
             {passwordSuccess && <p className="account-form-success">{passwordSuccess}</p>}
             <div className="account-form-actions">
               <button type="submit" className="account-link-btn" disabled={passwordLoading}>
-                {passwordLoading ? 'Mise à jour...' : 'Mettre à jour'}
+                {passwordLoading ? t('account.updating') : t('account.update')}
               </button>
               <button
                 type="button"
                 className="account-link-btn secondary"
                 onClick={() => setChangingPassword(false)}
               >
-                Annuler
+                {t('common.cancel')}
               </button>
             </div>
           </form>
@@ -327,14 +332,14 @@ export default function Account() {
       )}
 
       <section className="account-section">
-        <h2 className="account-section-title">Mes commandes</h2>
+        <h2 className="account-section-title">{t('account.myOrders')}</h2>
 
         {ordersLoading ? (
-          <p className="account-empty">Chargement des commandes...</p>
+          <p className="account-empty">{t('account.ordersLoading')}</p>
         ) : ordersError ? (
           <p className="account-form-error">{ordersError}</p>
         ) : orders.length === 0 ? (
-          <p className="account-empty">Vous n&apos;avez pas encore passé de commande.</p>
+          <p className="account-empty">{t('account.noOrders')}</p>
         ) : (
           <div className="account-orders-list">
             {orders.map((order) => {
@@ -343,9 +348,9 @@ export default function Account() {
                 <article key={order.id} className="account-order-card">
                   <div className="account-order-summary">
                     <span className="account-order-number">{order.orderNumber}</span>
-                    <span className="account-order-date">{formatDate(order.createdAt)}</span>
+                    <span className="account-order-date">{formatDate(order.createdAt, locale)}</span>
                     <span className="account-order-status">
-                      {ORDER_STATUS_LABELS[order.status] || order.status}
+                      {known(ORDER_STATUS_LABELS[order.status]) || order.status}
                     </span>
                     <span className="account-order-total">{formatPrice(order.total)}</span>
                     <button
@@ -353,22 +358,22 @@ export default function Account() {
                       className="account-order-toggle"
                       onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
                     >
-                      {isExpanded ? 'Masquer les détails' : 'Voir les détails'}
+                      {isExpanded ? t('account.hide') : t('account.show')}
                     </button>
                   </div>
                   {isExpanded && (
                     <div className="account-order-details">
                       <p>
-                        <strong>Livraison :</strong> {order.customer?.address}
+                        <strong>{t('account.delivery')}</strong> {order.customer?.address}
                       </p>
                       <p>
-                        <strong>Articles ({order.items?.length || 0}) :</strong>
+                        <strong>{t('account.articles', { count: order.items?.length || 0 })}</strong>
                       </p>
                       <ul>
                         {(order.items || []).map((item, index) => (
                           <li key={`${order.id}-${index}`}>
                             {item.name}
-                            {item.details ? ` — ${item.details}` : ''} × {item.quantity} —{' '}
+                            {item.details ? ` — ${detailsLabel(item.details, getProduct(item.productId))}` : ''} × {item.quantity} —{' '}
                             {formatPrice(item.price * item.quantity)}
                           </li>
                         ))}
@@ -383,13 +388,13 @@ export default function Account() {
       </section>
 
       <section className="account-section">
-        <h2 className="account-section-title">Accès rapide</h2>
+        <h2 className="account-section-title">{t('account.quick')}</h2>
         <div className="account-quick-links">
           <Link to="/favorites" className="account-link-btn">
-            Mes favoris{favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}
+            {t('account.myFavs')}{favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}
           </Link>
           <Link to="/cart" className="account-link-btn secondary">
-            Mon panier{itemCount > 0 ? ` (${itemCount})` : ''}
+            {t('account.myCart')}{itemCount > 0 ? ` (${itemCount})` : ''}
           </Link>
         </div>
       </section>
@@ -397,7 +402,7 @@ export default function Account() {
       <section className="account-section">
         <div className="account-actions-row">
           <button type="button" className="account-link-btn secondary" onClick={handleLogout}>
-            Se déconnecter
+            {t('account.logout')}
           </button>
         </div>
       </section>

@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { siteUrl, mediaBase } from '../../../lib/config';
+import ProductView from '../../../views/ProductView.astro';
+import NotFoundView from '../../../views/NotFoundView.astro';
+import { loadProductPage } from '../../../lib/pages/load';
+import { productSeo, errorPageSeo } from '../../../lib/seo/builders.ts';
+import { cacheablePage } from '../../../lib/pages/respond';
+const locale = 'ar';
+const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
+const result = await loadProductPage(Astro.params.slug ?? '', locale, Astro.url.pathname);
+if (result.kind === 'redirect') return Astro.redirect(result.to + Astro.url.search, 301);
+if (result.kind === 'notfound') Astro.response.status = 404;
+if (result.kind === 'unavailable') Astro.response.status = 503;
+cacheablePage(Astro.response, result.kind === 'ok');
+const seo = result.kind === 'ok'
+  ? productSeo(result.data.product, locale, ctx, { rating: result.data.rating, deliveryFee: result.data.deliveryFee, collectionName: result.data.collectionName })
+  : errorPageSeo(result.kind === 'unavailable' ? 'unavailable' : 'product-not-found', locale, ctx, Astro.url.pathname);
+---
+<BaseLayout locale={locale} seo={seo}>
+  {result.kind === 'ok'
+    ? <ProductView product={result.data.product} reviews={result.data.reviews} rating={result.data.rating} collectionName={result.data.collectionName} recommendations={result.data.recommendations} locale={locale} />
+    : <NotFoundView locale={locale} unavailable={result.kind === 'unavailable'} />}
+</BaseLayout>

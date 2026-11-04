@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { useProducts } from '../../context/ProductsContext';
-import { buildStockMatrix } from '../../utils/stock';
-import { formatPrice } from '../../utils/formatPrice';
-import { getEffectivePrice } from '../../utils/price';
+import { buildStockMatrix } from '../../../shared/stock';
+import { formatPrice } from '../../../shared/formatPrice';
+import { getEffectivePrice, hasDiscount } from '../../../shared/price';
 import AdminProductReviewsSection from '../../components/AdminProductReviewsSection';
 
 const EMPTY_PRODUCT = {
   name: '',
   description: '',
+  nameAr: '',
+  descriptionAr: '',
   price: 0,
   discount: 0,
   category: 'femme',
@@ -20,6 +22,26 @@ const EMPTY_PRODUCT = {
   collectionImage: '',
   isHidden: false,
 };
+
+function getPageNumbers(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const pages = [1];
+  if (currentPage > 3) {
+    pages.push('...');
+  }
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+  if (currentPage < totalPages - 2) {
+    pages.push('...');
+  }
+  pages.push(totalPages);
+  return pages;
+}
 
 function slugify(text) {
   return text
@@ -36,6 +58,7 @@ function mapProductColorsToForm(rawColors = []) {
     return {
       id: c.id || slugify(c.name) || `color-${i}`,
       name: (c.name || '').trim(),
+      nameAr: (c.nameAr || '').trim(),
       thumbnail,
       gallery,
     };
@@ -52,6 +75,7 @@ function normalizeProduct(form) {
       return {
         id: c.id || slugify(c.name) || `color-${i}`,
         name: c.name.trim(),
+        nameAr: (c.nameAr || '').trim(),
         image: thumbnail,
         thumbnail,
         gallery,
@@ -76,6 +100,8 @@ function normalizeProduct(form) {
   return {
     name: form.name.trim(),
     description: form.description.trim(),
+    nameAr: (form.nameAr || '').trim(),
+    descriptionAr: (form.descriptionAr || '').trim(),
     price: Number(form.price) || 0,
     discount: Number(form.discount) || 0,
     category: form.category,
@@ -89,7 +115,7 @@ function normalizeProduct(form) {
   };
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, onRejected) {
   if (!file) return null;
   const formData = new FormData();
   formData.append('image', file);
@@ -98,6 +124,11 @@ async function uploadFile(file) {
     const res = await api.uploadProductImage(formData);
     if (res?.url) return res.url;
   } catch (err) {
+    // The server refused the file itself (wrong content, too large...): tell the admin instead of embedding it as a data URL.
+    if (err?.status >= 400 && err?.status < 500) {
+      onRejected?.(err.message);
+      return null;
+    }
     console.warn('API upload failed, falling back to data URL:', err);
   }
 
@@ -123,9 +154,12 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
   const [form, setForm] = useState(null);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
-  const [mobileView, setMobileView] = useState('list'); // 'list' | 'form'
+  const [modalOpen, setModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [reviewsProductId, setReviewsProductId] = useState(null);
   const [videoToDelete, setVideoToDelete] = useState(null);
   const [videoUploading, setVideoUploading] = useState(false);
 
@@ -143,14 +177,18 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
       isHidden: latestProduct.isHidden === true || latestProduct.is_active === false,
     });
     setMessage('');
-    setMobileView('form');
+    setModalOpen(true);
   };
 
   useEffect(() => {
     if (highlightProductId && products.length > 0) {
       const match = products.find((p) => p.id === highlightProductId);
       if (match) {
-        selectProduct(match);
+        if (highlightReviewId) {
+          setReviewsProductId(match.id);
+        } else {
+          selectProduct(match);
+        }
       }
     }
   }, [highlightProductId, products]);
@@ -202,7 +240,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
       isHidden: false,
     });
     setMessage('');
-    setMobileView('form');
+    setModalOpen(true);
   };
 
   const updateField = (field, value) => {
@@ -249,7 +287,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
 
   const handleUploadThumbnail = async (colorIdx, file) => {
     if (!file) return;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, setMessage);
     if (!url) return;
 
     setMessage('');
@@ -266,7 +304,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
   const handleReplaceThumbnail = async (colorIdx, file) => {
     if (!file) return;
     const oldThumb = form.colors[colorIdx]?.thumbnail;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, setMessage);
     if (!url) return;
 
     setMessage('');
@@ -289,7 +327,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
 
   const handleAddGalleryImage = async (colorIdx, file) => {
     if (!file) return;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, setMessage);
     if (!url) return;
 
     setMessage('');
@@ -306,7 +344,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
   const handleReplaceGalleryImage = async (colorIdx, galleryIdx, file) => {
     if (!file) return;
     const oldUrl = form.colors[colorIdx]?.gallery?.[galleryIdx];
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, setMessage);
     if (!url) return;
 
     setMessage('');
@@ -364,7 +402,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
 
   const handleUploadCollectionImage = async (file) => {
     if (!file) return;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, setMessage);
     if (!url) return;
 
     setMessage('');
@@ -481,6 +519,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
           colors: mapProductColorsToForm(finalObj.colors),
         });
         setMessage('Produit ajouté avec succès.');
+        setModalOpen(false);
       } else {
         const saved = await updateProduct(selectedId, normalized);
         const finalObj = saved || { ...form, ...normalized };
@@ -490,6 +529,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
           colors: mapProductColorsToForm(finalObj.colors),
         });
         setMessage('Produit mis à jour avec succès.');
+        setModalOpen(false);
       }
     } catch (err) {
       setMessage(err.message || 'Erreur lors de la sauvegarde.');
@@ -499,32 +539,27 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
   };
 
   const handleDelete = async () => {
-    if (!selectedId || isNew) return;
+    if (!deleteTarget) return;
+    const targetId = deleteTarget.id;
 
     setSaving(true);
     try {
-      await deleteProduct(selectedId);
-      const next = products.find((p) => p.id !== selectedId);
-      setSelectedId(next?.id ?? null);
-      setForm(
-        next
-          ? {
-              ...next,
-              colors: mapProductColorsToForm(next.colors),
-              sizes: [...next.sizes],
-              stock: { ...next.stock },
-              isHidden: Boolean(next.isHidden),
-            }
-          : null,
-      );
-      setIsNew(false);
-      setShowDeleteConfirm(false);
+      await deleteProduct(targetId);
+      if (selectedId === targetId) setModalOpen(false);
+      if (reviewsProductId === targetId) setReviewsProductId(null);
+      setDeleteTarget(null);
       setMessage('Produit supprimé.');
     } catch (err) {
       setMessage(err.message || 'Erreur lors de la suppression.');
+      setDeleteTarget(null);
     } finally {
       setSaving(false);
     }
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setMessage('');
   };
 
   const stockMatrix = form ? buildStockMatrix(form) : [];
@@ -540,99 +575,280 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
       )
     : products;
 
+  const totalProducts = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalProducts / pageSize));
+  const activePage = Math.min(currentPage, totalPages);
+  const startIndex = (activePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalProducts);
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+  const reviewsProduct = reviewsProductId ? products.find((p) => p.id === reviewsProductId) : null;
+
+  const toggleReviews = (productId) => {
+    setReviewsProductId((current) => (current === productId ? null : productId));
+  };
+
+  useEffect(() => {
+    if (reviewsProductId) {
+      document.getElementById('admin-products-reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [reviewsProductId]);
+
   return (
-    <section className="admin-products-section">
-      <div className="admin-products-toolbar">
-        <div>
+    <section className="admin-panel admin-orders-panel admin-products-table-panel">
+      <div className="admin-panel-header admin-orders-header">
+        <div className="admin-panel-title-area">
           <h2>Produits</h2>
-          <p>Ajoutez, modifiez ou supprimez les produits de la boutique.</p>
+          <span className="admin-draft-count-badge">
+            {totalProducts} produit{totalProducts !== 1 ? 's' : ''}
+            {trimmed && products.length !== totalProducts ? ` sur ${products.length}` : ''}
+          </span>
         </div>
-        <button type="button" className="admin-btn" onClick={startNew}>
-          + Nouveau produit
-        </button>
+
+        <div className="admin-panel-actions">
+          <button type="button" className="admin-primary-btn" onClick={startNew}>
+            <img src="/pictures/addorder.png" alt="" className="admin-btn-icon" />
+            <span>Créer un produit</span>
+          </button>
+        </div>
       </div>
 
-      {message && <p className="admin-message">{message}</p>}
-
-      <div className={`admin-grid admin-grid--mobile-${mobileView}`}>
-        <aside className="admin-products-panel">
-          <h3>
-            Catalogue ({filteredProducts.length}
-            {trimmed && products.length !== filteredProducts.length ? ` / ${products.length}` : ''})
-          </h3>
-
-          <div className="admin-products-search-wrap">
-            <input
-              type="text"
-              className="admin-products-search-input"
-              placeholder="Rechercher par nom, couleur, catégorie…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoComplete="off"
-              aria-label="Rechercher dans le catalogue"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="admin-products-search-clear"
-                onClick={() => setSearchQuery('')}
-                aria-label="Effacer la recherche"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          <div className="product-list">
-            {filteredProducts.length === 0 ? (
-              <p className="admin-empty" style={{ padding: '24px 12px', textAlign: 'center', fontSize: '0.85rem', color: '#888' }}>
-                Aucun produit trouvé {searchQuery ? `pour « ${searchQuery} »` : ''}.
-              </p>
-            ) : (
-              filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  className={`product-list-item${selectedId === product.id && !isNew ? ' active' : ''}${
-                    product.isHidden ? ' product-hidden' : ''
-                  }`}
-                  onClick={() => selectProduct(product)}
-                >
-                  <img src={product.collectionImage || product.mainImage} alt="" />
-                  <div className="product-list-item-info">
-                    <strong>
-                      {product.name}
-                      {product.isHidden && <span className="admin-badge-tag hidden">Masqué</span>}
-                    </strong>
-                    <span>
-                      {formatPrice(product.price)} · {product.category}
-                    </span>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </aside>
-
-        <div className="admin-products-panel">
-          {mobileView === 'form' && (
+      <div className="admin-orders-controls-bar">
+        <div className="admin-orders-search-wrapper">
+          <input
+            type="text"
+            className="admin-orders-search-input"
+            placeholder="Rechercher par nom, couleur, catégorie…"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            autoComplete="off"
+            aria-label="Rechercher dans le catalogue"
+          />
+          {searchQuery && (
             <button
               type="button"
-              className="admin-mobile-back-btn"
-              onClick={() => setMobileView('list')}
+              className="admin-search-clear-btn"
+              onClick={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
+              title="Effacer la recherche"
+              aria-label="Effacer la recherche"
             >
-              ← Retour au catalogue
+              ×
             </button>
           )}
-          {!form ? (
-            <div className="admin-empty">
-              <p>Sélectionnez un produit ou créez-en un nouveau.</p>
+        </div>
+      </div>
+
+      {message && !modalOpen && <p className="admin-message">{message}</p>}
+
+      {filteredProducts.length === 0 ? (
+        <p className="admin-empty">
+          Aucun produit trouvé{searchQuery ? ` pour « ${searchQuery} »` : ''}.
+        </p>
+      ) : (
+        <>
+          <div className="admin-orders-table-wrap">
+            <table className="admin-orders-table admin-products-table">
+              <thead>
+                <tr>
+                  <th className="admin-table-th">Image</th>
+                  <th className="admin-table-th">Produit</th>
+                  <th className="admin-table-th">Catégorie</th>
+                  <th className="admin-table-th">Prix</th>
+                  <th className="admin-table-th">Stock</th>
+                  <th className="admin-table-th">Statut</th>
+                  <th className="admin-table-th col-actions" style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedProducts.map((product) => {
+                  const totalStock = Object.values(product.stock || {}).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+                  const reviewsOpen = reviewsProductId === product.id;
+
+                  return (
+                    <tr
+                      key={product.id}
+                      id={`product-${product.id}`}
+                      className={`admin-order-row${product.isHidden ? ' product-hidden' : ''}`}
+                    >
+                      <td className="admin-table-td">
+                        <img
+                          className="admin-products-table-thumb"
+                          src={product.collectionImage || product.mainImage}
+                          alt=""
+                        />
+                      </td>
+                      <td className="admin-table-td">
+                        <strong>{product.name}</strong>
+                      </td>
+                      <td className="admin-table-td" style={{ textTransform: 'capitalize' }}>
+                        {product.category}
+                      </td>
+                      <td className="admin-table-td">
+                        {hasDiscount(product) ? (
+                          <>
+                            <strong>{formatPrice(getEffectivePrice(product))}</strong>{' '}
+                            <s style={{ color: '#94a3b8' }}>{formatPrice(product.price)}</s>
+                          </>
+                        ) : (
+                          <strong>{formatPrice(product.price)}</strong>
+                        )}
+                      </td>
+                      <td className="admin-table-td">{totalStock}</td>
+                      <td className="admin-table-td">
+                        {product.isHidden ? (
+                          <span className="admin-badge admin-badge--warning">Masqué</span>
+                        ) : (
+                          <span className="admin-badge admin-badge--ok">Visible</span>
+                        )}
+                      </td>
+                      <td className="admin-table-td col-actions">
+                        <div className="admin-table-actions-cell">
+                          <button
+                            type="button"
+                            className={`admin-secondary-btn sm${reviewsOpen ? ' active' : ''}`}
+                            onClick={() => toggleReviews(product.id)}
+                            aria-expanded={reviewsOpen}
+                            title="Afficher les avis de ce produit"
+                            style={{ padding: '4px 10px', height: '32px', display: 'inline-flex', alignItems: 'center' }}
+                          >
+                            Avis
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-secondary-btn sm"
+                            onClick={() => selectProduct(product)}
+                            title="Modifier le produit"
+                            style={{ padding: '4px 10px', height: '32px', display: 'inline-flex', alignItems: 'center' }}
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-icon-action-btn admin-btn-cancel"
+                            onClick={() => setDeleteTarget(product)}
+                            aria-label="Supprimer le produit"
+                            title="Supprimer"
+                          >
+                            <img alt="" className="admin-btn-icon" src="/pictures/cancel.png" />
+                            <span className="admin-tooltip">Supprimer</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="admin-orders-pagination-bar">
+            <div className="admin-pagination-summary">
+              Affichage de {totalProducts === 0 ? 0 : startIndex + 1}–{endIndex} sur {totalProducts} produits
             </div>
-          ) : (
-            <>
+
+            <div className="admin-pagination-right">
+              <div className="admin-pagination-page-size">
+                <select
+                  id="admin-products-page-size-select"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="admin-page-size-select"
+                  aria-label="Sélectionner le nombre de produits par page"
+                >
+                  <option value={20}>20 par page</option>
+                  <option value={50}>50 par page</option>
+                  <option value={100}>100 par page</option>
+                </select>
+              </div>
+
+              <div className="admin-pagination-nav">
+                <button
+                  type="button"
+                  className="admin-pagination-btn"
+                  disabled={activePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  aria-label="Page précédente"
+                >
+                  Précédent
+                </button>
+
+                {getPageNumbers(activePage, totalPages).map((p, idx) =>
+                  p === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="admin-pagination-ellipsis">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`admin-pagination-btn ${p === activePage ? 'active' : ''}`}
+                      onClick={() => setCurrentPage(p)}
+                      aria-label={`Page ${p}`}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+
+                <button
+                  type="button"
+                  className="admin-pagination-btn"
+                  disabled={activePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label="Page suivante"
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {reviewsProduct && (
+        <div className="admin-products-reviews-panel" id="admin-products-reviews">
+          <div className="admin-products-reviews-header">
+            <h3>Avis clients — {reviewsProduct.name}</h3>
+            <button
+              type="button"
+              className="admin-secondary-btn sm"
+              onClick={() => setReviewsProductId(null)}
+            >
+              Fermer
+            </button>
+          </div>
+          <AdminProductReviewsSection productId={reviewsProduct.id} highlightReviewId={highlightReviewId} />
+        </div>
+      )}
+
+      {modalOpen && form && (
+        <div className="admin-modal-overlay" role="presentation">
+          <div
+            className="admin-modal admin-product-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-modal-title"
+          >
+            <div className="admin-modal-header">
+              <h2 id="product-modal-title">{isNew ? 'Nouveau produit' : `Modifier : ${form.name}`}</h2>
+              <button type="button" className="admin-modal-close" onClick={closeModal} aria-label="Fermer">
+                ×
+              </button>
+            </div>
+
+            <div className="admin-product-modal-body">
+              {message && <p className="admin-message">{message}</p>}
+
               <div className="admin-panel-form-header">
                 <div className="admin-panel-title-with-badge">
-                  <h3>{isNew ? 'Nouveau produit' : `Modifier : ${form.name}`}</h3>
                   {form.isHidden ? (
                     <span className="admin-badge admin-badge--warning">● Masqué du site</span>
                   ) : (
@@ -666,6 +882,28 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
                 <div className="form-field">
                   <label htmlFor="description">Description</label>
                   <textarea id="description" value={form.description} onChange={(e) => updateField('description', e.target.value)} />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="nameAr">Nom en arabe (facultatif)</label>
+                  <input
+                    id="nameAr"
+                    dir="rtl"
+                    lang="ar"
+                    value={form.nameAr || ''}
+                    onChange={(e) => updateField('nameAr', e.target.value)}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="descriptionAr">Description en arabe (facultatif)</label>
+                  <textarea
+                    id="descriptionAr"
+                    dir="rtl"
+                    lang="ar"
+                    value={form.descriptionAr || ''}
+                    onChange={(e) => updateField('descriptionAr', e.target.value)}
+                  />
                 </div>
 
                 <div className="form-row">
@@ -762,6 +1000,18 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
                           placeholder="Ex: Noir, Rose, Blanc..."
                           maxLength={20}
                           onChange={(e) => updateColor(colorIdx, 'name', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-field" style={{ marginBottom: 16 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600 }}>Nom de la couleur en arabe (facultatif)</label>
+                        <input
+                          dir="rtl"
+                          lang="ar"
+                          value={color.nameAr || ''}
+                          placeholder="مثال: أسود، وردي، أبيض عاجي"
+                          maxLength={30}
+                          onChange={(e) => updateColor(colorIdx, 'nameAr', e.target.value)}
                         />
                       </div>
 
@@ -999,27 +1249,23 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
                     <button
                       type="button"
                       className="admin-btn danger"
-                      onClick={() => setShowDeleteConfirm(true)}
+                      onClick={() => setDeleteTarget(products.find((p) => p.id === selectedId) || null)}
                       disabled={saving}
                     >
                       Supprimer
                     </button>
                   )}
                 </div>
-
-                {!isNew && selectedId && (
-                  <AdminProductReviewsSection productId={selectedId} highlightReviewId={highlightReviewId} />
-                )}
               </div>
-            </>
-          )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {showDeleteConfirm && (
+      {deleteTarget && (
         <div
           className="admin-modal-overlay"
-          onClick={() => setShowDeleteConfirm(false)}
+          onClick={() => setDeleteTarget(null)}
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-confirm-title"
@@ -1033,13 +1279,13 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
               Supprimer ce produit ?
             </h3>
             <p style={{ margin: '0 0 24px', color: '#666', fontSize: '0.9rem' }}>
-              Cette action est irréversible. Le produit &laquo; {form?.name} &raquo; sera définitivement supprimé.
+              Cette action est irréversible. Le produit &laquo; {deleteTarget.name} &raquo; sera définitivement supprimé.
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
                 type="button"
                 className="admin-btn secondary"
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => setDeleteTarget(null)}
                 disabled={saving}
               >
                 Annuler
@@ -1097,5 +1343,3 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
     </section>
   );
 }
-
-

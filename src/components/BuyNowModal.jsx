@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../i18n/router';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductsContext';
+import { productName } from '../../shared/productText';
 import { api, generateIdempotencyKey } from '../api/client';
-import { formatPrice } from '../utils/formatPrice';
+import { formatPrice } from '../../shared/formatPrice';
+import { DELIVERY_FEE_TND } from '../../shared/delivery';
 import '../styles/buyNowModal.css';
+import { useT } from '../i18n/useT';
 
 
 const TUNISIAN_GOVERNORATES = [
@@ -34,12 +37,13 @@ const TUNISIAN_GOVERNORATES = [
   'Tozeur',
 ];
 
-const DEFAULT_DELIVERY_FEE = 8;
+const DEFAULT_DELIVERY_FEE = DELIVERY_FEE_TND;
 
 export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
+  const { t, known, govName, locale, detailsLabel } = useT();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
-  const { refreshProducts } = useProducts();
+  const { refreshProducts, getProduct } = useProducts();
   const modalRef = useRef(null);
   const idempotencyKeyRef = useRef(null);
 
@@ -85,6 +89,9 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
 
   if (!isOpen || !buyNowItem) return null;
 
+  const liveProduct = getProduct(buyNowItem.productId);
+  const buyNowName = liveProduct ? productName(liveProduct, locale) : buyNowItem.name;
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'phone') {
@@ -102,35 +109,35 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
 
     const trimmedFirstName = (form.firstName || '').trim();
     if (!trimmedFirstName) {
-      errors.firstName = 'Le prénom est obligatoire.';
+      errors.firstName = t('contact.firstNameRequired');
     } else if (!/^[a-zA-ZÀ-ÿ\s'-]+$/.test(trimmedFirstName)) {
-      errors.firstName = 'Le prénom doit contenir uniquement des lettres.';
+      errors.firstName = t('checkout.firstNameLetters');
     } else if (trimmedFirstName.length < 3) {
-      errors.firstName = 'Le prénom doit contenir au moins 3 lettres.';
+      errors.firstName = t('contact.firstNameMin');
     } else if (trimmedFirstName.length > 35) {
-      errors.firstName = 'Le prénom ne doit pas dépasser 35 lettres.';
+      errors.firstName = t('contact.firstNameMax');
     }
 
     const trimmedLastName = (form.lastName || '').trim();
     if (!trimmedLastName) {
-      errors.lastName = 'Le nom est obligatoire.';
+      errors.lastName = t('contact.lastNameRequired');
     } else if (!/^[a-zA-ZÀ-ÿ\s'-]+$/.test(trimmedLastName)) {
-      errors.lastName = 'Le nom doit contenir uniquement des lettres.';
+      errors.lastName = t('buynow.lastNameLetters');
     } else if (trimmedLastName.length < 3) {
-      errors.lastName = 'Le nom doit contenir au moins 3 lettres.';
+      errors.lastName = t('contact.lastNameMin');
     } else if (trimmedLastName.length > 35) {
-      errors.lastName = 'Le nom ne doit pas dépasser 35 lettres.';
+      errors.lastName = t('contact.lastNameMax');
     }
 
     const trimmedPhone = (form.phone || '').trim();
     if (!trimmedPhone) {
-      errors.phone = 'Le numéro de téléphone est obligatoire.';
+      errors.phone = t('checkout.phoneRequired');
     } else if (!/^\d{8}$/.test(trimmedPhone)) {
-      errors.phone = 'Le numéro de téléphone doit contenir exactement 8 chiffres.';
+      errors.phone = t('auth.phone8');
     }
 
     if (!form.governorate) {
-      errors.governorate = 'Veuillez sélectionner un gouvernorat.';
+      errors.governorate = t('checkout.govRequired');
     }
 
     const trimmedAddress = (form.address || '').trim();
@@ -144,7 +151,7 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isAdmin) {
-      setError('Les administrateurs ne peuvent pas passer de commandes.');
+      setError(t('product.adminOrder'));
       return;
     }
 
@@ -190,7 +197,7 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
       navigate('/order-confirmation', { state: { order } });
     } catch (err) {
       // Keep idempotencyKeyRef.current so user retry reuses the same key
-      setError(err.message || 'Impossible de finaliser la commande.');
+      setError(known(err.message) || t('buynow.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -214,12 +221,12 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
     >
       <div className="buy-now-modal" ref={modalRef} role="dialog" aria-modal="true">
         <div className="buy-now-modal-header">
-          <h1 className="buy-now-modal-title">Finaliser la commande</h1>
+          <h1 className="buy-now-modal-title">{t('checkout.title')}</h1>
           <button
             type="button"
             className="buy-now-close-btn"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={t('share.close')}
           >
             &times;
           </button>
@@ -227,11 +234,11 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
 
         <div className="buy-now-layout">
           <form className="buy-now-form" onSubmit={handleSubmit} noValidate>
-            <h2>Informations de livraison</h2>
+            <h2>{t('checkout.info')}</h2>
 
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="buyNowFirstName">Prénom *</label>
+                <label htmlFor="buyNowFirstName">{t('checkout.firstNameLabel')}</label>
                 <input
                   id="buyNowFirstName"
                   name="firstName"
@@ -244,7 +251,7 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
                 )}
               </div>
               <div className="form-group">
-                <label htmlFor="buyNowLastName">Nom *</label>
+                <label htmlFor="buyNowLastName">{t('checkout.lastNameLabel')}</label>
                 <input
                   id="buyNowLastName"
                   name="lastName"
@@ -259,7 +266,7 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
             </div>
 
             <div className="form-group">
-              <label htmlFor="buyNowPhone">Téléphone (8 chiffres) *</label>
+              <label htmlFor="buyNowPhone">{t('checkout.phoneLabel')}</label>
               <input
                 type="tel"
                 id="buyNowPhone"
@@ -276,7 +283,7 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
             </div>
 
             <div className="form-group">
-              <label htmlFor="buyNowGovernorate">Gouvernorat *</label>
+              <label htmlFor="buyNowGovernorate">{t('checkout.govLabel')}</label>
               <select
                 id="buyNowGovernorate"
                 name="governorate"
@@ -284,10 +291,10 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
                 onChange={handleChange}
                 className={fieldErrors.governorate ? 'input-error' : ''}
               >
-                <option value="">Sélectionner un gouvernorat *</option>
+                <option value="">{t('checkout.govPlaceholder')}</option>
                 {TUNISIAN_GOVERNORATES.map((gov) => (
                   <option key={gov} value={gov}>
-                    {gov}
+                    {govName(gov)}
                   </option>
                 ))}
               </select>
@@ -297,12 +304,12 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
             </div>
 
             <div className="form-group">
-              <label htmlFor="buyNowAddress">Adresse (rue, quartier, etc.) *</label>
+              <label htmlFor="buyNowAddress">{t('checkout.addressLabel')}</label>
               <textarea
                 id="buyNowAddress"
                 name="address"
                 rows={3}
-                placeholder="Rue, quartier, bâtiment, appartement..."
+                placeholder={t('checkout.addressPlaceholder')}
                 value={form.address}
                 onChange={handleChange}
                 className={fieldErrors.address ? 'input-error' : ''}
@@ -315,24 +322,24 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
             {error && <p className="buy-now-error">{error}</p>}
 
             <button type="submit" className="buy-now-submit-btn" disabled={submitting}>
-              {submitting ? 'Confirmation...' : 'Confirmer la commande'}
+              {submitting ? t('checkout.confirming') : t('cart.confirm')}
             </button>
           </form>
 
           <aside className="buy-now-summary">
-            <h2>Récapitulatif</h2>
+            <h2>{t('checkout.summary')}</h2>
             <div className="buy-now-item-card">
               {buyNowItem.image && (
                 <img
                   src={buyNowItem.image}
-                  alt={buyNowItem.name}
+                  alt={buyNowName}
                   className="buy-now-item-img"
                 />
               )}
               <div className="buy-now-item-details">
-                <h3 className="buy-now-item-title">{buyNowItem.name}</h3>
+                <h3 className="buy-now-item-title">{buyNowName}</h3>
                 {buyNowItem.details && (
-                  <p className="buy-now-item-variant">{buyNowItem.details}</p>
+                  <p className="buy-now-item-variant">{detailsLabel(buyNowItem.details, liveProduct)}</p>
                 )}
                 <p className="buy-now-item-price-qty">
                   {formatPrice(unitPrice)} × {quantity}
@@ -341,15 +348,15 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
             </div>
 
             <div className="buy-now-row">
-              <span>Sous-total</span>
+              <span>{t('checkout.subtotal')}</span>
               <strong>{formatPrice(subtotal)}</strong>
             </div>
             <div className="buy-now-row">
-              <span>Livraison</span>
+              <span>{t('cart.delivery')}</span>
               <strong>{formatPrice(deliveryFee)}</strong>
             </div>
             <div className="buy-now-row buy-now-total">
-              <span>Total (TTC)</span>
+              <span>{t('cart.total')}</span>
               <strong>{formatPrice(total)}</strong>
             </div>
           </aside>

@@ -1,13 +1,18 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { productPath } from '../../shared/urls';
+import { Link } from '../i18n/router';
 import ProductPrice from '../components/ProductPrice';
 import ProductBadges from '../components/ProductBadges';
 import { useFavorites } from '../context/FavoritesContext';
 import { useProducts } from '../context/ProductsContext';
 import { useAuth } from '../context/AuthContext';
+import { imageVariantPath } from '../../shared/imageVariants.js';
 import '../styles/home.css';
+import { useT } from '../i18n/useT';
+import { productName } from '../../shared/productText';
 
 export default function Favorites() {
+  const { t, known, locale, colorLabel } = useT();
   const { isAdmin } = useAuth();
   const { items: favoriteItems, removeFavorite, loading: favoritesLoading, error: favoritesError } = useFavorites();
   const { getProduct, loading: productsLoading } = useProducts();
@@ -28,7 +33,7 @@ export default function Favorites() {
       id: fav.id,
       productId: fav.productId,
       variantId: fav.variantId || null,
-      name: fav.name || product?.name || '',
+      name: (product && productName(product, locale)) || fav.name || '',
       price,
       discount,
       effectivePrice,
@@ -62,13 +67,13 @@ export default function Favorites() {
   if (isAdmin) {
     return (
       <main className="collections_wrapper" style={{ minHeight: 400, paddingTop: 40 }}>
-        <h1 className="collection_title">Mes Favoris</h1>
+        <h1 className="collection_title">{t('fav.title')}</h1>
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <p style={{ fontSize: 16, color: '#b00020', marginBottom: 24 }}>
-            Les administrateurs ne disposent pas de liste de favoris.
+            {t('fav.adminNone')}
           </p>
           <Link to="/admin" className="tout_button">
-            Retour au panneau d&apos;administration
+            {t('fav.adminBack')}
           </Link>
         </div>
       </main>
@@ -77,31 +82,31 @@ export default function Favorites() {
 
   return (
     <main className="collections_wrapper" style={{ minHeight: 400, paddingTop: 40 }}>
-      <h1 className="collection_title">Mes Favoris</h1>
+      <h1 className="collection_title">{t('fav.title')}</h1>
 
       {favoritesError && (
         <p style={{ textAlign: 'center', color: '#b00020', marginBottom: 16 }} role="alert">
-          {favoritesError}
+          {known(favoritesError)}
         </p>
       )}
 
       {favoritesLoading || productsLoading ? (
-        <p style={{ textAlign: 'center' }}>Chargement...</p>
+        <p style={{ textAlign: 'center' }}>{t('common.loading')}</p>
       ) : favorites.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <p style={{ fontSize: 16, color: '#555', marginBottom: 24 }}>
-            Votre liste de favoris est vide.
+            {t('fav.empty')}
           </p>
           <Link to="/" className="secondary-btn" style={{ display: 'inline-block', marginTop: 16 }}>
-            Découvrir nos produits
+            {t('fav.discover')}
           </Link>
         </div>
       ) : (
         <div className="products_grid">
           {favorites.map((fav) => {
             const variantParts = [];
-            if (fav.colorName) variantParts.push(`Couleur : ${fav.colorName}`);
-            if (fav.size) variantParts.push(`Taille : ${fav.size}`);
+            if (fav.colorName) variantParts.push(t('fav.color', { value: colorLabel(fav.colorName, getProduct(fav.productId)) }));
+            if (fav.size) variantParts.push(t('fav.size', { value: fav.size }));
             const variantText = variantParts.join(' · ');
             const cardKey = fav.favoriteId || `${fav.productId}-${fav.variantId || 'legacy'}`;
             const actionKey = fav.favoriteId || fav.variantId || fav.productId;
@@ -110,19 +115,21 @@ export default function Favorites() {
               <div key={cardKey} className={`product_card${fav.isHidden ? ' product_card--hidden' : ''}`}>
                 <div className="product_image_container" style={{ position: 'relative' }}>
                   <ProductBadges product={fav.product || fav} className="fav_product_badges" />
-                  <Link to={`/product/${fav.productId}`} className="product_card_link">
+                  <Link to={productPath(getProduct(fav.productId) || fav.productId)} className="product_card_link">
                     <img
-                      src={fav.image}
+                      src={imageVariantPath(fav.image, 'card')}
                       alt={fav.name}
                       className="product_img"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </Link>
                   <button
                     type="button"
                     className="fav_image_remove_icon"
                     onClick={(e) => handleRemove(e, fav)}
-                    title="Supprimer des favoris"
-                    aria-label="Supprimer des favoris"
+                    title={t('fav.removeTitle')}
+                    aria-label={t('fav.removeTitle')}
                     disabled={removingId === actionKey}
                   >
                     <svg
@@ -138,7 +145,7 @@ export default function Favorites() {
                 </div>
 
                 <div className="product_info" style={{ width: '100%' }}>
-                  <Link to={`/product/${fav.productId}`} className="product_card_link">
+                  <Link to={productPath(getProduct(fav.productId) || fav.productId)} className="product_card_link">
                     <h3 className="product_name">{fav.name}</h3>
                     <p className="product_price">
                       <ProductPrice product={fav.product || fav} size="small" />
@@ -153,7 +160,7 @@ export default function Favorites() {
                       onClick={(e) => handleRemove(e, fav)}
                       disabled={removingId === actionKey}
                     >
-                      Retirer des favoris
+                      {t('fav.removeButton')}
                     </button>
                   </div>
                 </div>

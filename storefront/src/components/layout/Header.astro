@@ -1,0 +1,73 @@
+---
+// Static header (links are real <a href>); only the search box, the cart and the account link are islands.
+import { localizePath, switchLocalePath, ARABIC_ENABLED } from '../../../../shared/locales.js';
+import { translator } from '../../lib/i18n.ts';
+import type { Locale } from '../../lib/seo/types.ts';
+import HeaderSearch from './HeaderSearch.jsx';
+import HeaderCart from './HeaderCart.jsx';
+import HeaderAccount from './HeaderAccount.jsx';
+
+const { locale } = Astro.props as { locale: Locale };
+const t = translator(locale);
+const href = (path: string) => localizePath(path, locale);
+const otherLocale: Locale = locale === 'ar' ? 'fr' : 'ar';
+const switchHref = switchLocalePath(Astro.url.pathname, Astro.url.search, otherLocale);
+---
+<div class="header_wrapper">
+  <div class="top_utility_bar">
+    <div class="contact_section">
+      <div class="social_icons">
+        <a href="https://www.instagram.com/silky.tn/" target="_blank" rel="noreferrer" class="social_link">
+          <img src="/pictures/instagram.png" alt="Instagram" class="icon_img" />
+        </a>
+        <a href="https://www.tiktok.com/@silky4042" target="_blank" rel="noreferrer" class="social_link">
+          <img src="/pictures/tiktok.png" alt="TikTok" class="icon_img" />
+        </a>
+        <a href="https://www.facebook.com/profile.php?id=61560630851600" target="_blank" rel="noreferrer" class="social_link">
+          <img src="/pictures/facebook.png" alt="Facebook" class="icon_img" />
+        </a>
+        <a href="mailto:silky26tn@gmail.com" class="social_link">
+          <img src="/pictures/gmail.png" alt="Email" class="icon_img" />
+        </a>
+      </div>
+
+      <div class="contact_info">
+        {t('header.contactLine')} <span dir="ltr">+216 25 274 800</span>
+      </div>
+    </div>
+
+    <div class="user_actions">
+      {ARABIC_ENABLED && (
+        <a href={switchHref} class="action_item language_switch" lang={otherLocale} hreflang={otherLocale}>
+          <span>{otherLocale === 'ar' ? 'العربية' : 'Français'}</span>
+        </a>
+      )}
+      <a href={href('/leave-review')} class="action_item reviews_item" title={t('header.reviewsTitle')}>
+        <img src="/pictures/avis.png" alt={t('header.reviewsAlt')} class="reviews_icon_img" />
+      </a>
+      <a href={href('/')} class="action_item">
+        <img src="/pictures/home.png" alt={t('nav.home')} class="action_icon_img" />
+        <span>{t('nav.home')}</span>
+      </a>
+      <a href={href('/favorites')} class="action_item">
+        <img src="/pictures/heart.png" alt={t('nav.favorites')} class="action_icon_img" />
+        <span>{t('nav.favorites')}</span>
+      </a>
+      <HeaderCart client:load locale={locale} />
+      <HeaderAccount client:load locale={locale} />
+    </div>
+  </div>
+
+  <header class="main_header">
+    <a href={href('/')} class="logo">
+      <img class="logo_img" src="/pictures/logo.png" alt="Silky Logo" />
+    </a>
+
+    <nav class="nav_links">
+      <a href={href('/collection/femme')}>{t('nav.women')}</a>
+      <a href={href('/collection/enfant')}>{t('nav.kids')}</a>
+    </nav>
+
+    <HeaderSearch client:load locale={locale} />
+  </header>
+</div>

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../../i18n/router';
 import { useTheme } from '../../context/ThemeContext';
+import { imageVariantPath } from '../../../shared/imageVariants.js';
 import '../../styles/home.css';
+import { useT } from '../../i18n/useT';
 
 const AUTO_ADVANCE_MS = 5000;
 
@@ -11,7 +13,7 @@ function getImageBgStyle(imageUrl, pos) {
   const posY = typeof pos?.y === 'number' ? pos.y : 50;
   const zoom = typeof pos?.zoom === 'number' ? Math.max(100, Math.min(300, pos.zoom)) : 100;
   return {
-    backgroundImage: `url(${imageUrl})`,
+    backgroundImage: `url(${imageVariantPath(imageUrl, 'large')})`,
     backgroundPosition: `${posX}% ${posY}%`,
     backgroundSize: 'cover',
     backgroundRepeat: 'no-repeat',
@@ -21,6 +23,7 @@ function getImageBgStyle(imageUrl, pos) {
 }
 
 export default function HeroRenderer({ heroConfig: propConfig }) {
+  const { t, known } = useT();
   const { theme } = useTheme();
 
   // Prefer passed prop (useful for live preview), fallback to theme.heroConfig or legacy theme properties
@@ -92,11 +95,11 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
     const rightBtn = opt1.rightButton || { text: 'Enfant', destination: '/collection/enfant', visible: true };
 
     return (
-      <main className="hero_container" aria-label="Bannière d'accueil">
+      <main className="hero_container" aria-label={t('hero.banner')}>
         {(mainText || smallText) && (
           <div className="hero_text_overlay">
-            {mainText && <h1>{mainText}</h1>}
-            {smallText && <p>{smallText}</p>}
+            {mainText && <h1>{known(mainText)}</h1>}
+            {smallText && <p>{known(smallText)}</p>}
           </div>
         )}
 
@@ -107,7 +110,7 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
           />
           {leftBtn.visible && leftBtn.text && (
             <Link to={leftBtn.destination || '/collection/femme'} className="cta_button">
-              {leftBtn.text}
+              {known(leftBtn.text)}
             </Link>
           )}
         </section>
@@ -119,7 +122,7 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
           />
           {rightBtn.visible && rightBtn.text && (
             <Link to={rightBtn.destination || '/collection/enfant'} className="cta_button">
-              {rightBtn.text}
+              {known(rightBtn.text)}
             </Link>
           )}
         </section>
@@ -139,17 +142,17 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
     const btn = opt2.button || { text: 'Découvrir', destination: '/collection/femme', visible: true };
 
     return (
-      <main className="hero_single_container" aria-label="Bannière d'accueil">
+      <main className="hero_single_container" aria-label={t('hero.banner')}>
         <div
           className="hero_single_bg"
           style={getImageBgStyle(img, opt2.imagePos)}
         />
         <div className={`hero_single_content ${position}`}>
-          {mainText && <h1>{mainText}</h1>}
-          {smallText && <p>{smallText}</p>}
+          {mainText && <h1>{known(mainText)}</h1>}
+          {smallText && <p>{known(smallText)}</p>}
           {btn.visible && btn.text && (
             <Link to={btn.destination || '/collection/femme'} className="cta_button">
-              {btn.text}
+              {known(btn.text)}
             </Link>
           )}
         </div>
@@ -163,7 +166,7 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
   return (
     <main
       className="hero_carousel_wrapper"
-      aria-label="Carrousel d'accueil"
+      aria-label={t('hero.carousel')}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocusCapture={() => setIsPaused(true)}
@@ -181,6 +184,8 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
           const position = slide.textPosition === 'right' ? 'right' : 'left';
           const btn = slide.button || { text: 'Découvrir', destination: '/collection/femme', visible: true };
           const img = slide.image || '/pictures/femme_example.jpg';
+          // The first slide's title is the home page's main heading; later slides use h2 so the page has one h1.
+          const SlideHeading = idx === 0 ? 'h1' : 'h2';
 
           return (
             <div
@@ -192,11 +197,11 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
                 style={getImageBgStyle(img, slide.imagePos)}
               />
               <div className={`hero_single_content ${position}`}>
-                {slide.mainText && <h1>{slide.mainText}</h1>}
-                {slide.smallText && <p>{slide.smallText}</p>}
+                {slide.mainText && <SlideHeading>{known(slide.mainText)}</SlideHeading>}
+                {slide.smallText && <p>{known(slide.smallText)}</p>}
                 {btn.visible && btn.text && (
                   <Link to={btn.destination || '/collection/femme'} className="cta_button">
-                    {btn.text}
+                    {known(btn.text)}
                   </Link>
                 )}
               </div>
@@ -211,7 +216,7 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
             type="button"
             className="hero_carousel_arrow hero_carousel_arrow_left"
             onClick={prevSlide}
-            aria-label="Diapositive précédente"
+            aria-label={t('hero.prev')}
           >
             ❮
           </button>
@@ -219,7 +224,7 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
             type="button"
             className="hero_carousel_arrow hero_carousel_arrow_right"
             onClick={nextSlide}
-            aria-label="Diapositive suivante"
+            aria-label={t('hero.next')}
           >
             ❯
           </button>
@@ -231,7 +236,7 @@ export default function HeroRenderer({ heroConfig: propConfig }) {
                 type="button"
                 className={`hero_carousel_dot${activeSlideIdx === idx ? ' active' : ''}`}
                 onClick={() => goToSlide(idx)}
-                aria-label={`Aller à la diapositive ${idx + 1}`}
+                aria-label={t('hero.goTo', { n: idx + 1 })}
               />
             ))}
           </div>

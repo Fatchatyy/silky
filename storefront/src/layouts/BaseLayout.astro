@@ -1,0 +1,51 @@
+---
+// Document shell of every page: <html lang dir>, the single <Seo> head, announcement bar, header, footer.
+// One stylesheet (styles/shop.css) holds the shop's CSS in the order the old app evaluated it: reboot first, rtl last.
+import '../styles/shop.css';
+import Seo from '../components/seo/Seo.astro';
+import Header from '../components/layout/Header.astro';
+import Footer from '../components/layout/Footer.astro';
+import AnnouncementBar from '../components/layout/AnnouncementBar.jsx';
+import { dirOf } from '../lib/i18n.ts';
+import { loadTheme, themeCss } from '../lib/theme';
+import type { Locale, SeoProps } from '../lib/seo/types.ts';
+
+const { locale, seo } = Astro.props as { locale: Locale; seo: SeoProps };
+const theme = await loadTheme();
+const announcements = { announcements: theme.announcements, announcementsHidden: theme.announcementsHidden };
+---
+<!doctype html>
+<html lang={locale} dir={dirOf(locale)}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet" />
+    {locale === 'ar' && (
+      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet" data-arabic-font />
+    )}
+    <style is:inline set:html={themeCss(theme)}></style>
+    <Seo {...seo} />
+  </head>
+  <body>
+    <AnnouncementBar client:load locale={locale} theme={announcements} />
+    <Header locale={locale} />
+    <slot />
+    <Footer locale={locale} />
+    <script is:inline>
+      // Keeps --header-height in step with the real header (sticky bars below it use it).
+      (function () {
+        var el = document.querySelector('.header_wrapper');
+        if (!el) return;
+        var update = function () {
+          var h = el.getBoundingClientRect().height;
+          if (h > 0) document.documentElement.style.setProperty('--header-height', h + 'px');
+        };
+        update();
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(update).observe(el);
+        window.addEventListener('resize', update);
+      })();
+    </script>
+  </body>
+</html>

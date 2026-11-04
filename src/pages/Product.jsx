@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { productPath } from '../../shared/urls';
+import { useParams } from 'react-router-dom';
+import { Link, useNavigate } from '../i18n/router';
 import ProductReviewsSection from '../components/ProductReviewsSection';
 import ProductPrice from '../components/ProductPrice';
 import ProductBadges from '../components/ProductBadges';
@@ -10,11 +12,17 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useProducts } from '../context/ProductsContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
-import { getEffectivePrice } from '../utils/price';
-import { buildStockMatrix, getAvailableStock, getStockStatus } from '../utils/stock';
-import { formatPrice } from '../utils/formatPrice';
+import { getEffectivePrice } from '../../shared/price';
+import { buildStockMatrix, getAvailableStock, getStockStatus } from '../../shared/stock';
+import { formatPrice } from '../../shared/formatPrice';
+import { useSeo } from '../seo/useSeo';
+import { productMeta } from '../seo/meta';
+import { imageVariantPath } from '../../shared/imageVariants.js';
+import { useLocale } from '../i18n/LocaleContext';
 import '../styles/product.css';
 import '../styles/product-admin.css';
+import { useT } from '../i18n/useT';
+import { hasArabicProduct, localizedProductView, productDescription, productImageAlt, productName } from '../../shared/productText';
 
 function slugify(text) {
   return String(text || '')
@@ -35,6 +43,7 @@ function mapProductColorsToForm(rawColors = []) {
     return {
       id: c.id || slugify(c.name) || `color-${i}`,
       name: (c.name || '').trim(),
+      nameAr: (c.nameAr || '').trim(),
       thumbnail,
       gallery,
     };
@@ -51,6 +60,7 @@ function normalizeProduct(form) {
       return {
         id: c.id || slugify(c.name) || `color-${i}`,
         name: c.name.trim(),
+        nameAr: (c.nameAr || '').trim(),
         image: thumbnail,
         thumbnail,
         gallery,
@@ -76,6 +86,8 @@ function normalizeProduct(form) {
   return {
     name: form.name.trim(),
     description: form.description.trim(),
+    nameAr: (form.nameAr || '').trim(),
+    descriptionAr: (form.descriptionAr || '').trim(),
     price: Number(form.price) || 0,
     discount: Number(form.discount) || 0,
     category: form.category,
@@ -89,7 +101,7 @@ function normalizeProduct(form) {
   };
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, onRejected) {
   if (!file) return null;
   const formData = new FormData();
   formData.append('image', file);
@@ -98,6 +110,11 @@ async function uploadFile(file) {
     const res = await api.uploadProductImage(formData);
     if (res?.url) return res.url;
   } catch (err) {
+    // The server refused the file itself (wrong content, too large...): tell the admin instead of embedding it as a data URL.
+    if (err?.status >= 400 && err?.status < 500) {
+      onRejected?.(err.message);
+      return null;
+    }
     console.warn('API upload failed, falling back to data URL:', err);
   }
 
@@ -117,6 +134,7 @@ function formatVideoTime(seconds) {
 }
 
 function ProductVideoPlayer({ videoUrl }) {
+  const { t, known } = useT();
   const videoRef = useRef(null);
   const progressRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -208,7 +226,7 @@ function ProductVideoPlayer({ videoUrl }) {
           type="button"
           className="product_video_center_play"
           onClick={togglePlayPause}
-          aria-label="Lire la vidéo"
+          aria-label={t('product.videoPlay')}
         >
           <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
             <path d="M8 5v14l11-7z" />
@@ -245,7 +263,7 @@ function ProductVideoPlayer({ videoUrl }) {
           ref={progressRef}
           onClick={handleSeek}
           role="slider"
-          aria-label="Progression de lecture"
+          aria-label={t('product.videoProgress')}
           aria-valuemin="0"
           aria-valuemax={duration || 100}
           aria-valuenow={currentTime}
@@ -267,7 +285,8 @@ function ProductVideoPlayer({ videoUrl }) {
 }
 
 export default function Product() {
-  const { id } = useParams();
+  const { t, known, colorLabel } = useT();
+  const { slug: productKey } = useParams();
   const navigate = useNavigate();
   const {
     getProduct,
@@ -281,8 +300,23 @@ export default function Product() {
   const { addItem } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { isAdmin } = useAuth();
+  const { locale } = useLocale();
 
-  const product = getProduct(id);
+  const product = getProduct(productKey);
+
+  // The address of a product is its slug. A link made with its id (an old share, a hero button) moves to the slug
+  // address, as the server does with a 301.
+  useEffect(() => {
+    if (product?.slug && productKey && productKey !== product.slug) navigate(productPath(product), { replace: true });
+  }, [product, productKey, navigate]);
+
+  // Head metadata: a product this visitor cannot see is described as "introuvable" and not indexed. While the
+  // product loads the head is left as is (the server-written one on a first load, see SeoManager).
+  const visibleProduct = product && (!product.isHidden || isAdmin) ? product : null;
+  const seoMeta = productMeta(localizedProductView(visibleProduct, locale), locale);
+  // Same rule as the server: an Arabic page without a full Arabic translation is not indexed.
+  if (visibleProduct && locale === 'ar' && !hasArabicProduct(visibleProduct)) seoMeta.robots = 'noindex';
+  useSeo(loading && !product ? null : seoMeta);
 
   // Customer view states
   const [quantity, setQuantity] = useState(1);
@@ -368,6 +402,20 @@ export default function Product() {
     }
     return result;
   }, [activeProduct]);
+
+  // Alt text of a gallery photo: product name, its colour and, when the colour has several photos, which one.
+  const photoAlt = (thumb) => {
+    const name = productName(activeProduct, locale);
+    if (!thumb) return name;
+    const sameColor = allThumbnails.filter((item) => item.colorId === thumb.colorId);
+    return productImageAlt(name, {
+      colorName: thumb.colorName ? colorLabel(thumb.colorName, activeProduct) : '',
+      positionText: sameColor.length > 1 ? t('product.photoOf', { n: sameColor.indexOf(thumb) + 1, total: sameColor.length }) : '',
+    });
+  };
+  const mainImageThumb =
+    allThumbnails.find((item) => item.src === mainImage && (selectedColor?.id ? item.colorId === selectedColor.id : true)) ||
+    allThumbnails.find((item) => item.src === mainImage);
 
   useEffect(() => {
     if (!product) return;
@@ -649,7 +697,7 @@ export default function Product() {
 
   const handleUploadThumbnail = async (colorIdx, file) => {
     if (!file) return;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, (text) => setAdminMessage({ type: 'error', text }));
     if (!url) return;
 
     setAdminMessage({ type: '', text: '' });
@@ -667,7 +715,7 @@ export default function Product() {
   const handleReplaceThumbnail = async (colorIdx, file) => {
     if (!file) return;
     const oldThumb = draft.colors[colorIdx]?.thumbnail;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, (text) => setAdminMessage({ type: 'error', text }));
     if (!url) return;
 
     setAdminMessage({ type: '', text: '' });
@@ -694,7 +742,7 @@ export default function Product() {
 
   const handleAddGalleryImage = async (colorIdx, file) => {
     if (!file) return;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, (text) => setAdminMessage({ type: 'error', text }));
     if (!url) return;
 
     setAdminMessage({ type: '', text: '' });
@@ -711,7 +759,7 @@ export default function Product() {
   const handleReplaceGalleryImage = async (colorIdx, galleryIdx, file) => {
     if (!file) return;
     const oldUrl = draft.colors[colorIdx]?.gallery?.[galleryIdx];
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, (text) => setAdminMessage({ type: 'error', text }));
     if (!url) return;
 
     setAdminMessage({ type: '', text: '' });
@@ -837,7 +885,7 @@ export default function Product() {
 
   const handleUploadCollectionImage = async (file) => {
     if (!file) return;
-    const url = await uploadFile(file);
+    const url = await uploadFile(file, (text) => setAdminMessage({ type: 'error', text }));
     if (!url) return;
 
     setAdminMessage({ type: '', text: '' });
@@ -981,6 +1029,7 @@ export default function Product() {
     : 0;
 
   const stockStatus = getStockStatus(availableStock);
+  const stockText = t(`stock.${stockStatus.status}`, { qty: availableStock });
 
   const buildDetails = () => {
     const parts = [];
@@ -1022,23 +1071,23 @@ export default function Product() {
 
   const validateSelection = () => {
     if (isAdmin) {
-      setCartMessage('Les administrateurs ne peuvent pas passer de commandes ou ajouter de favoris.');
+      setCartMessage(t('product.adminOrderFav'));
       return false;
     }
     if (activeProduct.colors?.length && !selectedColor) {
-      setCartMessage('Veuillez sélectionner une couleur.');
+      setCartMessage(t('product.pickColor'));
       return false;
     }
     if (activeProduct.sizes?.length && !selectedSize) {
-      setCartMessage('Veuillez sélectionner une taille.');
+      setCartMessage(t('product.pickSize'));
       return false;
     }
     if (quantity > availableStock) {
-      setCartMessage(`Stock insuffisant (${availableStock} disponible(s)).`);
+      setCartMessage(t('product.stockInsufficient', { n: availableStock }));
       return false;
     }
     if (availableStock <= 0) {
-      setCartMessage('Ce produit est en rupture de stock.');
+      setCartMessage(t('product.outOfStockMsg'));
       return false;
     }
     return true;
@@ -1046,15 +1095,15 @@ export default function Product() {
 
   const handleAddToCart = async () => {
     if (isAdmin) {
-      setCartMessage('Les administrateurs ne peuvent pas passer de commandes.');
+      setCartMessage(t('product.adminOrder'));
       return;
     }
     if (!activeProduct || !validateSelection()) return;
     try {
       await addItem(buildCartItem());
-      setCartMessage('Produit ajouté au panier.');
+      setCartMessage(t('product.added'));
     } catch (err) {
-      setCartMessage(err.message || "Impossible d'ajouter au panier.");
+      setCartMessage(known(err.message) || t('product.addFailed'));
     }
   };
 
@@ -1064,7 +1113,7 @@ export default function Product() {
 
   const handleCommander = () => {
     if (isAdmin) {
-      setCartMessage('Les administrateurs ne peuvent pas passer de commandes.');
+      setCartMessage(t('product.adminOrder'));
       return;
     }
     if (!activeProduct || !validateSelection()) return;
@@ -1085,7 +1134,7 @@ export default function Product() {
   if (loading) {
     return (
       <main className="product_page_wrapper">
-        <p style={{ padding: 40, textAlign: 'center' }}>Chargement...</p>
+        <p style={{ padding: 40, textAlign: 'center' }}>{t('common.loading')}</p>
       </main>
     );
   }
@@ -1094,10 +1143,10 @@ export default function Product() {
   if (!product || (product.isHidden && !isAdmin)) {
     return (
       <main className="product_page_wrapper">
-        <div style={{ padding: 40, textAlign: 'center' }}>
-          <p>Produit non disponible.</p>
+        <div className="product_unavailable">
+          <p>{t('product.unavailable')}</p>
           <Link to="/" className="collection_btn" style={{ display: 'inline-block', marginTop: 16 }}>
-            Retour à l&apos;accueil
+            {t('notfound.home')}
           </Link>
         </div>
       </main>
@@ -1186,7 +1235,7 @@ export default function Product() {
             type="button"
             className="scroll_arrow"
             onClick={() => handleVerticalArrow('up')}
-            aria-label="Défiler vers le haut"
+            aria-label={t('marquee.up')}
           >
             <span className="scroll_arrow_icon_vertical">❮</span>
           </button>
@@ -1319,7 +1368,12 @@ export default function Product() {
                     className={`thumb_box_vertical${isSelected ? ' active' : ''}`}
                     onClick={() => handleThumbnailSelect(thumb, index)}
                   >
-                    <img src={thumb.src} alt="" />
+                    <img
+                      src={imageVariantPath(thumb.src, 'card')}
+                      alt={photoAlt(thumb)}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </button>
                 );
               })
@@ -1330,7 +1384,7 @@ export default function Product() {
             type="button"
             className="scroll_arrow"
             onClick={() => handleVerticalArrow('down')}
-            aria-label="Défiler vers le bas"
+            aria-label={t('marquee.down')}
           >
             <span className="scroll_arrow_icon_vertical">❯</span>
           </button>
@@ -1360,8 +1414,10 @@ export default function Product() {
             <ProductBadges product={activeProduct} />
             <img
               className="main_product_img"
-              src={mainImage || activeProduct.mainImage}
-              alt={activeProduct.name}
+              src={imageVariantPath(mainImage || activeProduct.mainImage, 'large')}
+              alt={photoAlt(mainImageThumb)}
+              fetchPriority="high"
+              decoding="async"
               style={{
                 transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
                 transform: isZoomed ? 'scale(2.2)' : 'scale(1)',
@@ -1379,14 +1435,14 @@ export default function Product() {
               className="product_section_btn"
               onClick={() => scrollToSection('product_videos_section')}
             >
-              Voir la vidéo du produit
+              {t('product.seeVideo')}
             </button>
             <button
               type="button"
               className="product_section_btn"
               onClick={() => scrollToSection('product_reviews_container')}
             >
-              Voir les avis clients
+              {t('product.seeReviews')}
             </button>
           </div>
         </div>
@@ -1403,10 +1459,10 @@ export default function Product() {
               onChange={(e) => updateDraftField('name', e.target.value)}
             />
           ) : (
-            <h1 className="product_title">{activeProduct.name}</h1>
+            <h1 className="product_title">{productName(activeProduct, locale)}</h1>
           )}
 
-          <h2 className="section_subtitle">DÉTAILS</h2>
+          <h2 className="section_subtitle">{t('product.details')}</h2>
 
           {/* Product Description (Inline editable in edit mode) */}
           {isEditing ? (
@@ -1417,7 +1473,29 @@ export default function Product() {
               onChange={(e) => updateDraftField('description', e.target.value)}
             />
           ) : (
-            <p className="product_description">{activeProduct.description}</p>
+            <p className="product_description">{productDescription(activeProduct, locale)}</p>
+          )}
+
+          {isEditing && (
+            <>
+              <input
+                type="text"
+                className="admin_inline_title"
+                dir="rtl"
+                lang="ar"
+                value={draft.nameAr || ''}
+                placeholder="الاسم بالعربية (اختياري)"
+                onChange={(e) => updateDraftField('nameAr', e.target.value)}
+              />
+              <textarea
+                className="admin_inline_desc"
+                dir="rtl"
+                lang="ar"
+                value={draft.descriptionAr || ''}
+                placeholder="الوصف بالعربية (اختياري)"
+                onChange={(e) => updateDraftField('descriptionAr', e.target.value)}
+              />
+            </>
           )}
 
           {/* Color Section */}
@@ -1425,7 +1503,7 @@ export default function Product() {
             <div className="color_section">
               <div className="color_header_line">
                 <span className="section_subtitle" style={{ marginBottom: 0 }}>
-                  COULEUR
+                  {t('product.color')}
                 </span>
                 {isEditing && selectedColor ? (
                   <input
@@ -1452,8 +1530,29 @@ export default function Product() {
                   />
                 ) : (
                   <span className="selected_value_text">
-                    {selectedColor?.name ?? 'Sélectionnez une couleur'}
+                    {selectedColor?.name ? colorLabel(selectedColor.name, activeProduct) : t('product.chooseColor')}
                   </span>
+                )}
+                {isEditing && selectedColor && (
+                  <input
+                    type="text"
+                    className="admin_inline_color_name_input"
+                    dir="rtl"
+                    lang="ar"
+                    value={selectedColor.nameAr || ''}
+                    placeholder="اسم اللون بالعربية (اختياري)"
+                    maxLength={30}
+                    onChange={(e) => {
+                      const val = e.target.value.slice(0, 30);
+                      const colorIdx = draft.colors.findIndex(
+                        (c, i) => c === selectedColor || c.id === selectedColor.id || `color-${i}` === selectedColor.id,
+                      );
+                      if (colorIdx !== -1) {
+                        updateDraftColor(colorIdx, 'nameAr', val);
+                        setSelectedColor((prev) => ({ ...prev, nameAr: val }));
+                      }
+                    }}
+                  />
                 )}
               </div>
 
@@ -1462,7 +1561,7 @@ export default function Product() {
                   type="button"
                   className="scroll_arrow"
                   onClick={() => handleHorizontalArrow('left')}
-                  aria-label="Défiler vers la gauche"
+                  aria-label={t('marquee.left')}
                 >
                   ❮
                 </button>
@@ -1610,9 +1709,9 @@ export default function Product() {
                             selectedColor?.id === color.id ? ' active' : ''
                           }${isColorUnavailable ? ' unavailable' : ''}`}
                           onClick={() => handleColorSelect(color)}
-                          title={isColorUnavailable ? `${color.name} (Indisponible)` : color.name}
+                          title={isColorUnavailable ? t('product.colorUnavailable', { name: colorLabel(color.name, activeProduct) }) : colorLabel(color.name, activeProduct)}
                         >
-                          <img src={colorMainImage} alt={color.name} />
+                          <img src={colorMainImage} alt={colorLabel(color.name, activeProduct)} />
                         </button>
                       );
                     })
@@ -1623,7 +1722,7 @@ export default function Product() {
                   type="button"
                   className="scroll_arrow"
                   onClick={() => handleHorizontalArrow('right')}
-                  aria-label="Défiler vers la droite"
+                  aria-label={t('marquee.right')}
                 >
                   ❯
                 </button>
@@ -1636,10 +1735,10 @@ export default function Product() {
             <div className="size_section">
               <div className="color_header_line">
                 <span className="section_subtitle" style={{ marginBottom: 0 }}>
-                  Taille
+                  {t('product.sizeLabel')}
                 </span>
                 <span className="selected_value_text">
-                  {selectedSize ? `Taille ${selectedSize}` : 'Sélectionnez une taille'}
+                  {selectedSize ? t('product.sizeValue', { size: selectedSize }) : t('product.chooseSize')}
                 </span>
               </div>
 
@@ -1700,7 +1799,7 @@ export default function Product() {
                           setSelectedSize(size);
                           setCartMessage('');
                         }}
-                        title={isSizeUnavailable ? `Taille ${size} (Indisponible)` : `Taille ${size}`}
+                        title={isSizeUnavailable ? t('product.sizeUnavailable', { size }) : t('product.sizeValue', { size })}
                       >
                         {size}
                       </button>
@@ -1903,7 +2002,7 @@ export default function Product() {
             </div>
           ) : (
             <div className="price_section">
-              <span className="price_label">Prix</span>
+              <span className="price_label">{t('product.price')}</span>
               <ProductPrice product={activeProduct} size="large" />
             </div>
           )}
@@ -1931,11 +2030,11 @@ export default function Product() {
                       +
                     </button>
                   </div>
-                  <span className="qty_label">Quantité</span>
+                  <span className="qty_label">{t('product.qty')}</span>
                 </div>
 
                 <button type="button" className="add_to_cart_btn" onClick={handleAddToCart}>
-                  Ajouter Au Panier
+                  {t('product.addToCart')}
                 </button>
 
                 <button
@@ -1943,7 +2042,7 @@ export default function Product() {
                   className={`icon_action_btn${isFav ? ' icon_action_btn_active' : ''}`}
                   onClick={() => {
                     if (isAdmin) {
-                      setCartMessage('Les administrateurs ne peuvent pas ajouter de favoris.');
+                      setCartMessage(t('product.adminFav'));
                       return;
                     }
                     toggleFavorite({
@@ -1955,16 +2054,16 @@ export default function Product() {
                   }}
                 >
                   <div className="custom_icon_gap">
-                    <img src="/pictures/heart.png" alt="Favoris" />
+                    <img src="/pictures/heart.png" alt={t('product.fav')} />
                   </div>
-                  <span>{isFav ? 'Ajouté' : 'Favoris'}</span>
+                  <span>{isFav ? t('product.favAdded') : t('product.fav')}</span>
                 </button>
 
                 <button type="button" className="icon_action_btn" onClick={handleShare}>
                   <div className="custom_icon_gap">
-                    <img src="/pictures/share.png" alt="Partagez" />
+                    <img src="/pictures/share.png" alt={t('product.share')} />
                   </div>
-                  <span>Partagez</span>
+                  <span>{t('product.share')}</span>
                 </button>
               </div>
 
@@ -1975,25 +2074,25 @@ export default function Product() {
                   stockStatus.status || (stockStatus.inStock ? 'available' : 'out')
                 }${stockStatus.inStock ? '' : ' out-of-stock'}`}
               >
-                <span className="stock_bullet">•</span> Stock: {stockStatus.text}
+                <span className="stock_bullet">•</span> {t('product.stockLabel')} {stockText}
               </p>
 
               <button type="button" className="buy_now_btn" onClick={handleCommander}>
-                Commander
+                {t('product.order')}
               </button>
 
               <div className="guarantee_row">
                 <div className="badge_icon_gap">
-                  <img src="/pictures/truckdilevery.png" alt="Livraison" />
+                  <img src="/pictures/truckdilevery.png" alt={t('product.deliveryAlt')} />
                 </div>
-                <span>Livraison chez vous sous 24h - 48h.</span>
+                <span>{t('product.delivery')}</span>
               </div>
 
               <div className="guarantee_row">
                 <div className="badge_icon_gap">
-                  <img src="/pictures/echange.png" alt="Échange" />
+                  <img src="/pictures/echange.png" alt={t('product.exchangeAlt')} />
                 </div>
-                <span>Échange possible dans 48 heures.</span>
+                <span>{t('product.exchange')}</span>
               </div>
             </>
           )}
@@ -2004,8 +2103,8 @@ export default function Product() {
          Product Videos Showcase Section
          ========================================================================== */}
       {activeProduct?.videos?.length > 0 && (
-        <section className="product_videos_section" id="product_videos_section" aria-label="Vidéos du produit">
-          <h2 className="product_videos_title">Vidéos du produit</h2>
+        <section className="product_videos_section" id="product_videos_section" aria-label={t('product.videosTitle')}>
+          <h2 className="product_videos_title">{t('product.videosTitle')}</h2>
 
           {/* Main 9:16 Video Container with custom restricted controls (Play/Pause & Seekbar ONLY) */}
           <ProductVideoPlayer
@@ -2020,7 +2119,7 @@ export default function Product() {
                 className="scroll_arrow"
                 onClick={() => handleVideoArrow('left')}
                 disabled={selectedVideoIdx === 0}
-                aria-label="Vidéo précédente"
+                aria-label={t('product.videoPrev')}
               >
                 ❮
               </button>
@@ -2042,7 +2141,7 @@ export default function Product() {
                           }
                         }
                       }}
-                      aria-label={`Vidéo ${idx + 1}`}
+                      aria-label={t('product.videoN', { n: idx + 1 })}
                     >
                       <video src={vid.videoUrl} muted preload="metadata" />
                       <span className="product_video_thumb_play_icon">▶</span>
@@ -2056,7 +2155,7 @@ export default function Product() {
                 className="scroll_arrow"
                 onClick={() => handleVideoArrow('right')}
                 disabled={selectedVideoIdx === activeProduct.videos.length - 1}
-                aria-label="Vidéo suivante"
+                aria-label={t('product.videoNext')}
               >
                 ❯
               </button>
@@ -2069,21 +2168,23 @@ export default function Product() {
 
       {recommendations.length > 0 && (
         <section className="recommendations_section">
-          <h2 className="recommendations_title">VOUS POURRIEZ AIMER</h2>
+          <h2 className="recommendations_title">{t('product.recommended')}</h2>
 
           <div className="recommendations_grid">
             {recommendations.map((rec) => (
               <div key={rec.id} className={`product_card${rec.isHidden ? ' product_card--hidden' : ''}`}>
-                <Link to={`/product/${rec.id}`} className="product_card_link">
+                <Link to={productPath(rec)} className="product_card_link">
                   <div className="product_card_img_wrapper">
                     <ProductBadges product={rec} />
                     <img
-                      src={rec.collectionImage || rec.mainImage}
-                      alt={rec.name}
+                      src={imageVariantPath(rec.collectionImage || rec.mainImage, 'card')}
+                      alt={productName(rec, locale)}
                       className="product_card_img"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </div>
-                  <h3 className="product_card_title">{rec.name}</h3>
+                  <h3 className="product_card_title">{productName(rec, locale)}</h3>
                   <p className="product_card_price">
                     <ProductPrice product={rec} size="small" />
                   </p>
@@ -2094,7 +2195,7 @@ export default function Product() {
 
           <div className="recommendations_cta_wrapper">
             <Link to={`/collection/${activeProduct.category}`} className="collection_btn">
-              TOUTE LA COLLECTION {activeProduct.category === 'femme' ? 'FEMME' : 'ENFANT'}
+              {t(activeProduct.category === 'femme' ? 'collection.fullWomen' : 'collection.fullKids')}
             </Link>
           </div>
         </section>

@@ -1,0 +1,24 @@
+---
+import { localizePath } from '../../../shared/locales.js';
+import { translator } from '../lib/i18n.ts';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { locale, unavailable = false } = Astro.props as { locale: Locale; unavailable?: boolean };
+const t = translator(locale);
+---
+<main>
+  <section class="about_section">
+    {unavailable ? (
+      <>
+        <h1 class="about_heading">{locale === 'ar' ? 'الخدمة غير متاحة مؤقتًا' : 'Service momentanément indisponible'}</h1>
+        <p>{locale === 'ar' ? 'يرجى المحاولة مرة أخرى بعد قليل.' : 'Merci de réessayer dans quelques instants.'}</p>
+      </>
+    ) : (
+      <>
+        <h1 class="about_heading">{t('notfound.title')}</h1>
+        <p>{t('notfound.text')}</p>
+      </>
+    )}
+    <p><a href={localizePath('/', locale)}>{t('notfound.home')}</a></p>
+  </section>
+</main>

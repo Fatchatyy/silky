@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '../i18n/router';
 import { useCart } from '../context/CartContext';
 import { useProducts } from '../context/ProductsContext';
+import { productName } from '../../shared/productText';
 import { useAuth } from '../context/AuthContext';
 import { api, generateIdempotencyKey } from '../api/client';
-import { formatPrice } from '../utils/formatPrice';
+import { formatPrice } from '../../shared/formatPrice';
 import '../styles/checkout.css';
+import { useT } from '../i18n/useT';
 
 
 const TUNISIAN_GOVERNORATES = [
@@ -36,10 +38,17 @@ const TUNISIAN_GOVERNORATES = [
 ];
 
 export default function Checkout() {
+  const { t, known, govName, locale, detailsLabel } = useT();
   const navigate = useNavigate();
   const { isAdmin, user } = useAuth();
   const { items, subtotal, deliveryFee, total, refreshCart, loading } = useCart();
-  const { refreshProducts } = useProducts();
+  const { refreshProducts, getProduct } = useProducts();
+  // Cart lines keep the French name that was saved with them (it is what the order will hold); on Arabic pages
+  // the product's Arabic name is shown instead when the product has one.
+  const itemName = (item) => {
+    const product = getProduct(item.productId);
+    return product ? productName(product, locale) : item.name;
+  };
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -79,40 +88,40 @@ export default function Checkout() {
 
     const trimmedFirstName = (form.firstName || '').trim();
     if (!trimmedFirstName) {
-      errors.firstName = 'Le prénom est obligatoire.';
+      errors.firstName = t('contact.firstNameRequired');
     } else if (!/^[a-zA-ZÀ-ÿ\s'-]+$/.test(trimmedFirstName)) {
-      errors.firstName = 'Le prénom doit contenir uniquement des lettres.';
+      errors.firstName = t('checkout.firstNameLetters');
     } else if (trimmedFirstName.length < 3) {
-      errors.firstName = 'Le prénom doit contenir au moins 3 lettres.';
+      errors.firstName = t('contact.firstNameMin');
     } else if (trimmedFirstName.length > 35) {
-      errors.firstName = 'Le prénom ne doit pas dépasser 35 lettres.';
+      errors.firstName = t('contact.firstNameMax');
     }
 
     const trimmedLastName = (form.lastName || '').trim();
     if (!trimmedLastName) {
-      errors.lastName = 'Le nom de famille est obligatoire.';
+      errors.lastName = t('checkout.lastNameRequired');
     } else if (!/^[a-zA-ZÀ-ÿ\s'-]+$/.test(trimmedLastName)) {
-      errors.lastName = 'Le nom de famille doit contenir uniquement des lettres.';
+      errors.lastName = t('checkout.lastNameLetters');
     } else if (trimmedLastName.length < 3) {
-      errors.lastName = 'Le nom de famille doit contenir au moins 3 lettres.';
+      errors.lastName = t('checkout.lastNameMin');
     } else if (trimmedLastName.length > 35) {
-      errors.lastName = 'Le nom de famille ne doit pas dépasser 35 lettres.';
+      errors.lastName = t('checkout.lastNameMax');
     }
 
     const trimmedPhone = (form.phone || '').trim();
     if (!trimmedPhone) {
-      errors.phone = 'Le numéro de téléphone est obligatoire.';
+      errors.phone = t('checkout.phoneRequired');
     } else if (!/^\d{8}$/.test(trimmedPhone)) {
-      errors.phone = 'Le numéro de téléphone doit contenir exactement 8 chiffres.';
+      errors.phone = t('auth.phone8');
     }
 
     if (!form.governorate) {
-      errors.governorate = 'Veuillez sélectionner un gouvernorat.';
+      errors.governorate = t('checkout.govRequired');
     }
 
     const trimmedAddress = (form.address || '').trim();
     if (!trimmedAddress) {
-      errors.address = "L'adresse de livraison est obligatoire.";
+      errors.address = t('checkout.addressRequired');
     }
 
     return errors;
@@ -121,7 +130,7 @@ export default function Checkout() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isAdmin) {
-      setError('Les administrateurs ne peuvent pas passer de commandes.');
+      setError(t('product.adminOrder'));
       return;
     }
     if (!items.length) return;
@@ -163,7 +172,7 @@ export default function Checkout() {
       navigate('/order-confirmation', { state: { order } });
     } catch (err) {
       // Keep idempotencyKeyRef.current so user retry reuses the same key
-      setError(err.message || 'Impossible de finaliser la commande');
+      setError(known(err.message) || t('checkout.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -173,8 +182,8 @@ export default function Checkout() {
     return (
       <main className="checkout-page">
         <section className="checkout-section">
-          <h1 className="checkout-title">Finaliser la commande</h1>
-          <p className="checkout-empty">Chargement du panier...</p>
+          <h1 className="checkout-title">{t('checkout.title')}</h1>
+          <p className="checkout-empty">{t('cart.loading')}</p>
         </section>
       </main>
     );
@@ -184,12 +193,12 @@ export default function Checkout() {
     return (
       <main className="checkout-page">
         <section className="checkout-section">
-          <h1 className="checkout-title">Finaliser la commande</h1>
+          <h1 className="checkout-title">{t('checkout.title')}</h1>
           <p className="checkout-empty" style={{ color: '#b00020' }}>
-            Les administrateurs ne peuvent pas passer de commandes client.
+            {t('checkout.adminCannotClient')}
           </p>
           <Link to="/admin" className="checkout-back-link" style={{ display: 'inline-block', marginTop: 16 }}>
-            Retour au panneau d&apos;administration
+            {t('contact.backAdmin')}
           </Link>
         </section>
       </main>
@@ -200,10 +209,10 @@ export default function Checkout() {
     return (
       <main className="checkout-page">
         <section className="checkout-section">
-          <h1 className="checkout-title">Finaliser la commande</h1>
-          <p className="checkout-empty">Votre panier est vide.</p>
+          <h1 className="checkout-title">{t('checkout.title')}</h1>
+          <p className="checkout-empty">{t('cart.empty')}</p>
           <Link to="/" className="checkout-back-link">
-            Retour à la boutique
+            {t('checkout.backShop')}
           </Link>
         </section>
       </main>
@@ -213,15 +222,15 @@ export default function Checkout() {
   return (
     <main className="checkout-page">
       <section className="checkout-section">
-        <h1 className="checkout-title">Finaliser la commande</h1>
+        <h1 className="checkout-title">{t('checkout.title')}</h1>
 
         <div className="checkout-layout">
           <form className="checkout-form" onSubmit={handleSubmit} noValidate>
-            <h2>Informations de livraison</h2>
+            <h2>{t('checkout.info')}</h2>
 
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="firstName">Prénom *</label>
+                <label htmlFor="firstName">{t('checkout.firstNameLabel')}</label>
                 <input
                   id="firstName"
                   name="firstName"
@@ -234,7 +243,7 @@ export default function Checkout() {
                 )}
               </div>
               <div className="form-group">
-                <label htmlFor="lastName">Nom *</label>
+                <label htmlFor="lastName">{t('checkout.lastNameLabel')}</label>
                 <input
                   id="lastName"
                   name="lastName"
@@ -249,7 +258,7 @@ export default function Checkout() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="phone">Téléphone (8 chiffres) *</label>
+              <label htmlFor="phone">{t('checkout.phoneLabel')}</label>
               <input
                 type="tel"
                 id="phone"
@@ -266,7 +275,7 @@ export default function Checkout() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="governorate">Gouvernorat *</label>
+              <label htmlFor="governorate">{t('checkout.govLabel')}</label>
               <select
                 id="governorate"
                 name="governorate"
@@ -274,10 +283,10 @@ export default function Checkout() {
                 onChange={handleChange}
                 className={fieldErrors.governorate ? 'input-error' : ''}
               >
-                <option value="">Sélectionner un gouvernorat *</option>
+                <option value="">{t('checkout.govPlaceholder')}</option>
                 {TUNISIAN_GOVERNORATES.map((gov) => (
                   <option key={gov} value={gov}>
-                    {gov}
+                    {govName(gov)}
                   </option>
                 ))}
               </select>
@@ -287,12 +296,12 @@ export default function Checkout() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="address">Adresse (rue, quartier, etc.) *</label>
+              <label htmlFor="address">{t('checkout.addressLabel')}</label>
               <textarea
                 id="address"
                 name="address"
                 rows={3}
-                placeholder="Rue, quartier, bâtiment, appartement..."
+                placeholder={t('checkout.addressPlaceholder')}
                 value={form.address}
                 onChange={handleChange}
                 className={fieldErrors.address ? 'input-error' : ''}
@@ -305,33 +314,33 @@ export default function Checkout() {
             {error && <p className="checkout-error">{error}</p>}
 
             <button type="submit" className="checkout-submit" disabled={submitting}>
-              {submitting ? 'Confirmation...' : 'Confirmer la commande'}
+              {submitting ? t('checkout.confirming') : t('cart.confirm')}
             </button>
           </form>
 
           <aside className="checkout-summary">
-            <h2>Récapitulatif</h2>
+            <h2>{t('checkout.summary')}</h2>
             <ul className="checkout-items">
               {items.map((item) => (
                 <li key={item.cartItemId}>
                   <span>
-                    {item.name} × {item.quantity}
-                    {item.details ? ` (${item.details})` : ''}
+                    {itemName(item)} × {item.quantity}
+                    {item.details ? ` (${detailsLabel(item.details, getProduct(item.productId))})` : ''}
                   </span>
                   <span>{formatPrice(item.price * item.quantity)}</span>
                 </li>
               ))}
             </ul>
             <div className="checkout-row">
-              <span>Sous-total</span>
+              <span>{t('checkout.subtotal')}</span>
               <strong>{formatPrice(subtotal)}</strong>
             </div>
             <div className="checkout-row">
-              <span>Livraison</span>
+              <span>{t('cart.delivery')}</span>
               <strong>{formatPrice(deliveryFee)}</strong>
             </div>
             <div className="checkout-row checkout-total">
-              <span>Total (TTC)</span>
+              <span>{t('cart.total')}</span>
               <strong>{formatPrice(total)}</strong>
             </div>
           </aside>

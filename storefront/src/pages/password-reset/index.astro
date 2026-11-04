@@ -1,0 +1,12 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { siteUrl, mediaBase } from '../../lib/config';
+import Island from '../../islands/PasswordResetPage.jsx';
+import { privatePageSeo } from '../../lib/seo/builders.ts';
+const locale = 'fr';
+const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
+const seo = privatePageSeo('password-reset', locale, ctx);
+---
+<BaseLayout locale={locale} seo={seo}>
+  <Island client:only="react" locale={locale} />
+</BaseLayout>

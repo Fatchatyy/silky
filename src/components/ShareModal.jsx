@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { formatPrice } from '../utils/formatPrice';
+import { formatPrice } from '../../shared/formatPrice';
 import '../styles/shareModal.css';
+import { useT } from '../i18n/useT';
+import { productName as productNameOf } from '../../shared/productText';
 
 export default function ShareModal({ isOpen, onClose, product, image, price }) {
+  const { t, locale } = useT();
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [currentUrl, setCurrentUrl] = useState('');
@@ -36,8 +39,8 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
 
   if (!isOpen || !product) return null;
 
-  const productName = product.name || 'Produit Silky';
-  const shareText = `Découvrez ${productName} sur Silky : ${currentUrl}`;
+  const shownName = productNameOf(product, locale) || t('share.unnamed');
+  const shareText = t('share.text', { name: shownName, url: currentUrl });
   const encodedUrl = encodeURIComponent(currentUrl);
   const encodedText = encodeURIComponent(shareText);
 
@@ -57,13 +60,13 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
         document.body.removeChild(textArea);
       }
       setCopied(true);
-      setFeedback('✓ Lien copié dans le presse-papiers !');
+      setFeedback(t('share.copiedClipboard'));
       setTimeout(() => {
         setCopied(false);
         setFeedback('');
       }, 3500);
     } catch {
-      setFeedback('Impossible de copier automatiquement le lien.');
+      setFeedback(t('share.copyFailed'));
       setTimeout(() => setFeedback(''), 3500);
     }
   };
@@ -105,13 +108,13 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
         await navigator.clipboard.writeText(currentUrl);
       }
       setCopied(true);
-      setFeedback('✓ Lien copié ! Collez-le dans votre message Instagram.');
+      setFeedback(t('share.copiedInstagram'));
       setTimeout(() => {
         setCopied(false);
         setFeedback('');
       }, 4000);
     } catch {
-      setFeedback('Ouverture d\'Instagram...');
+      setFeedback(t('share.openingInstagram'));
       setTimeout(() => setFeedback(''), 3000);
     }
     window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
@@ -123,13 +126,13 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
         await navigator.clipboard.writeText(currentUrl);
       }
       setCopied(true);
-      setFeedback('✓ Lien copié ! Collez-le dans TikTok.');
+      setFeedback(t('share.copiedTikTok'));
       setTimeout(() => {
         setCopied(false);
         setFeedback('');
       }, 4000);
     } catch {
-      setFeedback('Ouverture de TikTok...');
+      setFeedback(t('share.openingTikTok'));
       setTimeout(() => setFeedback(''), 3000);
     }
     window.open('https://www.tiktok.com/', '_blank', 'noopener,noreferrer');
@@ -139,8 +142,8 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: productName,
-          text: `Découvrez ${productName} sur Silky`,
+          title: shownName,
+          text: t('share.shortText', { name: shownName }),
           url: currentUrl,
         });
       } catch {
@@ -166,13 +169,13 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
       <div className="share-modal-card">
         <div className="share-modal-header">
           <h2 id="share-modal-title" className="share-modal-title">
-            Partager ce produit
+            {t('share.title')}
           </h2>
           <button
             type="button"
             className="share-modal-close-btn"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={t('share.close')}
           >
             &times;
           </button>
@@ -183,12 +186,12 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
           {image && (
             <img
               src={image}
-              alt={productName}
+              alt={shownName}
               className="share-modal-product-img"
             />
           )}
           <div className="share-modal-product-info">
-            <span className="share-modal-product-name">{productName}</span>
+            <span className="share-modal-product-name">{shownName}</span>
             {price !== undefined && price !== null && (
               <span className="share-modal-product-price">
                 {typeof price === 'number' ? formatPrice(price) : price}
@@ -205,14 +208,14 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
             value={currentUrl}
             className="share-modal-copy-input"
             onClick={(e) => e.target.select()}
-            aria-label="Lien du produit"
+            aria-label={t('share.linkLabel')}
           />
           <button
             type="button"
             className={`share-modal-copy-btn ${copied ? 'share-modal-copy-btn--success' : ''}`}
             onClick={handleCopyLink}
           >
-            {copied ? '✓ Copié' : 'Copier'}
+            {copied ? t('share.copiedShort') : t('share.copy')}
           </button>
         </div>
 
@@ -230,10 +233,10 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
             onClick={handleCopyLink}
           >
             <div className="share-modal-item-icon-wrapper">
-              <img src="/pictures/copylink.png" alt="Copier le lien" className="share-modal-item-icon" />
+              <img src="/pictures/copylink.png" alt={t('share.copyLinkAlt')} className="share-modal-item-icon" />
             </div>
             <span className="share-modal-item-label">
-              {copied ? 'Lien copié !' : 'Copier le lien'}
+              {copied ? t('share.copiedLabel') : t('share.copyLinkAlt')}
             </span>
           </button>
 
@@ -307,7 +310,7 @@ export default function ShareModal({ isOpen, onClose, product, image, price }) {
                   <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                 </svg>
               </div>
-              <span className="share-modal-item-label">Plus d&apos;options</span>
+              <span className="share-modal-item-label">{t('share.more')}</span>
             </button>
           )}
         </div>

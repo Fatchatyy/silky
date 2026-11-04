@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../i18n/router';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import RichText from '../components/RichText';
+import { getTextPage } from '../../shared/textPages';
+import { useLocale } from '../i18n/LocaleContext';
+import { useT } from '../i18n/useT';
 import '../styles/contact.css';
 
 export default function Contact() {
+  const { locale } = useLocale();
+  const { t, known } = useT();
+  const contactPage = getTextPage('contact', locale);
   const { user, isAdmin } = useAuth();
   const [form, setForm] = useState({
     prenom: '',
@@ -39,32 +46,32 @@ export default function Contact() {
 
     const trimmedPrenom = (form.prenom || '').trim();
     if (!trimmedPrenom) {
-      errors.prenom = 'Le prénom est obligatoire.';
+      errors.prenom = t('contact.firstNameRequired');
     } else if (trimmedPrenom.length < 3) {
-      errors.prenom = 'Le prénom doit contenir au moins 3 lettres.';
+      errors.prenom = t('contact.firstNameMin');
     } else if (trimmedPrenom.length > 35) {
-      errors.prenom = 'Le prénom ne doit pas dépasser 35 lettres.';
+      errors.prenom = t('contact.firstNameMax');
     }
 
     const trimmedNom = (form.nom || '').trim();
     if (!trimmedNom) {
-      errors.nom = 'Le nom est obligatoire.';
+      errors.nom = t('contact.lastNameRequired');
     } else if (trimmedNom.length < 3) {
-      errors.nom = 'Le nom doit contenir au moins 3 lettres.';
+      errors.nom = t('contact.lastNameMin');
     } else if (trimmedNom.length > 35) {
-      errors.nom = 'Le nom ne doit pas dépasser 35 lettres.';
+      errors.nom = t('contact.lastNameMax');
     }
 
     const trimmedEmail = (form.email || '').trim();
     if (!trimmedEmail) {
-      errors.email = "L'adresse e-mail est obligatoire.";
+      errors.email = t('contact.emailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      errors.email = 'Veuillez entrer une adresse e-mail valide.';
+      errors.email = t('contact.emailInvalid');
     }
 
     const trimmedMessage = (form.message || '').trim();
     if (!trimmedMessage) {
-      errors.message = 'Le message est obligatoire.';
+      errors.message = t('contact.messageRequired');
     }
 
     return errors;
@@ -73,7 +80,7 @@ export default function Contact() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isAdmin) {
-      setError("Les administrateurs ne peuvent pas envoyer de messages de contact.");
+      setError(t('contact.adminCannot'));
       return;
     }
 
@@ -96,7 +103,7 @@ export default function Contact() {
         email: form.email.trim(),
         message: form.message.trim(),
       });
-      setSuccess('Votre message a été envoyé avec succès. Nous vous répondrons dans les plus brefs délais.');
+      setSuccess(t('contact.success'));
       setForm({
         prenom: '',
         nom: '',
@@ -104,7 +111,7 @@ export default function Contact() {
         message: '',
       });
     } catch (err) {
-      setError(err.message || "Une erreur est survenue lors de l'envoi du message.");
+      setError(known(err.message) || t('contact.error'));
     } finally {
       setSubmitting(false);
     }
@@ -115,13 +122,13 @@ export default function Contact() {
       <main>
         <section className="contact-section">
           <div className="contact-container" style={{ textAlign: 'center' }}>
-            <h2 className="contact-title">Contactez-nous</h2>
+            <h1 className="contact-title">{contactPage.title}</h1>
             <p className="form-error" style={{ fontSize: 16, marginTop: 24 }}>
-              Les administrateurs ne peuvent pas envoyer de messages de contact.
+              {t('contact.adminCannot')}
             </p>
             <div style={{ marginTop: 24 }}>
               <Link to="/admin" className="submit-btn" style={{ display: 'inline-block', textDecoration: 'none' }}>
-                Retour au panneau d&apos;administration
+                {t('contact.backAdmin')}
               </Link>
             </div>
           </div>
@@ -134,22 +141,20 @@ export default function Contact() {
     <main>
       <section className="contact-section">
         <div className="contact-container">
-          <h2 className="contact-title">Contactez-nous</h2>
+          <h1 className="contact-title">{contactPage.title}</h1>
 
           <div className="contact-intro">
-            <p>
-              Chez Silky, nous sommes toujours à votre écoute pour vous offrir une expérience shopping sur mesure.
-            </p>
-            <p>
-              Pour toute question, suggestion ou besoin d&apos;aide, notre équipe reste à votre entière disposition.
-              N&apos;hésitez pas à nous contacter !
-            </p>
+            {contactPage.intro.map((parts, index) => (
+              <p key={index}>
+                <RichText parts={parts} />
+              </p>
+            ))}
           </div>
 
           <form className="contact-form" onSubmit={handleSubmit} noValidate>
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="prenom">Prénom</label>
+                <label htmlFor="prenom">{t('contact.firstName')}</label>
                 <input
                   type="text"
                   id="prenom"
@@ -163,7 +168,7 @@ export default function Contact() {
                 )}
               </div>
               <div className="form-group">
-                <label htmlFor="nom">Nom</label>
+                <label htmlFor="nom">{t('contact.lastName')}</label>
                 <input
                   type="text"
                   id="nom"
@@ -179,7 +184,7 @@ export default function Contact() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="email">Adresse e-mail</label>
+              <label htmlFor="email">{t('contact.email')}</label>
               <input
                 type="email"
                 id="email"
@@ -194,7 +199,7 @@ export default function Contact() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="message">Votre message</label>
+              <label htmlFor="message">{t('contact.message')}</label>
               <textarea
                 id="message"
                 name="message"
@@ -213,7 +218,7 @@ export default function Contact() {
 
             <div className="form-actions">
               <button type="submit" className="submit-btn" disabled={submitting}>
-                {submitting ? 'Envoi...' : 'Envoyer'}
+                {submitting ? t('contact.sending') : t('contact.send')}
               </button>
             </div>
           </form>

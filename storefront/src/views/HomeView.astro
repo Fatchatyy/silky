@@ -1,0 +1,44 @@
+---
+// Home page: hero, carousel (islands) and the two collection sections as plain HTML (product names, prices and
+// links are real <a href> in the first response).
+import { localizePath } from '../../../shared/locales.js';
+import { translator } from '../lib/i18n.ts';
+import { mediaVariant } from '../lib/media.ts';
+import { productForCard } from '../lib/pages/props.ts';
+import Hero from '../islands/Hero.jsx';
+import Carousel from '../islands/Carousel.jsx';
+import ReviewsBlock from '../islands/ReviewsBlock.jsx';
+import ProductCard from '../components/ProductCard.astro';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { products, theme, locale } = Astro.props as { products: any[]; theme: any; locale: Locale };
+const t = translator(locale);
+
+const byCategory = (slug: string) => products.filter((p) => p.category === slug);
+const femme = byCategory('femme');
+const enfant = byCategory('enfant');
+const heroTheme = { heroLeftImage: theme.heroLeftImage, heroRightImage: theme.heroRightImage };
+const sections = [
+  { slug: 'femme', list: femme.slice(0, 4), title: t('collection.women'), image: femme[0]?.collectionImage || femme[0]?.mainImage || '/pictures/femme_example.jpg' },
+  { slug: 'enfant', list: enfant.slice(0, 4), title: t('collection.kids'), image: enfant[0]?.collectionImage || enfant[0]?.mainImage || '/pictures/enfant_example.jpg' },
+].filter((s) => s.list.length > 0);
+---
+<Hero client:load locale={locale} heroConfig={theme.heroConfig ?? undefined} theme={heroTheme} />
+
+{products.length > 0 && <Carousel client:only="react" locale={locale} products={products.map(productForCard)} />}
+
+<div class="collections_wrapper">
+  {sections.map((section) => (
+    <section class="collection_section">
+      <h2 class="collection_title">{section.title}</h2>
+      <div class="products_grid">
+        {section.list.map((product) => <ProductCard product={product} locale={locale} fallbackImage={section.image} />)}
+      </div>
+      <div class="button_container">
+        <a href={localizePath(`/collection/${section.slug}`, locale)} class="tout_button">{t('collection.all')}</a>
+      </div>
+    </section>
+  ))}
+</div>
+
+<ReviewsBlock client:visible locale={locale} />

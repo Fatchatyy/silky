@@ -1,14 +1,20 @@
+import RichText from '../components/RichText';
+import { getTextPage } from '../../shared/textPages';
+import { useLocale } from '../i18n/LocaleContext';
 import '../styles/about.css';
 
 export default function CustomerService() {
+  const { locale } = useLocale();
+  const page = getTextPage('service', locale);
   return (
     <main>
       <section className="about_section">
-        <h2 className="about_heading">Service client</h2>
-        <p>
-          Appelez +216 25 274 800, envoyez un e-mail à{' '}
-          <a href="mailto:silky26tn@gmail.com">silky26tn@gmail.com</a> ou contactez nous sur nos réseaux sociaux
-        </p>
+        <h1 className="about_heading">{page.title}</h1>
+        {page.paragraphs.map((parts, index) => (
+          <p key={index}>
+            <RichText parts={parts} />
+          </p>
+        ))}
       </section>
     </main>
   );

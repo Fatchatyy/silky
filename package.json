@@ -7,27 +7,50 @@
   "version": "1.0.0",
 
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
 
-"scripts": {
-  "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-  "dev:client": "vite",
-  "dev:server": "node server/index.js",
-  "build": "vite build",
-  "preview": "vite preview",
-  "start:server": "node server/index.js",
+  "scripts": {
 
-  "db:generate": "drizzle-kit generate",
-  "db:push": "drizzle-kit push",
-  "db:check": "drizzle-kit check",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
 
-  "db:schema": "node server/db/apply-schema.js",
-  "db:seed": "node server/db/seed.js",
-  "test": "node server/scripts/verify-phase3.js"
-},
+    "dev:client": "vite",
+
+    "dev:server": "node server/index.js",
+
+    "dev:storefront": "npm run dev --prefix storefront",
+
+    "build": "node scripts/build.mjs",
+
+    "preview": "vite preview",
+
+    "start": "node server/index.js",
+    "start:server": "node server/index.js",
+
+    "db:generate": "drizzle-kit generate",
+
+    "db:push": "drizzle-kit push",
+
+    "db:check": "drizzle-kit check",
+
+    "db:schema": "node server/db/init-db.js",
+    "db:init": "node server/db/init-db.js",
+    "db:export-schema": "node server/db/export-schema.js",
+    "admin:create": "node server/db/create-admin.js",
+    "preflight": "node server/scripts/preflight.js",
+
+    "db:seed": "node server/db/seed.js",
+
+    "test": "node server/scripts/verify-phase3.js"
+
+  },
 
   "dependencies": {
 
     "bcrypt": "^6.0.0",
+
+    "compression": "^1.8.2",
 
     "cookie-parser": "^1.4.7",
 
@@ -43,11 +66,11 @@
 
     "jsonwebtoken": "^9.0.3",
 
-    "jspdf": "^2.5.2",
+    "jspdf": "^4.2.1",
 
     "multer": "^1.4.5-lts.1",
 
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^10.3.1",
 
     "pg": "^8.23.0",
 
@@ -55,7 +78,9 @@
 
     "react-dom": "^19.1.0",
 
-    "react-router-dom": "^7.6.0"
+    "react-router-dom": "^7.6.0",
+
+    "sharp": "^0.35.5"
 
   },
 

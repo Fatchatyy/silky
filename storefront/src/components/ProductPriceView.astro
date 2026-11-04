@@ -1,0 +1,24 @@
+---
+// Server-rendered twin of ProductPrice.jsx (same markup and classes).
+import { formatPrice } from '../../../shared/formatPrice.js';
+import { getEffectivePrice, hasDiscount } from '../../../shared/price.js';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { product, locale, size = 'default', className = '' } = Astro.props as {
+  product: any;
+  locale: Locale;
+  size?: 'default' | 'large' | 'small';
+  className?: string;
+};
+const discounted = hasDiscount(product);
+const effective = getEffectivePrice(product);
+const sizeClass = size === 'large' ? 'product_price_large' : size === 'small' ? 'product_price_small' : '';
+---
+{!discounted && <span class={`product_price_display ${sizeClass} ${className}`.trim()}>{formatPrice(product.price, locale)}</span>}
+{discounted && (
+  <span class={`product_price_display product_price_discounted ${sizeClass} ${className}`.trim()}>
+    <span class="price_original">{formatPrice(product.price, locale)}</span>
+    <span class="price_discount_amount">{locale === 'ar' ? '‎-' : '-'}{formatPrice(product.discount, locale)}</span>
+    <span class="price_new">{formatPrice(effective, locale)}</span>
+  </span>
+)}

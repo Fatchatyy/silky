@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { productPath } from '../../../shared/urls';
 import { useProducts } from '../../context/ProductsContext';
 import '../../styles/hero-editor.css';
 
@@ -43,7 +44,7 @@ export default function HeroButtonEditor({ button, onSave, onCancel }) {
   // Filter only active visible products
   const visibleProducts = activeProducts.map((p) => ({
     label: p.name ? `Produit : ${p.name}` : `Produit #${p.id}`,
-    path: `/product/${p.id}`,
+    path: productPath(p),
   }));
 
   useEffect(() => {

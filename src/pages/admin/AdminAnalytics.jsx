@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice } from '../../../shared/formatPrice';
 import AdminAnalyticsCharts from '../../components/admin/AdminAnalyticsCharts';
 
 export default function AdminAnalytics({ refreshKey = 0 }) {

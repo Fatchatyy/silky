@@ -1,0 +1,30 @@
+---
+import { translator } from '../lib/i18n.ts';
+import { collectionText } from '../lib/seo/routeText.ts';
+import { isNamedCollection } from '../lib/seo/routeText.ts';
+import ProductCard from '../components/ProductCard.astro';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { slug, name, products, locale } = Astro.props as { slug: string; name: string; products: any[]; locale: Locale };
+const t = translator(locale);
+const text = collectionText(slug, locale);
+const title = isNamedCollection(slug) ? text.title : name || text.title;
+---
+<main>
+  <section class="collection-hero">
+    <h1>{title}</h1>
+    <p>{text.heroText}</p>
+  </section>
+
+  <div class="collections_wrapper">
+    <section class="collection_section">
+      {products.length === 0 ? (
+        <p style="text-align: center">{t('collection.empty')}</p>
+      ) : (
+        <div class="products_grid">
+          {products.map((product) => <ProductCard product={product} locale={locale} fallbackImage={text.fallbackImage} />)}
+        </div>
+      )}
+    </section>
+  </div>
+</main>

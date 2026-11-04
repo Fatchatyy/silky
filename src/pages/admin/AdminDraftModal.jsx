@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice } from '../../../shared/formatPrice';
 
 const TUNISIAN_GOVERNORATES = [
   'Tunis',

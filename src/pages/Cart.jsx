@@ -1,24 +1,37 @@
-import { Link } from 'react-router-dom';
+import { Link } from '../i18n/router';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { formatPrice } from '../utils/formatPrice';
+import { formatPrice } from '../../shared/formatPrice';
+import { imageVariantPath } from '../../shared/imageVariants.js';
 import '../styles/cart.css';
 import '../styles/home.css';
+import { useT } from '../i18n/useT';
+import { useProducts } from '../context/ProductsContext';
+import { productName } from '../../shared/productText';
 
 export default function Cart() {
+  const { t, known, locale, detailsLabel } = useT();
   const { isAdmin } = useAuth();
+  const { getProduct } = useProducts();
+
+  // Cart lines keep the French name saved with them (what the order will hold); Arabic pages show the product's
+  // Arabic name when it has one.
+  const itemName = (item) => {
+    const product = getProduct(item.productId);
+    return product ? productName(product, locale) : item.name;
+  };
   const { items, deliveryFee, subtotal, total, itemCount, updateQuantity, removeItem, loading, error } = useCart();
 
   if (isAdmin) {
     return (
       <main className="collections_wrapper" style={{ minHeight: 400, paddingTop: 40 }}>
-        <h1 className="collection_title">Panier</h1>
+        <h1 className="collection_title">{t('cart.title')}</h1>
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <p style={{ fontSize: 16, color: '#b00020', marginBottom: 24 }}>
-            Les administrateurs ne peuvent pas passer de commandes.
+            {t('product.adminOrder')}
           </p>
           <Link to="/admin" className="tout_button">
-            Retour au panneau d&apos;administration
+            {t('contact.backAdmin')}
           </Link>
         </div>
       </main>
@@ -28,23 +41,23 @@ export default function Cart() {
   return (
     <main>
       <section className="cart-section">
-        <h1 className="cart-title">Panier</h1>
+        <h1 className="cart-title">{t('cart.title')}</h1>
 
         {error && (
           <p style={{ textAlign: 'center', color: '#b00020', marginBottom: 16 }} role="alert">
-            {error}
+            {known(error)}
           </p>
         )}
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <p>Chargement du panier...</p>
+            <p>{t('cart.loading')}</p>
           </div>
         ) : items.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <p>Votre panier est vide.</p>
+            <p>{t('cart.empty')}</p>
             <Link to="/" className="secondary-btn" style={{ display: 'inline-block', marginTop: 16 }}>
-              Continuer mes achats
+              {t('cart.continue')}
             </Link>
           </div>
         ) : (
@@ -52,10 +65,10 @@ export default function Cart() {
             <div className="cart-items-wrapper">
               <div className="cart-items-container">
                 <div className="cart-header">
-                  <span>Article</span>
-                  <span>Prix</span>
-                  <span>Quantité</span>
-                  <span>Prix total</span>
+                  <span>{t('cart.item')}</span>
+                  <span>{t('product.price')}</span>
+                  <span>{t('product.qty')}</span>
+                  <span>{t('cart.totalPrice')}</span>
                   <span></span>
                 </div>
 
@@ -63,13 +76,13 @@ export default function Cart() {
                   <div key={item.cartItemId} className="cart-item">
                     <div className="product-info">
                       <img
-                        src={item.image || '/pictures/femme_example.jpg'}
-                        alt={item.name}
+                        src={imageVariantPath(item.image || '/pictures/femme_example.jpg', 'card')}
+                        alt={itemName(item)}
                         className="product-image"
                       />
                       <div className="product-details">
-                        <h4>{item.name}</h4>
-                        <p>{item.details}</p>
+                        <h4>{itemName(item)}</h4>
+                        <p>{detailsLabel(item.details, getProduct(item.productId))}</p>
                       </div>
                     </div>
 
@@ -100,7 +113,7 @@ export default function Cart() {
                     <button
                       type="button"
                       className="remove-btn"
-                      aria-label="Supprimer le produit"
+                      aria-label={t('cart.remove')}
                       onClick={() => removeItem(item.cartItemId)}
                     >
                       X
@@ -110,30 +123,30 @@ export default function Cart() {
               </div>
 
               <Link to="/" className="secondary-btn">
-                Continuer mes achats
+                {t('cart.continue')}
               </Link>
             </div>
 
             <div className="cart-summary">
               <div className="summary-row">
-                <span>{itemCount} articles</span>
+                <span>{t('cart.items', { count: itemCount })}</span>
                 <strong>{formatPrice(subtotal)}</strong>
               </div>
 
               <div className="summary-row">
-                <span>Livraison</span>
+                <span>{t('cart.delivery')}</span>
                 <strong>{formatPrice(deliveryFee)}</strong>
               </div>
 
               <div className="summary-divider"></div>
 
               <div className="summary-total">
-                <span className="total-label">Total (TTC)</span>
+                <span className="total-label">{t('cart.total')}</span>
                 <span className="total-amount">{formatPrice(total)}</span>
               </div>
 
               <Link to="/checkout" className="submit-btn" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
-                Confirmer la commande
+                {t('cart.confirm')}
               </Link>
             </div>
           </div>

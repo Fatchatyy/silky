@@ -1,0 +1,14 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { siteUrl, mediaBase } from '../../lib/config';
+import TextPage from '../../views/TextPage.astro';
+import { textPageSeo } from '../../lib/seo/builders.ts';
+import { cacheablePage } from '../../lib/pages/respond';
+const locale = 'ar';
+const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
+cacheablePage(Astro.response, true);
+const seo = textPageSeo('livraison-retours', locale, ctx);
+---
+<BaseLayout locale={locale} seo={seo}>
+  <TextPage id="delivery" locale={locale} />
+</BaseLayout>

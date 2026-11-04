@@ -1,0 +1,28 @@
+---
+// Server-rendered product card (same markup and classes as ProductCard.jsx): a real <a href>, name and price in HTML.
+import { productName } from '../../../shared/productText.js';
+import { localizePath } from '../../../shared/locales.js';
+import { productPath } from '../../../shared/urls.js';
+import { mediaVariant } from '../lib/media.ts';
+import ProductPriceView from './ProductPriceView.astro';
+import ProductBadgesView from './ProductBadgesView.astro';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { product, locale, fallbackImage = '' } = Astro.props as { product: any; locale: Locale; fallbackImage?: string };
+const name = productName(product, locale);
+const image = product.collectionImage || product.mainImage || fallbackImage;
+---
+<div class="product_card">
+  <a href={localizePath(productPath(product), locale)} class="product_card_link">
+    <div class="product_image_container">
+      <ProductBadgesView product={product} locale={locale} />
+      <img src={mediaVariant(image, 'card')} alt={name} class="product_img" loading="lazy" decoding="async" />
+    </div>
+    <div class="product_info">
+      <h3 class="product_name">{name}</h3>
+      <p class="product_price">
+        <ProductPriceView product={product} locale={locale} size="small" />
+      </p>
+    </div>
+  </a>
+</div>

@@ -1,0 +1,83 @@
+---
+// Product page. The main block, videos and reviews are islands that are also rendered on the server (name, price,
+// description, photos, sizes and reviews are in the first HTML); the breadcrumb, the delivery/returns facts and the
+// recommendations are plain HTML.
+import { localizePath } from '../../../shared/locales.js';
+import { productName } from '../../../shared/productText.js';
+import { productPath, categoryPath } from '../../../shared/urls.js';
+import { getTextPage } from '../../../shared/textPages.js';
+import { translator } from '../lib/i18n.ts';
+import { collectionText, isNamedCollection } from '../lib/seo/routeText.ts';
+import { mediaVariant } from '../lib/media.ts';
+import { productForMain } from '../lib/pages/props.ts';
+import ProductMain from '../components/ProductMain.jsx';
+import ProductVideos from '../components/ProductVideos.jsx';
+import ProductReviews from '../islands/ProductReviews.jsx';
+import ProductPriceView from '../components/ProductPriceView.astro';
+import ProductBadgesView from '../components/ProductBadgesView.astro';
+import RichParts from './RichParts.astro';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { product, reviews, rating, collectionName, recommendations, locale } = Astro.props as {
+  product: any;
+  reviews: any[] | null;
+  rating: { average: number; count: number } | null;
+  collectionName: string | null;
+  recommendations: any[];
+  locale: Locale;
+};
+const t = translator(locale);
+const name = productName(product, locale);
+const slug: string | undefined = product.category;
+const collectionTitle = slug ? (isNamedCollection(slug) ? collectionText(slug, locale).title : collectionName || slug) : null;
+const delivery: any = getTextPage('delivery', locale);
+---
+<nav class="visually-hidden" aria-label={locale === 'ar' ? 'مسار التصفح' : "Fil d'Ariane"}>
+  <ol>
+    <li><a href={localizePath('/', locale)}>{locale === 'ar' ? 'الرئيسية' : 'Accueil'}</a></li>
+    {slug && collectionTitle && <li><a href={localizePath(categoryPath(slug), locale)}>{collectionTitle}</a></li>}
+    <li aria-current="page">{name}</li>
+  </ol>
+</nav>
+
+<ProductMain client:load locale={locale} product={productForMain(product)} />
+
+{product.videos?.length > 0 && <ProductVideos client:visible locale={locale} videos={product.videos} />}
+
+<ProductReviews client:visible locale={locale} productId={product.id} initialReviews={reviews ?? undefined} initialSummary={rating ?? undefined} />
+
+<section class="product_geo_info">
+  <h2>{delivery.title}</h2>
+  {delivery.sections.map((section: any) => (
+    <>
+      <h3>{section.heading}</h3>
+      {section.paragraphs.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
+    </>
+  ))}
+  <p><a href={localizePath('/livraison-retours', locale)}>{delivery.title}</a></p>
+</section>
+
+{recommendations.length > 0 && (
+  <section class="recommendations_section">
+    <h2 class="recommendations_title">{t('product.recommended')}</h2>
+    <div class="recommendations_grid">
+      {recommendations.map((rec) => (
+        <div class="product_card">
+          <a href={localizePath(productPath(rec), locale)} class="product_card_link">
+            <div class="product_card_img_wrapper">
+              <ProductBadgesView product={rec} locale={locale} />
+              <img src={mediaVariant(rec.collectionImage || rec.mainImage, 'card')} alt={productName(rec, locale)} class="product_card_img" loading="lazy" decoding="async" />
+            </div>
+            <h3 class="product_card_title">{productName(rec, locale)}</h3>
+            <p class="product_card_price"><ProductPriceView product={rec} locale={locale} size="small" /></p>
+          </a>
+        </div>
+      ))}
+    </div>
+    <div class="recommendations_cta_wrapper">
+      <a href={localizePath(`/collection/${product.category}`, locale)} class="collection_btn">
+        {t(product.category === 'femme' ? 'collection.fullWomen' : 'collection.fullKids')}
+      </a>
+    </div>
+  </section>
+)}

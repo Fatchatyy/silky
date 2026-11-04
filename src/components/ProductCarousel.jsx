@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { productPath } from '../../shared/urls';
+import { Link } from '../i18n/router';
 import ProductBadges from './ProductBadges';
+import { imageVariantPath } from '../../shared/imageVariants.js';
+import { useT } from '../i18n/useT';
+import { productName } from '../../shared/productText';
 
 const SLIDE_COUNT = 5;
 const AUTO_DELAY = 4500;
@@ -81,6 +85,7 @@ function getCardStyle(offset, spacing, cardDimensions, dragPx = 0) {
 }
 
 export default function ProductCarousel({ products }) {
+  const { t, locale } = useT();
   const visibleList = (products || []).filter((p) => !p.isHidden);
   const slides = visibleList.slice(0, SLIDE_COUNT);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -225,7 +230,7 @@ export default function ProductCarousel({ products }) {
   return (
     <section
       className="product_carousel_section coverflow_carousel"
-      aria-label="Produits en vedette"
+      aria-label={t('carousel.featured')}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
@@ -265,17 +270,18 @@ export default function ProductCarousel({ products }) {
                   transition: isDragging ? 'none' : TRANSITION,
                 }}
               >
-                <Link to={`/product/${product.id}`} className="coverflow_card_link" draggable={false}>
+                <Link to={productPath(product)} className="coverflow_card_link" draggable={false}>
                   <ProductBadges product={product} />
                   <img
-                    src={product.collectionImage || product.mainImage}
-                    alt={product.name}
+                    src={imageVariantPath(product.collectionImage || product.mainImage, 'card')}
+                    alt={productName(product, locale)}
                     className="coverflow_card_img"
                     draggable={false}
+                    decoding="async"
                   />
                   <div className="coverflow_card_overlay">
-                    <h3 className="coverflow_card_title">{product.name}</h3>
-                    {isCenter && <span className="coverflow_card_cta">Découvrir</span>}
+                    <h3 className="coverflow_card_title">{productName(product, locale)}</h3>
+                    {isCenter && <span className="coverflow_card_cta">{t('hero.discover')}</span>}
                   </div>
                 </Link>
               </div>
@@ -283,10 +289,10 @@ export default function ProductCarousel({ products }) {
           })}
         </div>
 
-        <button type="button" className="carousel_arrow carousel_arrow_left" onClick={() => handleArrowClick('prev')} aria-label="Précédent">
+        <button type="button" className="carousel_arrow carousel_arrow_left" onClick={() => handleArrowClick('prev')} aria-label={t('carousel.prev')}>
           ❮
         </button>
-        <button type="button" className="carousel_arrow carousel_arrow_right" onClick={() => handleArrowClick('next')} aria-label="Suivant">
+        <button type="button" className="carousel_arrow carousel_arrow_right" onClick={() => handleArrowClick('next')} aria-label={t('carousel.next')}>
           ❯
         </button>
       </div>

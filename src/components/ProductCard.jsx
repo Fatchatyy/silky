@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link } from '../i18n/router';
 import ProductPrice from './ProductPrice';
 import ProductBadges from './ProductBadges';
+import { imageVariantPath } from '../../shared/imageVariants.js';
 
 export default function ProductCard({ name, product, image, linkTo = '/product/1' }) {
   const isHidden = Boolean(product?.isHidden);
@@ -9,7 +10,7 @@ export default function ProductCard({ name, product, image, linkTo = '/product/1
       <Link to={linkTo} className="product_card_link">
         <div className="product_image_container">
           <ProductBadges product={product} />
-          <img src={image} alt={name} className="product_img" />
+          <img src={imageVariantPath(image, 'card')} alt={name} className="product_img" loading="lazy" decoding="async" />
         </div>
         <div className="product_info">
           <h3 className="product_name">{name}</h3>

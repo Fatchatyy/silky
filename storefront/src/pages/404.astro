@@ -1,0 +1,14 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import NotFoundView from '../views/NotFoundView.astro';
+import { siteUrl, mediaBase } from '../lib/config';
+import { errorPageSeo } from '../lib/seo/builders.ts';
+
+const locale = Astro.url.pathname === '/ar' || Astro.url.pathname.startsWith('/ar/') ? 'ar' : 'fr';
+const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
+Astro.response.status = 404;
+const seo = errorPageSeo('not-found', locale, ctx, Astro.url.pathname);
+---
+<BaseLayout locale={locale} seo={seo}>
+  <NotFoundView locale={locale} />
+</BaseLayout>

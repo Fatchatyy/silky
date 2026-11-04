@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import { generateExchangePdf } from '../../utils/orderPdf';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice } from '../../../shared/formatPrice';
 
 const TUNISIAN_GOVERNORATES = [
   'Tunis',
@@ -455,12 +455,20 @@ export default function AdminExchangeModal({ open, order, paymentResponsibility 
       const exchangeNum = latestExchange?.exchangeNumber || 'enregistré';
       const exchangeTotal = latestExchange ? formatPrice(latestExchange.total) : '';
 
+      // The exchange is saved either way; tell the admin when its GOODEX parcel was not created.
+      const parcel = latestExchange?.delivery;
+      const parcelOk = parcel?.state === 'created';
       setSuccess(`Échange ${exchangeNum} finalisé avec succès — Total: ${exchangeTotal}`);
+      if (!parcelOk) {
+        setError(
+          `Le colis GOODEX de l'échange n'a pas été créé${parcel?.lastError ? ` (${parcel.lastError})` : ''}. Ouvrez la commande pour réessayer.`,
+        );
+      }
       onSuccess?.(updatedOrder);
 
       setTimeout(() => {
         onClose();
-      }, 1500);
+      }, parcelOk ? 1500 : 5000);
     } catch (err) {
       setError(err.message || 'Erreur lors de la création de l\'échange');
     } finally {
@@ -709,7 +717,11 @@ export default function AdminExchangeModal({ open, order, paymentResponsibility 
             </div>
           )}
 
-          {error && <p className="admin-error">{error}</p>}
+          {error && (
+            <p className="admin-error" ref={(el) => el?.scrollIntoView({ block: 'nearest' })}>
+              {error}
+            </p>
+          )}
           {success && <p className="admin-message">{success}</p>}
 
           <div className="form-footer">
