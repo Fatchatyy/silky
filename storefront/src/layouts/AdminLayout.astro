@@ -1,0 +1,31 @@
+---
+// Document shell of the admin panel (/admin and everything under it). Not a page of the site: no header, footer, canonical
+// or hreflang; noindex, nofollow. It loads the shop's stylesheet first and then the admin stylesheets, UNLAYERED (unlike on the
+// shop pages, see public/admin/styles.css): the panel is the page the old stylesheet was written for, and a layered rule
+// would lose to the shop's resets (* { margin: 0 }). Visitors' pages never reference any file of the admin.
+import '../styles/shop.css';
+import Seo from '../components/seo/Seo.astro';
+import { ADMIN_STYLES_VERSION } from '../admin/adminStyles.js';
+
+const seo = {
+  title: 'Silky Admin',
+  robots: 'noindex,nofollow' as const,
+  og: { type: 'website' as const, locale: 'fr_FR' as const },
+};
+---
+<!doctype html>
+<html lang="fr" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href={`/admin/admin.css?v=${ADMIN_STYLES_VERSION}`} data-admin-styles />
+    <link rel="stylesheet" href={`/admin/product-admin.css?v=${ADMIN_STYLES_VERSION}`} />
+    <Seo {...seo} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

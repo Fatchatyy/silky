@@ -3,10 +3,10 @@ import { localizePath } from '../../../shared/locales.js';
 import { translator } from '../lib/i18n.ts';
 import type { Locale } from '../lib/seo/types.ts';
 
-const { locale, unavailable = false } = Astro.props as { locale: Locale; unavailable?: boolean };
+const { locale, unavailable = false, hiddenProductKey = null } = Astro.props as { locale: Locale; unavailable?: boolean; hiddenProductKey?: string | null };
 const t = translator(locale);
 ---
-<main>
+<main data-admin-hidden-product={hiddenProductKey ?? undefined}>
   <section class="about_section">
     {unavailable ? (
       <>

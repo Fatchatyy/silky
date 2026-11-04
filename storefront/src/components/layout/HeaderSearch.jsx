@@ -93,7 +93,7 @@ function HeaderSearch() {
                 <button
                   key={product.id}
                   type="button"
-                  className="search_dropdown_item"
+                  className={`search_dropdown_item${product.isHidden ? ' search_dropdown_item--hidden' : ''}`}
                   onMouseDown={() => {
                     setQuery('');
                     setShowDropdown(false);
@@ -107,7 +107,14 @@ function HeaderSearch() {
                     className="search_dropdown_img"
                   />
                   <div className="search_dropdown_info">
-                    <span className="search_dropdown_name">{productName(product, locale)}</span>
+                    <span className="search_dropdown_name">
+                      {productName(product, locale)}
+                      {product.isHidden && (
+                        <span className="admin-badge admin-badge--warning" style={{ marginLeft: 6, fontSize: '0.65rem', padding: '2px 6px' }}>
+                          {t('search.hiddenBadge')}
+                        </span>
+                      )}
+                    </span>
                     <span className="search_dropdown_category">{categoryLabel(product.category)}</span>
                   </div>
                 </button>

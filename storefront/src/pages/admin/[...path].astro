@@ -1,0 +1,13 @@
+---
+// The admin panel: ONE route for /admin and every address under it (so a reload on /admin/login or any other address works),
+// answering the same shell with the whole admin as a single client-side island. Nothing of the admin is rendered on the
+// server (it needs the browser's token), and it is not a page of the site: noindex (meta tag here, X-Robots-Tag header and
+// Cache-Control: no-store in src/middleware.ts), never cached, absent from the sitemap, Disallowed in robots.txt.
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminApp from '../../admin-app/AdminApp.jsx';
+
+export const prerender = false;
+---
+<AdminLayout>
+  <AdminApp client:only="react" />
+</AdminLayout>

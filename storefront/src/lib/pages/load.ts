@@ -23,7 +23,7 @@ function failure(err: unknown): { kind: 'notfound' } | { kind: 'unavailable' } {
 
 /** All published products, normalized. Kept for 30 seconds per Worker instance (crawlers read many pages in a row). */
 export async function loadProducts(): Promise<any[]> {
-  const list = await getCached('products', 30_000, () => getJson<any[]>('/products'));
+  const list = await getCached('products', 5_000, () => getJson<any[]>('/products'));
   return (list || []).map(normalizeProduct).filter((p) => !p.isHidden);
 }
 

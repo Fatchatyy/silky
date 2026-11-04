@@ -9,6 +9,7 @@ import { collectionSeo, errorPageSeo, privatePageSeo, productSeo, textPageSeo } 
 import { cleanText, safeJson, trimDescription } from '../src/lib/seo/text.ts';
 import { INDEXABLE_PAGES, PAGE_TEXT } from '../src/lib/seo/routeText.ts';
 import { robotsTxt, sitemapEntries, sitemapXml } from '../src/lib/seo/sitemap.ts';
+import { pathsForSite, pathsToPurge } from '../src/lib/pages/cacheKeys.ts';
 
 const SITE = 'https://silky.tn';
 const ctx = { siteUrl: SITE, mediaBase: 'https://media.silky.tn' };
@@ -249,8 +250,18 @@ check('robots.txt: one group for everyone (AI crawlers included), private pages 
   assert.ok(txt.startsWith('User-agent: *\nAllow: /'));
   assert.equal((txt.match(/User-agent:/g) || []).length, 1);
   for (const bot of ['GPTBot', 'ClaudeBot', 'Google-Extended', 'CCBot', 'anthropic-ai', 'PerplexityBot']) assert.ok(!txt.includes(bot), bot);
-  for (const path of ['/cart', '/checkout', '/account', '/login', '/signup', '/password-reset', '/favorites', '/search']) assert.ok(txt.includes(`Disallow: ${path}\n`), path);
+  for (const path of ['/cart', '/checkout', '/account', '/login', '/signup', '/password-reset', '/favorites', '/search', '/admin', '/internal']) assert.ok(txt.includes(`Disallow: ${path}\n`), path);
   assert.ok(txt.trimEnd().endsWith(`Sitemap: ${SITE}/sitemap.xml`));
+});
+
+check('cache purge paths: a product, and every cacheable page for a site-wide change', () => {
+  const product = pathsToPurge({ slug: 'robe-noire', category: 'femme', previousCategory: 'enfant' });
+  for (const p of ['/', '/ar', '/sitemap.xml', '/product/robe-noire', '/ar/product/robe-noire', '/collection/femme', '/collection/enfant', '/ar/collection/enfant']) assert.ok(product.includes(p), p);
+  assert.deepEqual(pathsToPurge({ slug: '../etc/passwd', category: 'a b' }), ['/', '/sitemap.xml', '/ar'], 'values that do not look like a slug or category are ignored');
+  const site = pathsForSite({ products: [{ slug: 'robe-noire' }, { slug: 'Bad Slug' }, {}], categories: [{ slug: 'femme' }, { slug: 'x y' }] });
+  for (const p of ['/', '/ar', '/sitemap.xml', '/faq', '/ar/faq', '/livraison-retours', '/service-client', '/about', '/contact', '/collection/femme', '/ar/collection/femme', '/product/robe-noire', '/ar/product/robe-noire']) assert.ok(site.includes(p), p);
+  assert.ok(!site.some((p) => /Bad|x y|admin|internal/.test(p)), 'no invalid slug, no admin path');
+  assert.ok(!site.includes('/ar/sitemap.xml') && new Set(site).size === site.length, 'no Arabic sitemap, no duplicate');
 });
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);

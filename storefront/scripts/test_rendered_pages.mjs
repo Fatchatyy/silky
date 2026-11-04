@@ -227,7 +227,7 @@ async function runTests(fixtures, api) {
   assert(robots.status === 200 && /^text\/plain/.test(robots.headers.get('content-type')), 'robots.txt is plain text');
   assert(robots.text.startsWith('User-agent: *\nAllow: /') && count(robots.text, /User-agent:/g) === 1, 'robots.txt: a single group for every crawler');
   assert(!/GPTBot|ClaudeBot|Google-Extended|CCBot|anthropic/i.test(robots.text), 'robots.txt blocks no AI crawler');
-  for (const p of ['cart', 'checkout', 'account', 'login', 'signup', 'password-reset', 'favorites', 'search']) assert(robots.text.includes(`Disallow: /${p}\n`), `robots.txt disallows /${p}`);
+  for (const p of ['cart', 'checkout', 'account', 'login', 'signup', 'password-reset', 'favorites', 'search', 'admin']) assert(robots.text.includes(`Disallow: /${p}\n`), `robots.txt disallows /${p}`);
   assert(robots.text.includes(`Sitemap: ${SITE}/sitemap.xml`), 'robots.txt announces the sitemap');
 
   const sitemap = await get('/sitemap.xml');
@@ -237,7 +237,7 @@ async function runTests(fixtures, api) {
   assert(locs.includes(`${SITE}/product/${fixtures.chemise.slug}`) && !locs.includes(`${SITE}/ar/product/${fixtures.chemise.slug}`), 'sitemap lists no Arabic URL for a product without Arabic text');
   assert(!locs.some((l) => l.includes(fixtures.hidden.slug)), 'sitemap never lists a hidden product');
   assert(locs.includes(`${SITE}/collection/femme`) && locs.includes(`${SITE}/`) && locs.includes(`${SITE}/faq`), 'sitemap lists collections and fixed pages');
-  assert(!locs.some((l) => /\/(cart|checkout|account|login|signup|search|favorites)/.test(l)), 'sitemap lists no private page');
+  assert(!locs.some((l) => /\/(cart|checkout|account|login|signup|search|favorites|admin)/.test(l)), 'sitemap lists no private page and no /admin');
   assert(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/.test(sitemap.text) && /xhtml:link rel="alternate" hreflang="ar"/.test(sitemap.text), 'sitemap has lastmod and hreflang alternates');
   let bad = [];
   for (const loc of locs) {
@@ -245,6 +245,23 @@ async function runTests(fixtures, api) {
     if (res.status !== 200 || count(res.text, /<title>[^<]+<\/title>/g) !== 1) bad.push(`${new URL(loc).pathname} -> ${res.status}`);
   }
   assert(bad.length === 0, `crawling all ${locs.length} sitemap URLs: no 404/500 and no page without a title${bad.length ? ` (${bad.slice(0, 5).join(', ')})` : ''}`);
+
+  console.log('\n--- Admin panel (/admin) ---');
+  const adminShells = [];
+  for (const route of ['/admin', '/admin/login', '/admin/orders', '/admin/anything/deep']) {
+    const first = await get(route);
+    const again = await get(route);
+    adminShells.push(first.text);
+    assert(first.status === 200 && again.status === 200, `${route} answers 200`);
+    assert(/<meta name="robots" content="noindex,nofollow"/.test(first.text) && /noindex, nofollow/.test(first.headers.get('x-robots-tag') || ''), `${route}: noindex, nofollow in the meta tag and in X-Robots-Tag`);
+    assert(first.headers.get('cache-control') === 'no-store' && !first.headers.get('x-silky-cache') && !again.headers.get('x-silky-cache'), `${route}: Cache-Control no-store and never stored by or served from the page cache (no x-silky-cache)`);
+    assert(!/rel="canonical"|hreflang=|application\/ld\+json/.test(first.text), `${route}: no canonical, hreflang or JSON-LD (not an SEO page)`);
+    assert(count(first.text, /<title>[^<]+<\/title>/g) === 1, `${route}: one title`);
+  }
+  assert(adminShells.every((html) => html === adminShells[0]), 'every address under /admin answers the same shell');
+  assert(/AdminApp/.test(adminShells[0]) && /client="only"/.test(adminShells[0]), 'the admin shell mounts the AdminApp island client-side only (nothing of the admin is server-rendered)');
+  assert((await get('/admin/')).status === 301, '/admin/ redirects once to /admin');
+  assert((await get('/ar/admin')).status === 404, '/ar/admin stays a 404');
 
   console.log('\n--- Cache and headers ---');
   // The sitemap crawl above already fetched this page, so it may be a HIT; the next request must be one.
@@ -261,6 +278,62 @@ async function runTests(fixtures, api) {
   assert(/max-age=\d+/.test(second.headers.get('strict-transport-security') || ''), 'HSTS is set when the site address is https (production)');
   const csp = second.headers.get('content-security-policy-report-only') || '';
   assert(csp.includes("frame-ancestors 'none'") && csp.includes(`connect-src 'self' http://127.0.0.1:${new URL(api.url).port}`) && csp.includes('fonts.googleapis.com') && !second.headers.get('content-security-policy'), `CSP is report-only and allows the API, media and Google Fonts origins (got: ${csp})`);
+
+  console.log('\n--- Admin on the shop: same HTML for everyone, purge only for an admin ---');
+  const adminTraces = /ProductAdminLoader|AdminProductReviewsSection|AdminApp|admin-app|admin\/styles\.css|adminStyles|adminApi|admin_product_bar|Masqué du site/;
+  for (const route of [`/product/${robe.slug}`, `/ar/product/${robe.slug}`, '/', '/collection/femme', `/product/${fixtures.hidden.slug}`]) {
+    const res = await get(route);
+    assert(!adminTraces.test(res.text) && !/<link[^>]+admin/i.test(res.text), `${route}: no admin code, style or content in the visitor HTML`);
+    assert(!/<!--[^>]*(admin|src\/)/i.test(res.text), `${route}: no source comment about admin tooling leaks into the page`);
+  }
+  const hiddenPage = await get(`/product/${fixtures.hidden.slug}`);
+  assert(hiddenPage.text.includes('data-admin-hidden-product') && !hiddenPage.text.includes('Produit Cache'), 'the hidden product 404 only carries an empty marker (the admin island fills it client-side)');
+  const recs = page.text.match(/<section[^>]*data-admin-recs[^>]*>/);
+  assert(recs && !/Produit Cache/.test(page.text), 'recommendations carry the marker and never the hidden product');
+  assert(/<nav[^>]*class="product_breadcrumb"/.test(page.text) && !/<nav[^>]*class="product_breadcrumb"[^>]*(hidden|visually-hidden)/.test(page.text), 'the breadcrumb is a visible nav (not hidden)');
+  assert((page.text.match(/<nav[^>]*class="product_breadcrumb"[\s\S]*?<\/nav>/)?.[0].match(/<li/g) || []).length === 3 && /aria-current="page"/.test(page.text), 'breadcrumb: Accueil, collection, product (current page marked)');
+  assert(/<nav[^>]*class="product_breadcrumb"/.test(arPage.text) && arPage.text.includes('الرئيسية'), 'the Arabic breadcrumb is in the HTML, in Arabic');
+  assert(/<section class="product_reviews_section product_geo_info"[^>]*>/.test(page.text), 'the delivery and returns block uses the site\'s product section style');
+
+  const purgeBody = JSON.stringify({ slug: robe.slug, category: 'femme' });
+  const purgeHeaders = { 'Content-Type': 'application/json' };
+  const noToken = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: purgeHeaders, body: purgeBody });
+  assert(noToken.status === 403, 'purge without a token: 403');
+  const badToken = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: 'Bearer not.a.token' }, body: purgeBody });
+  assert(badToken.status === 403, 'purge with an invalid token: 403');
+  { const getPurge = (await fetch(`${BASE}/internal/purge`)).status; assert(getPurge === 404 || getPurge === 405, `purge answers nothing to a GET (got ${getPurge})`); }
+
+  const { createAccount, removeAccounts } = await import('../../server/scripts/helpers/test_accounts.js');
+  const { pool } = await import('../../server/db/pool.js');
+  const { env: apiEnv } = await import('../../server/config/env.js');
+  const { default: jwt } = await import('jsonwebtoken');
+  const customerId = await createAccount(pool, 'customer', 'storefront-test');
+  const adminId = await createAccount(pool, 'admin', 'storefront-test');
+  try {
+    const sign = (id, role) => jwt.sign({ sub: id, email: `${role}@storefront-test.invalid`, role }, apiEnv.jwtSecret, { expiresIn: 600 });
+    const asCustomer = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(customerId, 'customer')}` }, body: purgeBody });
+    assert(asCustomer.status === 403, 'purge with a customer token: 403');
+    await get(`/product/${robe.slug}`);
+    assert((await get(`/product/${robe.slug}`)).headers.get('x-silky-cache') === 'HIT', 'the product page is cached before the purge');
+    const asAdmin = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(adminId, 'admin')}` }, body: purgeBody });
+    const purged = await asAdmin.json();
+    assert(asAdmin.status === 200 && purged.paths.includes(`/product/${robe.slug}`) && purged.paths.includes(`/ar/product/${robe.slug}`) && purged.paths.includes('/collection/femme') && purged.paths.includes('/'), 'purge with an admin token: product (fr and ar), its collection and the home page');
+    assert(purged.removedHere >= 1, 'the cached product page was removed by the purge');
+    assert((await get(`/product/${robe.slug}`)).headers.get('x-silky-cache') === 'MISS', 'the next visitor gets a fresh page (MISS)');
+
+    // Purge by product id only (review moderation knows no slug) and site-wide (theme, announcement bar, hero).
+    await get(`/product/${robe.slug}`);
+    const byId = await (await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(adminId, 'admin')}` }, body: JSON.stringify({ productId: robe.id }) })).json();
+    assert(byId.paths.includes(`/product/${robe.slug}`) && byId.paths.includes('/collection/femme'), 'purge with only a product id: the API says which page it is');
+    await get('/faq');
+    assert((await get('/faq')).headers.get('x-silky-cache') === 'HIT', 'a text page is cached before the site-wide purge');
+    const all = await (await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(adminId, 'admin')}` }, body: JSON.stringify({ all: true }) })).json();
+    assert(['/', '/ar', '/faq', '/ar/faq', '/collection/femme', `/product/${robe.slug}`, `/ar/product/${robe.slug}`].every((p) => all.paths.includes(p)) && !all.paths.some((p) => p.includes(fixtures.hidden.slug)), 'site-wide purge lists the home, text pages, collections and published products (never a hidden one), French and Arabic');
+    assert((await get('/faq')).headers.get('x-silky-cache') === 'MISS', 'after the site-wide purge a text page is rebuilt (MISS)');
+  } finally {
+    await removeAccounts(pool).catch(() => {});
+  }
+  assert(/Disallow: \/internal\n/.test(robots.text), 'robots.txt disallows /internal');
 
   console.log('\n--- API down -> 503 ---');
   await api.stop();
@@ -302,7 +375,7 @@ try {
     shell: true,
     encoding: 'utf8',
     // The API's .env says NODE_ENV=development; the storefront must be built as production (like a deploy).
-    env: { ...process.env, NODE_ENV: 'production', PUBLIC_API_URL: apiUrl, PUBLIC_MEDIA_URL: apiUrl, PUBLIC_SITE_URL: SITE, API_URL: apiUrl },
+    env: { ...process.env, NODE_ENV: 'production', CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false', PUBLIC_API_URL: apiUrl, PUBLIC_MEDIA_URL: apiUrl, PUBLIC_SITE_URL: SITE, API_URL: apiUrl },
   });
   assert(build.status === 0, 'astro build succeeds');
   if (build.status !== 0) throw new Error(`${build.stdout}\n${build.stderr}`.slice(-3000));

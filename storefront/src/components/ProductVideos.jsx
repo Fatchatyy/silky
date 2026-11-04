@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mediaUrl } from '@shared/media';
 import { useT } from '../i18n/useT';
+import { useAuth } from '../stores/auth';
 import { withIsland } from '../lib/island';
 
 function formatVideoTime(seconds) {
@@ -137,10 +138,12 @@ function ProductVideoPlayer({ videoUrl }) {
 
 function ProductVideos({ videos }) {
   const { t } = useT();
+  const { isAdmin } = useAuth();
   const [selectedVideoIdx, setSelectedVideoIdx] = useState(0);
   const videoTrackRef = useRef(null);
 
-  if (!videos?.length) return null;
+  // The admin's inline editor draws its own videos section (with upload and delete).
+  if (!videos?.length || isAdmin) return null;
 
   const showThumb = (idx) => {
     setSelectedVideoIdx(idx);

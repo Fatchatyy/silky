@@ -15,7 +15,7 @@ function getGuestSessionId() {
   return id;
 }
 
-async function request(path: string, options: any = {}) {
+export async function request(path: string, options: any = {}) {
   const headers: Record<string, string> = { ...options.headers };
   if (options.body && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
 
@@ -43,7 +43,7 @@ async function request(path: string, options: any = {}) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     // Credential-validation endpoints legitimately return 401 for wrong credentials: they must not end the session.
-    const isCredentialValidation = path === '/auth/change-password';
+    const isCredentialValidation = path === '/auth/change-password' || path === '/admin/login';
     if (res.status === 401 && getUserToken() && !isCredentialValidation) {
       clearUserAuth();
       throw new Error(err.error || 'Session expirée. Veuillez vous reconnecter.');
@@ -91,6 +91,7 @@ export const api = {
     return request(`/products${suffix}`);
   },
   getProduct: (id: string) => request(`/products/${id}`),
+  getProductBySlug: (slug: string) => request(`/products/by-slug/${slug}`),
   getProductReviews: (id: string) => request(`/products/${id}/reviews`),
   submitProductReview: (id: string, review: any) => request(`/products/${id}/reviews`, { method: 'POST', body: review }),
   getCart: () => request('/cart'),

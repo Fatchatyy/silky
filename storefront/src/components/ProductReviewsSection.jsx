@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../stores/auth';
 import ReviewLoginPrompt from './ReviewLoginPrompt';
+
+// Review moderation for an admin: a separate chunk, downloaded only with a valid admin token.
+const AdminProductReviewsSection = lazy(() => import('../admin/AdminProductReviewsSection'));
 import { useT } from '../i18n/useT';
 
 // initialReviews / initialSummary come from the server render, so the reviews are in the first HTML.
@@ -217,6 +220,12 @@ export default function ProductReviewsSection({ productId, initialReviews = null
             )}
           </div>
         </div>
+
+        {isAdmin && (
+          <Suspense fallback={null}>
+            <AdminProductReviewsSection productId={productId} onReviewUpdated={fetchReviews} />
+          </Suspense>
+        )}
       </div>
     </section>
   );

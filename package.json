@@ -13,7 +13,7 @@
 
   "scripts": {
 
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently --names api,shop,old \"npm run dev:server\" \"npm run dev:storefront\" \"npm run dev:client\"",
 
     "dev:client": "vite",
 

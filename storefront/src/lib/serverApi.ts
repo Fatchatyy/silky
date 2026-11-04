@@ -36,7 +36,7 @@ export async function getJsonOrNull<T = any>(path: string): Promise<T | null> {
   }
 }
 
-// Data every page needs (colours, announcements, hero) changes rarely: kept for a minute per Worker instance.
+// Data every page needs (colours, announcements, hero) changes rarely: kept a few seconds per Worker instance (only to absorb a burst; the pages themselves are cached 5 minutes). Kept short on purpose: the admin's purge only clears the instance that receives it, and a long memory in another instance would put old data back into a freshly purged page.
 const memo = new Map<string, { at: number; value: unknown }>();
 export async function getCached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
   const hit = memo.get(key);
@@ -44,4 +44,9 @@ export async function getCached<T>(key: string, ttlMs: number, load: () => Promi
   const value = await load();
   memo.set(key, { at: Date.now(), value });
   return value;
+}
+
+/** Drops the short-lived server memory (theme, product list) of this Worker instance, after an admin change. */
+export function forgetCachedData() {
+  memo.clear();
 }

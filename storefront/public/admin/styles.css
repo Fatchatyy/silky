@@ -1,0 +1,6 @@
+/* Entry point of the admin tools' styles on the SHOP pages. Loaded at run time by src/admin/adminStyles.js ONLY when the browser holds a valid admin token (a plain file in public/, so the build never links it into the pages visitors receive).
+   admin.css goes into the low-priority cascade layer "admin": it behaves as if it came BEFORE the shop CSS, as in the old bundle, so a storefront rule with the same specificity (or an unlayered reset such as * { margin: 0 }) still wins.
+   product-admin.css (it comes after product.css in the old bundle) stays unlayered.
+   The admin panel (/admin) links admin.css and product-admin.css directly, unlayered, after the shop stylesheet (layouts/AdminLayout.astro). One copy of each file serves both. */
+@import url('/admin/admin.css') layer(admin);
+@import url('/admin/product-admin.css');

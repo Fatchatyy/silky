@@ -1,11 +1,16 @@
-// Runs before every page: canonical-address redirects, the rendered-page cache (Workers Cache API) and the
-// security headers (plan 2.8 and 2.11).
+// Runs before every page: canonical-address redirects, the rendered-page cache (Workers Cache API), the
+// security headers (plan 2.8 and 2.11) and the rules of the admin panel (plan 3.2).
 import { defineMiddleware } from 'astro:middleware';
 import { isProduction, mediaBase, publicApiUrl } from './lib/config';
+import { cacheKeyFor } from './lib/pages/cacheKeys';
 
 // Page types whose rendered HTML is cached for everyone: home, collections, products and the text pages, French
 // and Arabic. The cart, checkout, account ... are static shells (their data is fetched in the browser).
 const CACHEABLE = /^(?:\/ar)?(?:\/|\/collection\/[^/]+|\/product\/[^/]+|\/faq|\/livraison-retours|\/service-client|\/about|\/contact|\/sitemap\.xml)$/;
+
+// The admin panel (/admin and everything under it) is not a page of the site: noindex, never stored by or served from the
+// page cache, never cached by a browser or a proxy.
+const isAdminPath = (pathname: string) => pathname === '/admin' || pathname.startsWith('/admin/');
 
 const redirect = (to: string) => new Response(null, { status: 301, headers: { Location: to, 'Cache-Control': 'public, max-age=3600' } });
 
@@ -50,9 +55,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Not while developing: a cached page would hide every edit (the Workers cache persists across dev restarts).
   const cache: Cache | undefined = import.meta.env.DEV ? undefined : (globalThis as any).caches?.default;
   const cacheable =
-    cache && request.method === 'GET' && CACHEABLE.test(url.pathname) && !request.headers.has('authorization');
+    cache && !isAdminPath(url.pathname) && request.method === 'GET' && CACHEABLE.test(url.pathname) && !request.headers.has('authorization');
   // These pages ignore the query string, so a crawler adding ?utm_... does not bypass the cache.
-  const cacheKey = cacheable ? new Request(`${url.origin}${url.pathname}`, { method: 'GET' }) : null;
+  const cacheKey = cacheable ? cacheKeyFor(url.origin, url.pathname) : null;
 
   if (cache && cacheKey) {
     const hit = await cache.match(cacheKey);
@@ -67,6 +72,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const rendered = await next();
   const response = new Response(rendered.body, rendered);
   securityHeaders(response.headers, url.pathname);
+  if (isAdminPath(url.pathname)) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    response.headers.set('Cache-Control', 'no-store');
+  }
 
   if (cache && cacheKey) {
     response.headers.set('x-silky-cache', 'MISS');

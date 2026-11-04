@@ -20,5 +20,5 @@ const seo = result.kind === 'ok'
 <BaseLayout locale={locale} seo={seo}>
   {result.kind === 'ok'
     ? <ProductView product={result.data.product} reviews={result.data.reviews} rating={result.data.rating} collectionName={result.data.collectionName} recommendations={result.data.recommendations} locale={locale} />
-    : <NotFoundView locale={locale} unavailable={result.kind === 'unavailable'} />}
+    : <NotFoundView locale={locale} unavailable={result.kind === 'unavailable'} hiddenProductKey={result.kind === 'notfound' ? Astro.params.slug : null} />}
 </BaseLayout>

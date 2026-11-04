@@ -17,7 +17,7 @@ const title = isNamedCollection(slug) ? text.title : name || text.title;
   </section>
 
   <div class="collections_wrapper">
-    <section class="collection_section">
+    <section class="collection_section" data-admin-section data-category={slug}>
       {products.length === 0 ? (
         <p style="text-align: center">{t('collection.empty')}</p>
       ) : (

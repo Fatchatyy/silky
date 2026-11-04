@@ -7,7 +7,7 @@ const { title, description, canonical, alternates, robots, og, jsonLd } = Astro.
 ---
 <title>{title}</title>
 {description && <meta name="description" content={description} />}
-<link rel="canonical" href={canonical} />
+{canonical && <link rel="canonical" href={canonical} />}
 <meta name="robots" content={robots} />
 {alternates?.fr && <link rel="alternate" hreflang="fr" href={alternates.fr} />}
 {alternates?.ar && <link rel="alternate" hreflang="ar" href={alternates.ar} />}
@@ -16,7 +16,7 @@ const { title, description, canonical, alternates, robots, og, jsonLd } = Astro.
 <meta property="og:title" content={title} />
 {description && <meta property="og:description" content={description} />}
 <meta property="og:type" content={og.type} />
-<meta property="og:url" content={canonical} />
+{canonical && <meta property="og:url" content={canonical} />}
 <meta property="og:locale" content={og.locale} />
 {og.image && <meta property="og:image" content={og.image} />}
 <meta name="twitter:card" content={og.image ? 'summary_large_image' : 'summary'} />

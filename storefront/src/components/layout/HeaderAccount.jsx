@@ -1,13 +1,21 @@
 // The "Mon compte" / "Connexion" link (and the logout button once signed in): depends on the visitor's session.
+import { useEffect } from 'react';
 import { Link, useNavigate } from '../../lib/router';
 import { useT } from '../../i18n/useT';
 import { useAuth } from '../../stores/auth';
 import { withIsland } from '../../lib/island';
+import { ADMIN_URL } from '../../lib/adminUrl';
 
 function HeaderAccount() {
   const navigate = useNavigate();
   const { t } = useT();
   const { isAuthenticated, isAdmin, logout } = useAuth();
+
+  // A valid admin token (useAuth has checked it with the API): load the admin tools, a separate chunk that visitors
+  // never download. It finds the marked places of the page (hidden products, recommendations, ...) and fills them.
+  useEffect(() => {
+    if (isAdmin) import('../../admin/enhance').then((module) => module.enhancePage());
+  }, [isAdmin]);
 
   if (!isAuthenticated) {
     return (
@@ -18,14 +26,21 @@ function HeaderAccount() {
     );
   }
 
-  // The admin panel is its own app: an admin signed in here goes to the customer account page like any customer.
+  // An admin's account link opens the admin panel, as on the old site.
   const accountLabel = isAdmin ? t('nav.admin') : t('nav.myAccount');
   return (
     <>
-      <Link to="/account" className="action_item">
-        <img src="/pictures/account.png" alt={accountLabel} className="action_icon_img" />
-        <span>{accountLabel}</span>
-      </Link>
+      {isAdmin ? (
+        <a href={ADMIN_URL} className="action_item">
+          <img src="/pictures/account.png" alt={accountLabel} className="action_icon_img" />
+          <span>{accountLabel}</span>
+        </a>
+      ) : (
+        <Link to="/account" className="action_item">
+          <img src="/pictures/account.png" alt={accountLabel} className="action_icon_img" />
+          <span>{accountLabel}</span>
+        </Link>
+      )}
       <button
         type="button"
         className="action_item header-logout-btn"

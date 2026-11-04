@@ -84,9 +84,9 @@ function getCardStyle(offset, spacing, cardDimensions, dragPx = 0) {
   };
 }
 
-export default function ProductCarousel({ products }) {
+export default function ProductCarousel({ products, showHidden = false }) {
   const { t, locale } = useT();
-  const visibleList = (products || []).filter((p) => !p.isHidden);
+  const visibleList = showHidden ? products || [] : (products || []).filter((p) => !p.isHidden);
   const slides = visibleList.slice(0, SLIDE_COUNT);
   const [activeIndex, setActiveIndex] = useState(0);
   const [cardDimensions, setCardDimensions] = useState(() =>

@@ -1,12 +1,19 @@
+import { useEffect } from 'react';
 import { useLocation } from '../lib/router.jsx';
 import { Navigate } from '../lib/router';
 import { useAuth } from '../stores/auth';
+import { ADMIN_URL } from '../lib/adminUrl';
 
 export default function GuestRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  // An admin who is already signed in goes to the admin panel, not to a customer page.
+  useEffect(() => {
+    if (!loading && isAdmin) window.location.assign(ADMIN_URL);
+  }, [loading, isAdmin]);
+
+  if (loading || isAdmin) {
     return (
       <main className="account-page">
         <p className="account-loading">Chargement...</p>

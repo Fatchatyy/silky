@@ -2,7 +2,7 @@
 // buy now). Ported from the visitor view of the old src/pages/Product.jsx: same markup and classes. The admin editing
 // mode is not part of the storefront (products are edited in the admin app). It is rendered on the server with the
 // first colour and size selected, so the name, price, description and photos are in the HTML a crawler receives.
-import { useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { productName, productDescription, productImageAlt } from '@shared/productText';
 import { mediaVariantUrl as imageVariantPath } from '@shared/media';
 import { getEffectivePrice } from '@shared/price';
@@ -11,6 +11,7 @@ import ProductPrice from './ProductPrice';
 import ProductBadges from './ProductBadges';
 import BuyNowModal from './BuyNowModal';
 import ShareModal from './ShareModal';
+import Breadcrumb from './Breadcrumb';
 import { useCart } from '../stores/cart';
 import { useFavorites } from '../stores/favorites';
 import { useAuth } from '../stores/auth';
@@ -18,7 +19,10 @@ import { useLocale } from '../i18n/LocaleContext';
 import { useT } from '../i18n/useT';
 import { withIsland } from '../lib/island';
 
-function ProductMain({ product }) {
+// The admin's inline editor: a separate chunk, downloaded only when the browser holds a valid admin token.
+const ProductAdminLoader = lazy(() => import('../admin/ProductAdminLoader'));
+
+function ProductMain({ product, breadcrumb = null }) {
   const { t, known, colorLabel } = useT();
   const { addItem } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -275,7 +279,7 @@ function ProductMain({ product }) {
     setBuyNowModalOpen(true);
   };
 
-  return (
+  const publicView = (
     <>
       <main className="product_page_wrapper">
         {/* Vertical Thumbnails Column (Left) */}
@@ -358,6 +362,7 @@ function ProductMain({ product }) {
 
         {/* Product Details Panel (Right) */}
         <div className="product_info_panel">
+          {breadcrumb && <Breadcrumb {...breadcrumb} />}
           <h1 className="product_title">{productName(product, locale)}</h1>
 
           <h2 className="section_subtitle">{t('product.details')}</h2>
@@ -541,6 +546,16 @@ function ProductMain({ product }) {
       />
     </>
   );
+
+  // An admin gets the inline editor instead (same server HTML for everyone: this swap happens in the browser only).
+  if (isAdmin) {
+    return (
+      <Suspense fallback={publicView}>
+        <ProductAdminLoader productId={product.id} breadcrumb={breadcrumb} fallback={publicView} />
+      </Suspense>
+    );
+  }
+  return publicView;
 }
 
 export default withIsland(ProductMain);

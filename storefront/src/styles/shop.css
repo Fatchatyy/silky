@@ -6720,43 +6720,69 @@ html {
 /* ===== storefront.css ===== */
 /* Rules that exist only in the Astro storefront (everything else is the shop's original CSS, copied unchanged). */
 
-/* Content for crawlers and screen readers that is not drawn (the breadcrumb: the design has none). */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+/* Breadcrumb line above the product name: small, muted, same font as the page. The separator points the other way in Arabic. */
+.product_breadcrumb {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #777777;
 }
-.visually-hidden ol {
+
+.product_breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-/* Delivery and returns facts under a product (the same wording as the delivery page). */
+.product_breadcrumb li + li::before {
+  content: "›";
+  margin: 0 8px;
+  color: #aaaaaa;
+}
+
+html[dir="rtl"] .product_breadcrumb li + li::before {
+  content: "‹";
+}
+
+.product_breadcrumb a {
+  color: #777777;
+  text-decoration: none;
+}
+
+.product_breadcrumb a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.product_breadcrumb li[aria-current="page"] span {
+  color: #222222;
+}
+
+/* Delivery and returns facts under a product: the same card, heading and text styles as the reviews section above it
+   (.product_reviews_section / .product_reviews_container / .product_reviews_heading / .product_description). */
 .product_geo_info {
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 0 20px;
-  color: #333;
-  line-height: 1.6;
+  margin-top: 0;
 }
-.product_geo_info h2 {
-  font-size: 1.25rem;
-  margin: 0 0 12px;
+
+.product_geo_info .product_reviews_container h3 {
+  font-size: 15px;
+  font-weight: bold;
+  color: #111111;
+  margin: 18px 0 6px;
 }
-.product_geo_info h3 {
-  font-size: 1rem;
-  margin: 16px 0 6px;
+
+.product_geo_info .product_reviews_container p {
+  margin-bottom: 8px;
 }
-.product_geo_info p {
-  margin: 0 0 10px;
-  font-size: 0.95rem;
+
+.product_geo_info .product_reviews_container a {
+  color: var(--color-primary);
+}
+
+.product_geo_info .product_reviews_container a:hover {
+  text-decoration: underline;
 }
 
 /* ===== rtl.css ===== */

@@ -18,10 +18,10 @@ export const DEFAULT_THEME: any = {
   heroConfig: null,
 };
 
-/** The theme, kept for a minute per Worker instance; the shop's defaults if the API does not answer. */
+/** The theme, kept 5 seconds per Worker instance (short, so a theme change made in the admin is not re-cached by another instance); the shop's defaults if the API does not answer. */
 export async function loadTheme() {
   try {
-    return await getCached('theme', 60_000, () => getJson('/theme'));
+    return await getCached('theme', 5_000, () => getJson('/theme'));
   } catch {
     return DEFAULT_THEME;
   }

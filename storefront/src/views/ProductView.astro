@@ -31,34 +31,36 @@ const name = productName(product, locale);
 const slug: string | undefined = product.category;
 const collectionTitle = slug ? (isNamedCollection(slug) ? collectionText(slug, locale).title : collectionName || slug) : null;
 const delivery: any = getTextPage('delivery', locale);
+const breadcrumb = {
+  label: locale === 'ar' ? 'مسار التصفح' : "Fil d'Ariane",
+  items: [
+    { name: locale === 'ar' ? 'الرئيسية' : 'Accueil', href: localizePath('/', locale) },
+    ...(slug && collectionTitle ? [{ name: collectionTitle, href: localizePath(categoryPath(slug), locale) }] : []),
+    { name, href: null },
+  ],
+};
 ---
-<nav class="visually-hidden" aria-label={locale === 'ar' ? 'مسار التصفح' : "Fil d'Ariane"}>
-  <ol>
-    <li><a href={localizePath('/', locale)}>{locale === 'ar' ? 'الرئيسية' : 'Accueil'}</a></li>
-    {slug && collectionTitle && <li><a href={localizePath(categoryPath(slug), locale)}>{collectionTitle}</a></li>}
-    <li aria-current="page">{name}</li>
-  </ol>
-</nav>
 
-<ProductMain client:load locale={locale} product={productForMain(product)} />
+<ProductMain client:load locale={locale} product={productForMain(product)} breadcrumb={breadcrumb} />
 
 {product.videos?.length > 0 && <ProductVideos client:visible locale={locale} videos={product.videos} />}
 
 <ProductReviews client:visible locale={locale} productId={product.id} initialReviews={reviews ?? undefined} initialSummary={rating ?? undefined} />
 
-<section class="product_geo_info">
-  <h2>{delivery.title}</h2>
-  {delivery.sections.map((section: any) => (
-    <>
-      <h3>{section.heading}</h3>
-      {section.paragraphs.map((parts: any[]) => <p><RichParts parts={parts} locale={locale} /></p>)}
-    </>
-  ))}
-  <p><a href={localizePath('/livraison-retours', locale)}>{delivery.title}</a></p>
+<section class="product_reviews_section product_geo_info" aria-label={delivery.title}>
+  <div class="product_reviews_container">
+    <h2 class="product_reviews_heading">{delivery.title}</h2>
+    {delivery.sections.map((section: any) => (
+      <>
+        <h3>{section.heading}</h3>
+        {section.paragraphs.map((parts: any[]) => <p class="product_description"><RichParts parts={parts} locale={locale} /></p>)}
+      </>
+    ))}
+    <p class="product_description"><a href={localizePath('/livraison-retours', locale)}>{delivery.title}</a></p>
+  </div>
 </section>
-
-{recommendations.length > 0 && (
-  <section class="recommendations_section">
+{/* Rendered even when empty: an admin's browser fills it with the hidden products too (see src/admin/enhance.jsx). */}
+<section class="recommendations_section" hidden={recommendations.length === 0} data-admin-recs data-category={product.category} data-exclude={product.id}>
     <h2 class="recommendations_title">{t('product.recommended')}</h2>
     <div class="recommendations_grid">
       {recommendations.map((rec) => (
@@ -79,5 +81,4 @@ const delivery: any = getTextPage('delivery', locale);
         {t(product.category === 'femme' ? 'collection.fullWomen' : 'collection.fullKids')}
       </a>
     </div>
-  </section>
-)}
+</section>

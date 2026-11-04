@@ -29,7 +29,7 @@ const sections = [
 
 <div class="collections_wrapper">
   {sections.map((section) => (
-    <section class="collection_section">
+    <section class="collection_section" data-admin-section data-category={section.slug} data-limit="4">
       <h2 class="collection_title">{section.title}</h2>
       <div class="products_grid">
         {section.list.map((product) => <ProductCard product={product} locale={locale} fallbackImage={section.image} />)}
