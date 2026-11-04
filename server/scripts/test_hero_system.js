@@ -3,6 +3,10 @@ import { pool } from '../db/pool.js';
 import { runHeroConfigMigration } from '../db/migrations/add_hero_config.js';
 import { themeRepository } from '../repositories/theme.repository.js';
 import { productRepository } from '../repositories/product.repository.js';
+import { assertSilkyTestUrl } from './helpers/silky_test_guard.js';
+
+// This script writes the shop's theme: it only runs against silky_test.
+assertSilkyTestUrl();
 
 async function runTests() {
   console.log('--- Starting Hero System Automated Tests ---');
@@ -126,6 +130,37 @@ async function runTests() {
   const isUnreferencedImage = await productRepository.isImageReferencedElsewhere('/uploads/unused-random-999.jpg');
   assert.strictEqual(isUnreferencedImage, false, 'Unreferenced image returns false');
   console.log('✓ Image reference safety check verified.');
+
+  // 7. Arabic versions of every hero text (title, subtitle, button label) in the three templates
+  console.log('7. Testing the optional Arabic hero texts...');
+  const arabic = await themeRepository.updateSettings({
+    heroConfig: {
+      templateType: 'option1',
+      option1: { mainText: 'Titre', smallText: 'Sous-titre', mainTextAr: '  عنوان  ', smallTextAr: 'عنوان فرعي', leftImage: '/pictures/a.jpg', rightImage: '/pictures/b.jpg', leftButton: { text: 'Femme', textAr: 'نساء', destination: '/collection/femme', visible: true }, rightButton: { text: 'Enfant', destination: '/collection/enfant', visible: true } },
+      option2: { mainText: 'T2', smallText: 'S2', mainTextAr: 'ع٢', smallTextAr: 'ف٢', image: '/pictures/c.jpg', textPosition: 'left', button: { text: 'Découvrir', textAr: 'اكتشفوا', destination: '/collection/femme', visible: true } },
+      option3: { slides: [
+        { id: 's1', mainText: 'A', smallText: 'B', mainTextAr: 'أ', smallTextAr: 'ب', image: '/pictures/d.jpg', textPosition: 'left', button: { text: 'Femme', textAr: 'نساء', destination: '/collection/femme', visible: true } },
+        { id: 's2', mainText: 'C', smallText: 'D', image: '/pictures/e.jpg', textPosition: 'right', button: { text: 'Enfant', destination: '/collection/enfant', visible: true } },
+      ] },
+    },
+  });
+  const h = arabic.heroConfig;
+  assert.strictEqual(h.option1.mainTextAr, 'عنوان', 'option1 Arabic title is stored (trimmed)');
+  assert.strictEqual(h.option1.smallTextAr, 'عنوان فرعي');
+  assert.strictEqual(h.option1.leftButton.textAr, 'نساء');
+  assert.strictEqual(h.option1.rightButton.textAr, '', 'a button without Arabic text has an empty textAr');
+  assert.strictEqual(h.option2.mainTextAr, 'ع٢');
+  assert.strictEqual(h.option2.smallTextAr, 'ف٢');
+  assert.strictEqual(h.option2.button.textAr, 'اكتشفوا');
+  assert.strictEqual(h.option3.slides[0].mainTextAr, 'أ');
+  assert.strictEqual(h.option3.slides[0].smallTextAr, 'ب');
+  assert.strictEqual(h.option3.slides[0].button.textAr, 'نساء');
+  assert.strictEqual(h.option3.slides[1].mainTextAr, '', 'a slide without Arabic text has empty Arabic fields');
+  const reread = (await themeRepository.getSettings()).heroConfig;
+  assert.strictEqual(reread.option1.mainTextAr, 'عنوان', 'the Arabic texts survive a reload');
+  assert.strictEqual(reread.option3.slides[0].button.textAr, 'نساء');
+  assert.strictEqual(typeof reread.option1.mainText, 'string', 'the French texts are untouched');
+  console.log('✓ Arabic hero texts verified.');
 
   console.log('--- ALL HERO SYSTEM TESTS PASSED SUCCESSFULLY! ---');
   process.exit(0);

@@ -52,6 +52,7 @@ export const cartRepository = {
       sku: productVariants.sku,
       productId: products.id,
       productTitle: products.title,
+      productTitleAr: products.titleAr,
       productSlug: products.slug,
       price: products.price,
       discountAmount: products.discountAmount,

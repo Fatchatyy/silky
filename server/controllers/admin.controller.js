@@ -3,6 +3,8 @@ import * as inventoryService from '../services/inventory.service.js';
 import * as analyticsService from '../services/analytics.service.js';
 import * as exchangeService from '../services/exchange.service.js';
 import * as authService from '../services/auth.service.js';
+import * as deliveryService from '../services/delivery.service.js';
+import { userRepository } from '../repositories/user.repository.js';
 import { sendError } from '../utils/errors.js';
 
 export async function login(req, res) {
@@ -15,7 +17,9 @@ export async function login(req, res) {
   }
 }
 
-export async function logout(_req, res) {
+export async function logout(req, res) {
+  // Ends the admin's sessions: tokens issued before now stop working, so a copied token is useless after logout.
+  await userRepository.revokeTokens(req.user.id);
   res.json({ ok: true });
 }
 
@@ -78,7 +82,7 @@ export async function createExchange(req, res) {
       deliveryFee,
       paymentResponsibility,
     });
-    res.status(201).json(updatedOrder);
+    res.status(201).json(await deliveryService.attachDelivery(updatedOrder));
   } catch (err) {
     sendError(res, err);
   }

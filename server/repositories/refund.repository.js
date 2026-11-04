@@ -43,6 +43,12 @@ export const refundRepository = {
     return result;
   },
 
+  /** The stored refund row (no items), or null. */
+  async findById(id, tx = db) {
+    const [row] = await tx.select().from(orderRefunds).where(eq(orderRefunds.id, id));
+    return row || null;
+  },
+
   async findLatestRefund(orderId, tx = db) {
     const [latest] = await tx.select().from(orderRefunds)
       .where(eq(orderRefunds.orderId, orderId))

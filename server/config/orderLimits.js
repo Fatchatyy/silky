@@ -13,7 +13,8 @@ export const MAX_BULK_ORDER_IDS = 100;
  * @returns {number} The validated positive integer quantity
  */
 export function validateOrderQuantity(rawQty, max = MAX_ITEM_QUANTITY) {
-  if (rawQty === null || rawQty === undefined || typeof rawQty === 'boolean') {
+  // Only a number or a numeric string is a quantity: Number([1]) is 1, so arrays and objects are refused here.
+  if (typeof rawQty !== 'number' && typeof rawQty !== 'string') {
     throw new AppError('Quantité invalide pour l\'article', 400);
   }
 

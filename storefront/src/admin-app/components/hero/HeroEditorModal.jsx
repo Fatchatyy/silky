@@ -5,6 +5,17 @@ import '../../styles/hero-editor.css';
 
 const DESKTOP_REF_HEIGHT = 625;
 
+/** The Arabic title and subtitle of a hero (optional: without them the Arabic page shows the French text). */
+function ArabicTextFields({ mainValue, smallValue, onMainChange, onSmallChange }) {
+  const style = { direction: 'rtl', background: 'rgba(255, 255, 255, 0.85)', color: '#111', border: '1px dashed #8d191c', borderRadius: 6, padding: '4px 8px', width: '100%', textAlign: 'right', pointerEvents: 'auto' };
+  return (
+    <div className="hero_arabic_fields" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, width: '100%' }}>
+      <input type="text" dir="rtl" lang="ar" style={style} value={mainValue || ''} maxLength={500} onChange={(e) => onMainChange(e.target.value)} placeholder="العنوان الرئيسي بالعربية (اختياري)" />
+      <input type="text" dir="rtl" lang="ar" style={style} value={smallValue || ''} maxLength={500} onChange={(e) => onSmallChange(e.target.value)} placeholder="العنوان الفرعي بالعربية (اختياري)" />
+    </div>
+  );
+}
+
 export default function HeroEditorModal({
   heroConfig,
   onSave,
@@ -304,6 +315,12 @@ export default function HeroEditorModal({
                       onChange={(e) => handleOpt1Change('smallText', e.target.value)}
                       placeholder="Petit sous-titre..."
                     />
+                    <ArabicTextFields
+                      mainValue={opt1.mainTextAr}
+                      smallValue={opt1.smallTextAr}
+                      onMainChange={(v) => handleOpt1Change('mainTextAr', v)}
+                      onSmallChange={(v) => handleOpt1Change('smallTextAr', v)}
+                    />
                   </div>
 
                   {/* Left Box Image Slot */}
@@ -448,6 +465,12 @@ export default function HeroEditorModal({
                         textAlign: opt2.textPosition === 'right' ? 'right' : 'left',
                       }}
                     />
+                    <ArabicTextFields
+                      mainValue={opt2.mainTextAr}
+                      smallValue={opt2.smallTextAr}
+                      onMainChange={(v) => handleOpt2Change('mainTextAr', v)}
+                      onSmallChange={(v) => handleOpt2Change('smallTextAr', v)}
+                    />
 
                     {/* Option 2 Button with Hover Actions */}
                     <div className="hero_button_interactive_wrapper">
@@ -552,6 +575,12 @@ export default function HeroEditorModal({
                         style={{
                           textAlign: currentSlide.textPosition === 'right' ? 'right' : 'left',
                         }}
+                      />
+                      <ArabicTextFields
+                        mainValue={currentSlide.mainTextAr}
+                        smallValue={currentSlide.smallTextAr}
+                        onMainChange={(v) => handleCurrentSlideChange('mainTextAr', v)}
+                        onSmallChange={(v) => handleCurrentSlideChange('smallTextAr', v)}
                       />
 
                       {/* Slide Button with Hover Actions */}

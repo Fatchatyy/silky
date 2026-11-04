@@ -1,4 +1,5 @@
 import '../config/env.js';
+import './helpers/parcel_guard_off.js';
 import assert from 'assert';
 import { jsPDF } from 'jspdf';
 import { pool } from '../db/pool.js';

@@ -1,7 +1,10 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { Link } from '../i18n/router';
 import '../styles/checkout.css';
+import { useT } from '../i18n/useT';
 
 export default function OrderConfirmation() {
+  const { t } = useT();
   const { state } = useLocation();
   const order = state?.order;
 
@@ -9,10 +12,10 @@ export default function OrderConfirmation() {
     return (
       <main className="checkout-page">
         <section className="checkout-section">
-          <h1 className="checkout-title">Commande confirmée</h1>
-          <p>Aucune commande récente trouvée.</p>
+          <h1 className="checkout-title">{t('order.confirmedTitle')}</h1>
+          <p>{t('order.none')}</p>
           <Link to="/" className="checkout-back-link">
-            Retour à l&apos;accueil
+            {t('notfound.home')}
           </Link>
         </section>
       </main>
@@ -22,11 +25,11 @@ export default function OrderConfirmation() {
   return (
     <main className="checkout-page">
       <section className="checkout-section checkout-success">
-        <h1 className="checkout-title">Merci pour votre commande!</h1>
-        <p className="checkout-order-number">Numéro de commande: <strong>{order.orderNumber}</strong></p>
-        <p>Nous avons bien reçu votre commande. Notre équipe vous contactera pour la livraison.</p>
+        <h1 className="checkout-title">{t('order.thanks')}</h1>
+        <p className="checkout-order-number">{t('order.number')} <strong>{order.orderNumber}</strong></p>
+        <p>{t('order.received')}</p>
         <Link to="/" className="checkout-back-link">
-          Continuer mes achats
+          {t('cart.continue')}
         </Link>
       </section>
     </main>

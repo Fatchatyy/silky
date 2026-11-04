@@ -165,7 +165,9 @@ async function request(path, options = {}) {
 
     }
 
-    throw new Error(err.error || 'Request failed');
+    const failure = new Error(err.error || 'Request failed');
+    failure.status = res.status;
+    throw failure;
 
   }
 
@@ -196,7 +198,12 @@ export const api = {
   resetPassword: (data) => request('/auth/reset-password', { method: 'POST', body: data }),
   getMe: () => request('/auth/me'),
   updateProfile: (data) => request('/auth/me', { method: 'PATCH', body: data }),
-  changePassword: (data) => request('/auth/change-password', { method: 'POST', body: data }),
+  changePassword: async (data) => {
+    const result = await request('/auth/change-password', { method: 'POST', body: data });
+    // A password change ends the old sessions; the server sends a fresh token so this browser stays signed in.
+    if (result?.token) setUserAuth(result.token, getStoredUser());
+    return result;
+  },
 
   // Admin panel (password login → JWT)
   adminLogin: (password) => request('/admin/login', { method: 'POST', body: { password } }),
@@ -300,6 +307,30 @@ export const api = {
   updateOrdersStatus: (orderIds, status) => request('/orders/bulk-status', { method: 'PATCH', body: { orderIds, status } }),
 
   cancelOrder: (id) => request(`/orders/${id}/cancel`, { method: 'POST' }),
+  refreshOrderDelivery: (id, { onlyIfStale = false } = {}) =>
+    request(`/orders/${id}/delivery/refresh`, { method: 'POST', body: { onlyIfStale } }),
+  retryOrderDelivery: (id, acknowledgeUnknown = false) =>
+    request(`/orders/${id}/delivery/retry`, { method: 'POST', body: { acknowledgeUnknown } }),
+  refreshExchangeDelivery: (exchangeId, { onlyIfStale = false } = {}) =>
+    request(`/orders/exchanges/${exchangeId}/delivery/refresh`, { method: 'POST', body: { onlyIfStale } }),
+  retryExchangeDelivery: (exchangeId, acknowledgeUnknown = false) =>
+    request(`/orders/exchanges/${exchangeId}/delivery/retry`, { method: 'POST', body: { acknowledgeUnknown } }),
+  refreshRefundDelivery: (refundId, { onlyIfStale = false } = {}) =>
+    request(`/orders/refunds/${refundId}/delivery/refresh`, { method: 'POST', body: { onlyIfStale } }),
+  retryRefundDelivery: (refundId, acknowledgeUnknown = false) =>
+    request(`/orders/refunds/${refundId}/delivery/retry`, { method: 'POST', body: { acknowledgeUnknown } }),
+  // GOODEX claims (tickets)
+  getClaimTypes: () => request('/orders/claims/types'),
+  getClaimCounts: () => request('/orders/claims/counts'),
+  getRemoteClaims: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v !== undefined && v !== null)).toString();
+    return request('/orders/claims/remote' + (qs ? '?' + qs : ''));
+  },
+  getOrderClaims: (id) => request(`/orders/${id}/claims`),
+  openOrderClaim: (id, body) => request(`/orders/${id}/claims`, { method: 'POST', body }),
+  syncOrderClaims: (id) => request(`/orders/${id}/claims/sync`, { method: 'POST' }),
+  refreshClaim: (claimId) => request(`/orders/claims/${claimId}/refresh`, { method: 'POST' }),
+  cancelClaim: (claimId) => request(`/orders/claims/${claimId}`, { method: 'DELETE' }),
 
   refundOrder: (id, data = {}) => request(`/orders/${id}/refund`, { method: 'POST', body: data }),
 

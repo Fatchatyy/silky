@@ -15,20 +15,21 @@ export async function submit(req, res) {
     return res.status(403).json({ error: 'Les administrateurs ne peuvent pas soumettre d\'avis.' });
   }
 
-  const { authorName, email, body, rating } = req.body;
-  const finalAuthorName = req.user?.full_name || req.user?.fullName || authorName;
-  if (!finalAuthorName?.trim() || !body?.trim()) {
-    return res.status(400).json({ error: 'Name and review text are required' });
+  // The route requires a logged-in customer: the author is always the account (name from the account, never typed).
+  const { body, rating } = req.body;
+  const finalAuthorName = req.user.fullName || req.body.authorName;
+  if (typeof finalAuthorName !== 'string' || typeof body !== 'string' || !finalAuthorName.trim() || !body.trim()) {
+    return res.status(400).json({ error: "Le nom et l'avis sont requis" });
   }
 
   try {
     const result = await reviewService.createStoreReview({
       authorName: finalAuthorName,
-      email: email || '',
+      email: req.user.email || '',
       body,
       rating: rating || 5,
-      userId: req.user?.id || null,
-      guestSessionId: req.user?.id ? null : (req.guestSessionId || null),
+      userId: req.user.id,
+      guestSessionId: null,
     });
     res.status(201).json(result);
   } catch (err) {

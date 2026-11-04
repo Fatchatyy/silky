@@ -4,6 +4,7 @@ import { sendContactReplyEmail } from './email.service.js';
 import * as notificationService from './notification.service.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_MESSAGE_LENGTH = 5000;
 
 export async function submitContactMessage({ userId = null, guestSessionId = null, firstName, lastName, email, message }) {
   const trimmedFirst = (firstName || '').trim();
@@ -39,6 +40,9 @@ export async function submitContactMessage({ userId = null, guestSessionId = nul
   const trimmedMessage = (message || '').trim();
   if (!trimmedMessage) {
     throw new AppError('Le message est obligatoire.', 400);
+  }
+  if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
+    throw new AppError(`Le message ne doit pas dépasser ${MAX_MESSAGE_LENGTH} caractères.`, 400);
   }
 
   const result = await contactRepository.createMessage({

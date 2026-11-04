@@ -1,0 +1,192 @@
+/* ==========================================================================
+   Right-to-left layout of the Arabic storefront (/ar/...).
+
+   Every rule starts with html[dir="rtl"], so none of it can reach the French pages (dir="ltr"). The browser already
+   mirrors the flow of flex and grid rows, so this file only covers what it cannot mirror by itself: rules written
+   with a physical side (left / right), text-align: left, shorthand paddings with different sides, and the things
+   that must NOT mirror (JS-driven scrolling strips, carousels positioned with left/right and transforms).
+   The admin is French only and is not touched here.
+   ========================================================================== */
+
+/* ---------- Typeface and text ---------- */
+
+/* Cairo is loaded by LocaleProvider only on Arabic pages; Arial / system fonts are the fallback. base.css sets a font
+   on every element (the * rule), so the Arabic typeface has to be set on every element too. */
+html[dir="rtl"],
+html[dir="rtl"] * {
+  font-family: 'Cairo', Arial, 'Segoe UI', Tahoma, sans-serif;
+}
+
+html[dir="rtl"] body {
+  line-height: 1.7;
+}
+
+/* Letter-spacing breaks the joined letters of Arabic. */
+html[dir="rtl"] * {
+  letter-spacing: normal !important;
+}
+
+/* ---------- Inputs that hold Latin or numeric data stay left-to-right (email, phone, numbers) ---------- */
+
+html[dir="rtl"] input[type="email"],
+html[dir="rtl"] input[type="tel"],
+html[dir="rtl"] input[type="number"],
+html[dir="rtl"] input[type="url"],
+html[dir="rtl"] input[type="password"] {
+  direction: ltr;
+  text-align: right;
+}
+
+html[dir="rtl"] input[type="email"]:placeholder-shown,
+html[dir="rtl"] input[type="tel"]:placeholder-shown,
+html[dir="rtl"] input[type="number"]:placeholder-shown,
+html[dir="rtl"] input[type="url"]:placeholder-shown,
+html[dir="rtl"] input[type="password"]:placeholder-shown {
+  direction: rtl;
+}
+
+/* ---------- Header ---------- */
+
+html[dir="rtl"] .nav_links {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+html[dir="rtl"] .search_input {
+  padding: 10px 16px 10px 110px;
+}
+
+html[dir="rtl"] .search_button {
+  right: auto;
+  left: 4px;
+}
+
+html[dir="rtl"] .search_dropdown_item,
+html[dir="rtl"] .footer_tagline_container {
+  text-align: right;
+}
+
+html[dir="rtl"] .cart_dropdown_box {
+  right: auto;
+  left: 0;
+}
+
+@media screen and (max-width: 850px) {
+  html[dir="rtl"] .nav_links {
+    margin-right: 0;
+  }
+
+  html[dir="rtl"] .search_input {
+    padding: 4px 10px 4px 80px !important;
+  }
+}
+
+/* The scrolling announcement strip is moved by a CSS animation (and the reviews strips by JavaScript) that
+   assume left-to-right: they keep that direction and only their text is right-to-left. */
+html[dir="rtl"] .announcement_marquee,
+html[dir="rtl"] .infinite_marquee {
+  direction: ltr;
+}
+
+html[dir="rtl"] .announcement_item,
+html[dir="rtl"] .infinite_marquee_sequence > * {
+  direction: rtl;
+}
+
+/* ---------- Carousel arrows ---------- */
+
+/* The arrows are the characters ❮ and ❯, which the browser mirrors inside right-to-left text, so the arrow on the left
+   would point right. The carousels move physically (left arrow = left), so the arrows keep their own direction. */
+html[dir="rtl"] .carousel_arrow,
+html[dir="rtl"] .hero_carousel_arrow,
+html[dir="rtl"] .ticker_arrow_btn,
+html[dir="rtl"] .scroll_arrow {
+  direction: ltr;
+}
+
+/* ---------- Product cards and badges ---------- */
+
+html[dir="rtl"] .product_badges {
+  right: auto;
+  left: 10px;
+}
+
+html[dir="rtl"] .fav_image_remove_icon {
+  right: auto;
+  left: 10px;
+}
+
+/* ---------- Hero ---------- */
+
+/* The box sits on the side the admin chose in the picture (left or right), so the box does not move; Arabic text
+   inside it reads from the right. */
+html[dir="rtl"] .hero_single_content.left,
+html[dir="rtl"] .hero_single_content.right {
+  text-align: right;
+}
+
+/* ---------- Product page ---------- */
+
+html[dir="rtl"] .product_info_panel {
+  padding-left: 0;
+  padding-right: 10px;
+}
+
+@media screen and (max-width: 850px) {
+  html[dir="rtl"] .product_info_panel {
+    padding-right: 0 !important;
+  }
+}
+
+html[dir="rtl"] .product_reviews_heading {
+  text-align: right;
+}
+
+/* ---------- Cart ---------- */
+
+html[dir="rtl"] .cart-header span:first-child,
+html[dir="rtl"] .product-info {
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  html[dir="rtl"] .product-info {
+    padding-right: 0;
+    padding-left: 24px;
+  }
+
+  html[dir="rtl"] .remove-btn {
+    right: auto;
+    left: 0;
+  }
+}
+
+/* ---------- Forms (login, signup, contact, password reset, account) ---------- */
+
+html[dir="rtl"] .form-group,
+html[dir="rtl"] .account-form .form-group,
+html[dir="rtl"] .legal_page {
+  text-align: right;
+}
+
+html[dir="rtl"] .legal_page ul,
+html[dir="rtl"] .account-order-details ul {
+  padding-left: 0;
+  padding-right: 20px;
+}
+
+html[dir="rtl"] .account-order-total {
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  html[dir="rtl"] .account-order-total {
+    text-align: right;
+  }
+}
+
+/* ---------- Share window ---------- */
+
+html[dir="rtl"] .share-modal-copy-box {
+  padding: 4px 12px 4px 4px;
+}

@@ -54,6 +54,11 @@ export const users = pgTable(
     })
       .defaultNow()
       .notNull(),
+
+    // Login tokens issued before this moment are refused (admin logout, password change/reset). NULL = none revoked.
+    tokensValidAfter: timestamp('tokens_valid_after', {
+      withTimezone: true,
+    }),
   },
   (t) => [
     check(

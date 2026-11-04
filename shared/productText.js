@@ -7,6 +7,11 @@ export function productName(product, locale = 'fr') {
   return (locale === 'ar' && clean(product?.nameAr)) || product?.name || '';
 }
 
+/** Name of a cart line (`name`, `nameAr` as the cart API sends them) in the page language: the Arabic name when there is one. */
+export function cartItemName(item, locale = 'fr') {
+  return productName({ name: item?.name, nameAr: item?.nameAr }, locale);
+}
+
 export function productDescription(product, locale = 'fr') {
   return (locale === 'ar' && clean(product?.descriptionAr)) || product?.description || '';
 }

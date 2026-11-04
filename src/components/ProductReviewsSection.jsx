@@ -2,19 +2,23 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import AdminProductReviewsSection from './AdminProductReviewsSection';
+import ReviewLoginPrompt from './ReviewLoginPrompt';
 import '../styles/product-reviews.css';
+import { useT } from '../i18n/useT';
 
 export default function ProductReviewsSection({ productId }) {
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { t, known } = useT();
+  const { user, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
 
   const [reviews, setReviews] = useState([]);
   const [summary, setRatingSummary] = useState({ average: 0, count: 0 });
   const [loading, setLoading] = useState(true);
 
-  const [form, setForm] = useState({ authorName: '', email: '', rating: 5, comment: '' });
+  const [form, setForm] = useState({ rating: 5, comment: '' });
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState('');
+  // Kept as a key (or the raw server text) and translated at render, so it follows a language switch.
+  const [message, setMessage] = useState(null);
   const [messageType, setMessageType] = useState('');
 
   const fetchReviews = async () => {
@@ -39,30 +43,26 @@ export default function ProductReviewsSection({ productId }) {
 
   const validateForm = () => {
     const errors = {};
-    const nameVal = isAuthenticated
-      ? (user?.fullName || user?.full_name || user?.name || '')
-      : form.authorName;
-    const emailVal = isAuthenticated
-      ? (user?.email || '')
-      : form.email;
+    const nameVal = user?.fullName || user?.full_name || user?.name || '';
+    const emailVal = user?.email || '';
 
     const trimmedName = (nameVal || '').trim();
     if (!trimmedName) {
-      errors.authorName = 'Le nom est obligatoire.';
+      errors.authorName = t('review.nameRequired');
     } else if (trimmedName.length < 3) {
-      errors.authorName = 'Le nom doit contenir au moins 3 lettres.';
+      errors.authorName = t('review.nameMin');
     } else if (trimmedName.length > 35) {
-      errors.authorName = 'Le nom ne doit pas dépasser 35 lettres.';
+      errors.authorName = t('review.nameMax');
     }
 
     const trimmedEmail = (emailVal || '').trim();
     if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      errors.email = "Veuillez entrer une adresse e-mail valide.";
+      errors.email = t('contact.emailInvalid');
     }
 
     const trimmedComment = (form.comment || '').trim();
     if (!trimmedComment) {
-      errors.comment = "L'avis est obligatoire.";
+      errors.comment = t('review.commentRequired');
     }
 
     return errors;
@@ -71,7 +71,7 @@ export default function ProductReviewsSection({ productId }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isAdmin) {
-      setMessage('Les administrateurs ne peuvent pas soumettre d\'avis.');
+      setMessage({ key: 'review.adminCannot' });
       setMessageType('error');
       return;
     }
@@ -83,15 +83,12 @@ export default function ProductReviewsSection({ productId }) {
     }
 
     setSubmitting(true);
-    setMessage('');
+    setMessage(null);
     setFieldErrors({});
 
-    const finalAuthorName = isAuthenticated
-      ? (user?.fullName || user?.full_name || user?.name || 'Client')
-      : form.authorName.trim();
-    const finalEmail = isAuthenticated
-      ? (user?.email || form.email.trim())
-      : form.email.trim();
+    // Only customers can write a review: the name and e-mail are the account's, never typed.
+    const finalAuthorName = user?.fullName || user?.full_name || user?.name || 'Client';
+    const finalEmail = user?.email || '';
 
     try {
       await api.submitProductReview(productId, {
@@ -100,11 +97,11 @@ export default function ProductReviewsSection({ productId }) {
         rating: Number(form.rating),
         comment: form.comment.trim(),
       });
-      setMessage('Votre avis a été soumis avec succès. Il sera affiché après validation.');
+      setMessage({ key: 'review.submitOk' });
       setMessageType('success');
-      setForm({ authorName: '', email: '', rating: 5, comment: '' });
+      setForm({ rating: 5, comment: '' });
     } catch (err) {
-      setMessage(err.message || 'Erreur lors de la soumission de l\'avis.');
+      setMessage({ raw: err.message });
       setMessageType('error');
     } finally {
       setSubmitting(false);
@@ -112,9 +109,9 @@ export default function ProductReviewsSection({ productId }) {
   };
 
   return (
-    <section className="product_reviews_section" aria-label="Avis produit">
+    <section className="product_reviews_section" aria-label={t('review.sectionLabel')}>
       <div className="product_reviews_container" id="product_reviews_container">
-        <h2 className="product_reviews_heading">AVIS SUR CE PRODUIT</h2>
+        <h2 className="product_reviews_heading">{t('review.productHeading')}</h2>
 
         <div className="product_reviews_summary_header">
           {summary.count > 0 ? (
@@ -124,11 +121,11 @@ export default function ProductReviewsSection({ productId }) {
                 {'★'.repeat(Math.round(summary.average))}
                 {'☆'.repeat(5 - Math.round(summary.average))}
               </span>
-              <span className="rating_count">({summary.count} avis)</span>
+              <span className="rating_count">({t('reviews.count', { count: summary.count })})</span>
             </div>
           ) : (
             <div className="no_rating_badge">
-              <span>Aucun avis pour ce produit pour le moment. Soyez le premier !</span>
+              <span>{t('review.noneYet')}</span>
             </div>
           )}
         </div>
@@ -137,17 +134,17 @@ export default function ProductReviewsSection({ productId }) {
           {/* Reviews list */}
           <div className="product_reviews_list_wrapper">
             {loading ? (
-              <p className="loading_text">Chargement des avis...</p>
+              <p className="loading_text">{t('review.loadingList')}</p>
             ) : reviews.length === 0 ? (
               <div className="empty_reviews_box">
-                <p>Aucun avis publié sur ce produit.</p>
+                <p>{t('review.noPublished')}</p>
               </div>
             ) : (
               <div className="product_reviews_cards">
                 {reviews.map((rev) => (
                   <article key={rev.id} className="product_review_card">
                     <div className="product_review_card_header">
-                      <strong className="review_author">{rev.authorName || 'Client'}</strong>
+                      <strong className="review_author">{rev.authorName || t('review.anonymous')}</strong>
                       <span className="review_stars">
                         {'★'.repeat(rev.rating)}
                         {'☆'.repeat(5 - rev.rating)}
@@ -165,56 +162,18 @@ export default function ProductReviewsSection({ productId }) {
 
           {/* Compact Review Form */}
           <div className="product_review_form_wrapper">
-            <h3 className="compact_form_title">Donner votre avis</h3>
+            <h3 className="compact_form_title">{t('review.give')}</h3>
 
             {isAdmin ? (
               <p className="admin_notice_text">
-                Les administrateurs ne peuvent pas soumettre d&apos;avis produit.
+                {t('review.adminProduct')}
               </p>
+            ) : authLoading ? null : !isAuthenticated ? (
+              <ReviewLoginPrompt />
             ) : (
               <form className="compact_review_form" onSubmit={handleSubmit} noValidate>
-                {!isAuthenticated && (
-                  <div className="compact_form_group">
-                    <label htmlFor="product_review_author">Votre nom *</label>
-                    <input
-                      id="product_review_author"
-                      type="text"
-                      value={form.authorName}
-                      onChange={(e) => {
-                        setForm((f) => ({ ...f, authorName: e.target.value }));
-                        if (fieldErrors.authorName) setFieldErrors((f) => ({ ...f, authorName: '' }));
-                      }}
-                      placeholder="Entrez votre nom"
-                      className={fieldErrors.authorName ? 'input-error' : ''}
-                    />
-                    {fieldErrors.authorName && (
-                      <span className="field-error-msg">{fieldErrors.authorName}</span>
-                    )}
-                  </div>
-                )}
-
-                {!isAuthenticated && (
-                  <div className="compact_form_group">
-                    <label htmlFor="product_review_email">Votre e-mail (optionnel)</label>
-                    <input
-                      id="product_review_email"
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => {
-                        setForm((f) => ({ ...f, email: e.target.value }));
-                        if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: '' }));
-                      }}
-                      placeholder="Entrez votre e-mail"
-                      className={fieldErrors.email ? 'input-error' : ''}
-                    />
-                    {fieldErrors.email && (
-                      <span className="field-error-msg">{fieldErrors.email}</span>
-                    )}
-                  </div>
-                )}
-
                 <div className="compact_form_group">
-                  <label htmlFor="product_review_rating">Note *</label>
+                  <label htmlFor="product_review_rating">{t('review.rating')}</label>
                   <select
                     id="product_review_rating"
                     value={form.rating}
@@ -229,7 +188,7 @@ export default function ProductReviewsSection({ productId }) {
                 </div>
 
                 <div className="compact_form_group">
-                  <label htmlFor="product_review_comment">Votre avis *</label>
+                  <label htmlFor="product_review_comment">{t('review.yourOpinion')}</label>
                   <textarea
                     id="product_review_comment"
                     rows={4}
@@ -238,7 +197,7 @@ export default function ProductReviewsSection({ productId }) {
                       setForm((f) => ({ ...f, comment: e.target.value }));
                       if (fieldErrors.comment) setFieldErrors((f) => ({ ...f, comment: '' }));
                     }}
-                    placeholder="Partagez votre avis sur la coupe, la qualité..."
+                    placeholder={t('review.commentPlaceholder')}
                     className={fieldErrors.comment ? 'input-error' : ''}
                   />
                   {fieldErrors.comment && (
@@ -247,11 +206,13 @@ export default function ProductReviewsSection({ productId }) {
                 </div>
 
                 {message && (
-                  <p className={`form_message ${messageType}`}>{message}</p>
+                  <p className={`form_message ${messageType}`}>
+                    {message.key ? t(message.key) : known(message.raw) || t('review.submitFailed')}
+                  </p>
                 )}
 
                 <button type="submit" className="compact_submit_btn" disabled={submitting}>
-                  {submitting ? 'Envoi...' : 'Envoyer mon avis'}
+                  {submitting ? t('common.sending') : t('review.send')}
                 </button>
               </form>
             )}

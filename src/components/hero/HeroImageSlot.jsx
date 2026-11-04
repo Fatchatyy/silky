@@ -35,6 +35,11 @@ export default function HeroImageSlot({
       }
     } catch (err) {
       console.error('Failed to upload hero image:', err);
+      // The server refused the file itself (wrong content, too large...): say so instead of embedding it as a data URL.
+      if (err?.status >= 400 && err?.status < 500) {
+        window.alert(err.message);
+        return;
+      }
       // Fallback to data URL if local test or offline
       const reader = new FileReader();
       reader.onload = (e) => onImageChange(e.target.result);

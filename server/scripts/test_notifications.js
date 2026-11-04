@@ -209,9 +209,8 @@ async function runTests() {
     console.log('\n--- 5. Store Review Notification ---');
     const storeReviewRes = await request('/reviews', {
       method: 'POST',
+      token: customerToken, // only a logged-in customer can write a review; the name is the account's
       body: {
-        authorName: 'Sarra Ben Ali',
-        email: 'sarra@example.com',
         rating: 5,
         body: 'Magnifique qualité de soie ! Très satisfaite.',
       },
@@ -227,7 +226,7 @@ async function runTests() {
     assert(storeReviewNotifs[0].type === 'review', 'Notification type is "review"');
     assert(storeReviewNotifs[0].product_id === null, 'Store review notification product_id is null');
     assert(storeReviewNotifs[0].title.includes('Nouvel avis client'), 'Title contains "Nouvel avis client"');
-    assert(storeReviewNotifs[0].message.includes('Sarra Ben Ali'), 'Message contains author name');
+    assert(storeReviewNotifs[0].message.includes('Client Test'), 'Message contains the account name');
 
     // -------------------------------------------------------------------------
     // Test 6: Product Review Notification (Product Page)
@@ -235,8 +234,8 @@ async function runTests() {
     console.log('\n--- 6. Product Review Notification ---');
     const productReviewRes = await request(`/products/${testProductId}/reviews`, {
       method: 'POST',
+      token: customerToken,
       body: {
-        authorName: 'Hedi M.',
         rating: 4,
         comment: 'Très belle coupe et finition soignée.',
       },

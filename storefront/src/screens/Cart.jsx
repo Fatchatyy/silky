@@ -6,19 +6,15 @@ import { formatPrice } from '@shared/formatPrice';
 import { mediaVariantUrl as imageVariantPath } from '@shared/media';
 import { useT } from '../i18n/useT';
 import { useProducts } from '../stores/products';
-import { productName } from '@shared/productText';
+import { cartItemName } from '@shared/productText';
 
 export default function Cart() {
   const { t, known, locale, detailsLabel } = useT();
   const { isAdmin } = useAuth();
   const { getProduct } = useProducts();
 
-  // Cart lines keep the French name saved with them (what the order will hold); Arabic pages show the product's
-  // Arabic name when it has one.
-  const itemName = (item) => {
-    const product = getProduct(item.productId);
-    return product ? productName(product, locale) : item.name;
-  };
+  // The order keeps the French name; Arabic pages show the Arabic name the cart API sends with each line (no wait for the product list).
+  const itemName = (item) => cartItemName(item, locale);
   const { items, deliveryFee, subtotal, total, itemCount, updateQuantity, removeItem, loading, error } = useCart();
 
   if (isAdmin) {

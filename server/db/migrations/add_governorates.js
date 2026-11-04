@@ -96,6 +96,15 @@ export async function runGovernoratesMigration(poolInstance = defaultPool) {
 
       console.log('[migration:governorates] Pre-reset counts:', JSON.stringify(countsBefore));
 
+      // The reset below deletes every order. It only ever made sense for a database whose orders predate governorates;
+      // on a database that holds orders it must never happen by accident (for example after restoring an old backup).
+      if (countsBefore.orders > 0 && process.env.ALLOW_ORDER_RESET !== 'yes') {
+        throw new Error(
+          `Refusing to delete ${countsBefore.orders} order(s): orders.governorate_id is missing and this migration would wipe all orders. ` +
+          'Restore a backup that already has the column, or, only if these orders may really be lost, start once with ALLOW_ORDER_RESET=yes.',
+        );
+      }
+
       // Reverse dependency deletion
       await client.query('DELETE FROM refund_items');
       await client.query('DELETE FROM order_refunds');

@@ -18,14 +18,32 @@ const LOGO_PATH = path.resolve(__dirname, '../../public/pictures/logo.png');
 let _transporter = null;
 
 /**
+ * How e-mail is sent:
+ * - 'smtp': SMTP credentials are set (real delivery).
+ * - 'ethereal': no credentials, development only (a fake inbox, nothing reaches a customer).
+ * - 'off': no credentials in production. Ethereal is a public test service, so customer e-mails (name, address,
+ *   phone) must never be sent to it from the live shop; sending fails instead and the callers log it.
+ */
+export function resolveMailMode({ smtpUser, smtpPass, isProduction }) {
+  if (smtpUser && smtpPass) return 'smtp';
+  return isProduction ? 'off' : 'ethereal';
+}
+
+/**
  * Build (and cache) a nodemailer transporter.
  * - When SMTP credentials are set: uses real SMTP.
- * - Without credentials: falls back to Ethereal (fake SMTP) and logs a preview URL.
+ * - Without credentials outside production: falls back to Ethereal (fake SMTP) and logs a preview URL.
+ * - Without credentials in production: throws (see resolveMailMode).
  */
 export async function getTransporter() {
   if (_transporter) return _transporter;
 
-  if (env.smtpUser && env.smtpPass) {
+  const mode = resolveMailMode(env);
+  if (mode === 'off') {
+    throw new Error("L'envoi d'e-mails n'est pas configuré (SMTP_USER et SMTP_PASS sont manquants).");
+  }
+
+  if (mode === 'smtp') {
     _transporter = nodemailer.createTransport({
       host: env.smtpHost,
       port: env.smtpPort,

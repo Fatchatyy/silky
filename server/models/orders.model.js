@@ -5,6 +5,7 @@ import {
   text,
   numeric,
   integer,
+  boolean,
   serial,
   timestamp,
   pgEnum,
@@ -297,6 +298,10 @@ export const orderExchanges = pgTable(
       precision: 10,
       scale: 3,
     }).default('0').notNull(),
+
+    // No longer written or read: every GOODEX parcel is sent with decharge=0. The column stays so
+    // existing databases and schema.sql do not change.
+    decharge: boolean('decharge'),
 
     createdAt: timestamp('created_at', {
       withTimezone: true,

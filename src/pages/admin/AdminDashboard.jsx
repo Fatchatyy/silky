@@ -10,6 +10,7 @@ import AdminInventory from './AdminInventory';
 import AdminAnalytics from './AdminAnalytics';
 import AdminMessages from './AdminMessages';
 import AdminDrafts from './AdminDrafts';
+import AdminClaims from './AdminClaims';
 
 import HeroTemplateSelector from '../../components/hero/HeroTemplateSelector';
 import HeroEditorModal from '../../components/hero/HeroEditorModal';
@@ -57,6 +58,12 @@ const NAV_SECTIONS = [
         label: 'Brouillons',
         icon: '/pictures/draft.png',
         description: 'Gérez vos brouillons de commandes et convertissez-les en commandes réelles.',
+      },
+      {
+        id: 'claims',
+        label: 'Réclamations',
+        icon: '/pictures/message.png',
+        description: 'Consultez toutes les réclamations GOODEX, leur statut et les réponses du transporteur.',
       },
       {
         id: 'analytics',
@@ -673,6 +680,11 @@ export default function AdminDashboard() {
         )}
         {tab === 'drafts' && (
           <AdminDrafts onOrderCreated={handleAdminDataRefresh} />
+        )}
+        {tab === 'claims' && (
+          <AdminClaims
+            onShowOrder={(orderId) => handleNavigateNotification({ type: 'order', orderId })}
+          />
         )}
         {tab === 'reviews' && (
           <AdminReviews highlightReviewId={highlightReviewId} />

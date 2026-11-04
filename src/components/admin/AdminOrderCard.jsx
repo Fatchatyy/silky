@@ -1,4 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import ClaimsBlock from './ClaimsBlock';
+import { GxButton, CopyButton, Alert, KV, formatGoodexDate } from './gx';
 
 /**
  * AdminOrderCard — Reusable order row component.
@@ -28,6 +30,314 @@ export function renderStatusBadge(status) {
     return <span className="admin-status-badge cancelled">Annulée</span>;
   }
   return <span className="admin-status-badge unconfirmed">Non Confirmée</span>;
+}
+
+/**
+ * "Statut livraison" is GOODEX's delivery status. It is displayed next to, and never
+ * mixed with, Silky's own order status ("Statut", renderStatusBadge above).
+ */
+const DELIVERY_STATE_LABELS = {
+  creating: 'Création en cours…',
+  created: 'Colis créé',
+  failed: 'Échec de création',
+  unknown: 'Résultat incertain',
+};
+
+/**
+ * Describes the delivery situation of an order in French:
+ *  - no delivery row        -> no parcel created or submitted yet
+ *  - creating / failed / unknown -> creation states (never shown with a GOODEX status)
+ *  - created                -> official GOODEX label (e.g. "En Attente"), or the raw
+ *                              value flagged as unrecognized, or just "Colis créé"
+ */
+export function getDeliveryDisplay(order) {
+  const d = order?.delivery;
+  if (!d) {
+    return { label: 'Aucun colis', tone: 'none', hint: "Aucun colis n'a été créé ni envoyé à GOODEX" };
+  }
+  if (d.state === 'creating') {
+    return { label: DELIVERY_STATE_LABELS.creating, tone: 'pending', hint: 'Envoi à GOODEX en cours' };
+  }
+  if (d.state === 'failed') {
+    return { label: DELIVERY_STATE_LABELS.failed, tone: 'error', hint: d.lastError || 'La création du colis a échoué' };
+  }
+  if (d.state === 'unknown') {
+    return {
+      label: DELIVERY_STATE_LABELS.unknown,
+      tone: 'warn',
+      hint: d.lastError || 'Le colis a peut-être été créé chez GOODEX : vérifiez avant de réessayer',
+    };
+  }
+  if (d.statusLabel) return { label: d.statusLabel, tone: 'ok', hint: d.goodexStatus || d.statusLabel };
+  if (d.goodexStatus) {
+    return {
+      label: `Statut non reconnu : ${d.goodexStatus}`,
+      tone: 'warn',
+      hint: `Valeur brute reçue de GOODEX : ${d.goodexStatus}`,
+    };
+  }
+  return { label: DELIVERY_STATE_LABELS.created, tone: 'ok', hint: 'Colis créé, statut GOODEX pas encore reçu' };
+}
+
+/** An exchange whose own parcel was not created (older exchanges have none and are ignored). */
+function findExchangeDeliveryProblem(order) {
+  return (order.exchanges || []).find(
+    (ex) => ex.delivery && (ex.delivery.state === 'failed' || ex.delivery.state === 'unknown'),
+  );
+}
+
+/**
+ * The created parcel that matters for an order: the latest exchange's when it has exchange
+ * parcels, otherwise its own. Used for the single "Colis introuvable" badge and the filters.
+ */
+function findRelevantParcel(order) {
+  const latestExchangeParcel = (order?.exchanges || [])
+    .filter((ex) => ex.delivery?.state === 'created')
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0]?.delivery;
+  return latestExchangeParcel || (order?.delivery?.state === 'created' ? order.delivery : null);
+}
+
+/**
+ * Bucket used by the "Confirmée" sub-filter: 'created' (GOODEX has the parcel), 'failed'
+ * (creation failed or its outcome is uncertain, an exchange parcel is in that state, or GOODEX
+ * no longer finds the parcel, i.e. what the admin must act on) or null (no parcel row yet, or
+ * creation in progress).
+ */
+export function getDeliveryFilterBucket(order) {
+  const state = order?.delivery?.state;
+  if (state === 'failed' || state === 'unknown' || findExchangeDeliveryProblem(order)) return 'failed';
+  if (findRelevantParcel(order)?.trackingNotFound) return 'failed';
+  return state === 'created' ? 'created' : null;
+}
+
+/**
+ * Same buckets for the "Échangée" sub-filter, judged on the exchange parcels only: the
+ * original parcel belongs to the first delivery and is irrelevant to an exchanged order.
+ * Exchanges recorded before GOODEX was connected have no parcel and fall in no bucket.
+ */
+export function getExchangeFilterBucket(order) {
+  if (findExchangeDeliveryProblem(order)) return 'failed';
+  if (findRelevantParcel(order)?.trackingNotFound) return 'failed';
+  return (order?.exchanges || []).some((ex) => ex.delivery?.state === 'created') ? 'created' : null;
+}
+
+/** Compact cell for the main orders table: status, EAN, and a warning when a motif exists. */
+function DeliveryStatusCell({ order }) {
+  const d = order.delivery;
+  const display = getDeliveryDisplay(order);
+  // The server decides (parcel exists + reason received + GOODEX did not report has_motif=false).
+  const hasIncident = Boolean(d?.incident);
+  const exchangeProblem = findExchangeDeliveryProblem(order);
+  // One "Colis introuvable" for the parcel that matters: the latest exchange's when the order has
+  // exchange parcels, otherwise the order's own. It replaces the stale last status ("En Attente").
+  const relevantParcel = findRelevantParcel(order);
+  const parcelNotFound = Boolean(relevantParcel?.trackingNotFound);
+  return (
+    <>
+      {/* The exchange failure replaces the order's own parcel status instead of sitting beside it. */}
+      {!exchangeProblem && !parcelNotFound && (
+        <span className={`admin-delivery-badge ${display.tone}`} title={display.hint}>
+          {display.label}
+        </span>
+      )}
+      {exchangeProblem && (
+        <span
+          className={`admin-delivery-badge ${exchangeProblem.delivery.state === 'failed' ? 'error' : 'warn'}`}
+          title={exchangeProblem.delivery.lastError || 'Colis GOODEX de l\'échange non créé'}
+        >
+          Échange : colis {exchangeProblem.delivery.state === 'failed' ? 'non créé' : 'incertain'}
+        </span>
+      )}
+      {hasIncident && (
+        <span
+          className="admin-delivery-warning"
+          role="img"
+          aria-label={`Incident de livraison : ${d.motif}`}
+          title={`Incident de livraison : ${d.motif}`}
+        >
+          ⚠
+        </span>
+      )}
+      {parcelNotFound && (
+        <span
+          className="admin-delivery-badge error"
+          title={`GOODEX ne retrouve pas ce colis (${relevantParcel.ean}). Dernier statut connu : ${relevantParcel.statusLabel || display.label}`}
+        >
+          Colis introuvable
+        </span>
+      )}
+      {d?.ean && (
+        <span className="admin-delivery-ean" title="Code de suivi GOODEX (EAN)">
+          {d.ean}
+        </span>
+      )}
+    </>
+  );
+}
+
+function DeliveryBlock({ order, onRefresh, onRetry }) {
+  const delivery = order.delivery;
+  const eligible = ['completed', 'confirmed', 'exchanged', 'delivered'].includes(order.status);
+  const state = delivery?.state;
+  const canTrack = state === 'created' && Boolean(delivery?.ean);
+  const [trackingError, setTrackingError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Opening the details refreshes from GOODEX only when the saved data is stale; the
+  // server enforces the cooldown, so this is a no-op most of the time.
+  useEffect(() => {
+    if (!canTrack) return undefined;
+    let cancelled = false;
+    onRefresh(order.id, { onlyIfStale: true }).then((message) => {
+      if (!cancelled) setTrackingError(message || '');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [order.id, canTrack]);
+
+  if (!delivery && !eligible) return null;
+
+  const display = getDeliveryDisplay(order);
+  const manualRefresh = async () => {
+    setRefreshing(true);
+    setTrackingError((await onRefresh(order.id, { onlyIfStale: false })) || '');
+    setRefreshing(false);
+  };
+  const showRetry = (!state || state === 'failed') && order.status === 'completed';
+
+  return (
+    <section className="gx-card" aria-label="Livraison GOODEX">
+      <header className="gx-card__head">
+        <h4 className="gx-card__title">Livraison GOODEX</h4>
+        <span className={`admin-delivery-badge ${display.tone}`}>{display.label}</span>
+        {state === 'created' && delivery.statusLabel && delivery.statusId != null && (
+          <span className="gx-chip">GOODEX n°{delivery.statusId}</span>
+        )}
+      </header>
+
+      {state === 'created' && (
+        <dl className="gx-kv">
+          <KV label="Code de suivi (EAN)">
+            {delivery.ean && (
+              <>
+                <code className="gx-code">{delivery.ean}</code>
+                <CopyButton text={delivery.ean} />
+              </>
+            )}
+          </KV>
+          <KV label="Colis GOODEX">
+            {delivery.parcelId != null &&
+              `n°${delivery.parcelId}${delivery.goodexCreatedAt ? ` · créé le ${formatGoodexDate(delivery.goodexCreatedAt)}` : ''}`}
+          </KV>
+          <KV label="Dernier statut reçu">{formatGoodexDate(delivery.statusReceivedAt)}</KV>
+          <KV label="Statut changé le">{formatGoodexDate(delivery.statusUpdatedAt)}</KV>
+          <KV label="Dernière notification">{formatGoodexDate(delivery.lastWebhookAt)}</KV>
+          <KV label="Dernière vérification">{formatGoodexDate(delivery.lastPolledAt)}</KV>
+        </dl>
+      )}
+
+      {state && state !== 'created' && (
+        <Alert tone={state === 'failed' ? 'error' : state === 'unknown' ? 'warn' : 'info'}>{display.hint}</Alert>
+      )}
+      {state === 'created' && delivery.trackingNotFound && (
+        <Alert tone="error" title="Colis introuvable">
+          GOODEX répond « Colis Introuvable » pour ce code de suivi.
+          {delivery.goodexStatus ? ` Dernier statut connu : ${delivery.statusLabel || delivery.goodexStatus}.` : ''}
+        </Alert>
+      )}
+      {delivery?.incident && (
+        <Alert tone="warn" title="Incident de livraison">
+          {delivery.motif}
+          {delivery.motifUpdatedAt && <span className="gx-alert__meta"> Reçu le {formatGoodexDate(delivery.motifUpdatedAt)}</span>}
+        </Alert>
+      )}
+      {trackingError && (
+        <Alert tone="error" title="Suivi GOODEX indisponible">
+          {trackingError.replace(/^Suivi GOODEX indisponible : /, '')}
+        </Alert>
+      )}
+
+      {(canTrack || showRetry || state === 'unknown') && (
+        <footer className="gx-card__actions">
+          {canTrack && (
+            <GxButton icon="refresh" busy={refreshing} onClick={manualRefresh}>
+              {refreshing ? 'Actualisation…' : 'Actualiser le statut'}
+            </GxButton>
+          )}
+          {showRetry && (
+            <GxButton variant="primary" icon={state === 'failed' ? 'refresh' : 'plus'} onClick={() => onRetry(order.id, false)}>
+              {state === 'failed' ? 'Réessayer la création' : 'Créer le colis'}
+            </GxButton>
+          )}
+          {state === 'unknown' && (
+            <GxButton variant="primary" icon="refresh" onClick={() => onRetry(order.id, true)}>
+              Réessayer (j'ai vérifié chez GOODEX)
+            </GxButton>
+          )}
+        </footer>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The GOODEX parcel of one exchange or one refund (separate from the order's own parcel above).
+ * `record` is the exchange or refund carrying `delivery`. Shows the GOODEX status and tracking
+ * code, and offers the same retry safeguards as the order parcel: a failed creation can be
+ * retried, an uncertain one only after the admin confirms having checked at GOODEX.
+ */
+function ParcelDeliveryLine({ record, ariaLabel, onRefresh, onRetry }) {
+  const delivery = record.delivery;
+  const state = delivery?.state;
+  const display = getDeliveryDisplay({ delivery });
+  const [refreshing, setRefreshing] = useState(false);
+  const [trackingError, setTrackingError] = useState('');
+
+  const manualRefresh = async () => {
+    setRefreshing(true);
+    setTrackingError((await onRefresh(record.id)) || '');
+    setRefreshing(false);
+  };
+
+  return (
+    <div className="gx-exchange-delivery" aria-label={ariaLabel}>
+      <span className="gx-exchange-delivery__label">Colis GOODEX :</span>
+      <span className={`admin-delivery-badge ${display.tone}`} title={display.hint}>
+        {display.label}
+      </span>
+      {delivery?.ean && (
+        <>
+          <code className="gx-code">{delivery.ean}</code>
+          <CopyButton text={delivery.ean} />
+        </>
+      )}
+      {(state === 'failed' || state === 'unknown') && delivery.lastError && (
+        <span className="gx-exchange-delivery__error">{delivery.lastError}</span>
+      )}
+      {state === 'created' && delivery.trackingNotFound && (
+        <span className="admin-delivery-badge error" title="GOODEX ne retrouve pas ce colis">
+          Colis introuvable
+        </span>
+      )}
+      {trackingError && <span className="gx-exchange-delivery__error">{trackingError}</span>}
+      {state === 'created' && (
+        <GxButton icon="refresh" busy={refreshing} onClick={manualRefresh}>
+          {refreshing ? 'Actualisation…' : 'Actualiser le statut'}
+        </GxButton>
+      )}
+      {(!state || state === 'failed') && (
+        <GxButton variant="primary" icon={state === 'failed' ? 'refresh' : 'plus'} onClick={() => onRetry(record.id, false)}>
+          {state === 'failed' ? 'Réessayer la création' : 'Créer le colis'}
+        </GxButton>
+      )}
+      {state === 'unknown' && (
+        <GxButton variant="primary" icon="refresh" onClick={() => onRetry(record.id, true)}>
+          Réessayer (j'ai vérifié chez GOODEX)
+        </GxButton>
+      )}
+    </div>
+  );
 }
 
 function isValidTimestamp(ts) {
@@ -157,6 +467,12 @@ export default function AdminOrderCard({
   setExchangeModalOrder,
   handleRefundOrder,
   handleCancelOrder,
+  handleRefreshDelivery,
+  handleRetryDelivery,
+  handleRefreshExchangeDelivery,
+  handleRetryExchangeDelivery,
+  handleRefreshRefundDelivery,
+  handleRetryRefundDelivery,
   toggleSelectExchange,
   toggleSelectRefund,
   // tick is incremented by a shared interval in AdminOrders every 60 s;
@@ -172,6 +488,13 @@ export default function AdminOrderCard({
   const isTerminal = isDelivered || isCancelled || isRefunded;
   const canExchange = !isTerminal && (order.status === 'completed' || order.status === 'confirmed' || order.status === 'exchanged');
   const canDeliver = !isTerminal && (order.status === 'completed' || order.status === 'confirmed' || order.status === 'exchanged');
+  // Deliver / exchange / refund wait until GOODEX has the parcel. Only orders that tried and did not
+  // get through are held back (a parcel row exists but is not "created", or an exchange parcel
+  // failed); older orders confirmed before GOODEX was connected have no row and stay usable.
+  const parcelBlocked = Boolean(
+    (order.delivery && order.delivery.state !== 'created') || findExchangeDeliveryProblem(order),
+  );
+  const blockedHint = "Indisponible : le colis GOODEX n'a pas encore été créé";
 
   const payableAmount =
     order.customerAmountToPay !== undefined
@@ -230,6 +553,11 @@ export default function AdminOrderCard({
           {renderStatusBadge(order.status)}
         </td>
 
+        {/* Column 5b: Statut livraison (GOODEX), independent of the order status */}
+        <td className="admin-table-td col-delivery">
+          <DeliveryStatusCell order={order} />
+        </td>
+
         {/* Column 6: Prix (Montant à payer) */}
         <td className="admin-table-td col-price">
           <strong className="admin-table-cell-price">{formatPrice(payableAmount)}</strong>
@@ -276,10 +604,11 @@ export default function AdminOrderCard({
                     type="button"
                     className="admin-icon-action-btn admin-btn-deliver"
                     onClick={() => handleDeliverOrder(order.id)}
+                    disabled={parcelBlocked}
                     aria-label="Marquer comme livrée"
                   >
                     <img alt="" className="admin-btn-icon" src="/pictures/truckdilevery.png" />
-                    <span className="admin-tooltip">Marquer comme livrée</span>
+                    <span className="admin-tooltip">{parcelBlocked ? blockedHint : 'Marquer comme livrée'}</span>
                   </button>
                 )}
                 {!readOnly && canExchange && (
@@ -287,10 +616,11 @@ export default function AdminOrderCard({
                     type="button"
                     className="admin-icon-action-btn admin-btn-exchange"
                     onClick={() => setExchangeModalOrder({ order, paymentResponsibility: 'customer_paid' })}
+                    disabled={parcelBlocked}
                     aria-label="Échange"
                   >
                     <img alt="" className="admin-btn-icon" src="/pictures/exchange.png" />
-                    <span className="admin-tooltip">Échange</span>
+                    <span className="admin-tooltip">{parcelBlocked ? blockedHint : 'Échange'}</span>
                   </button>
                 )}
                 {!readOnly && !isTerminal && !isUnconfirmed && (
@@ -298,10 +628,11 @@ export default function AdminOrderCard({
                     type="button"
                     className="admin-icon-action-btn admin-btn-refund"
                     onClick={() => handleRefundOrder(order.id, 'customer_paid')}
+                    disabled={parcelBlocked}
                     aria-label="Remboursement"
                   >
                     <img alt="" className="admin-btn-icon" src="/pictures/refund.png" />
-                    <span className="admin-tooltip">Remboursement</span>
+                    <span className="admin-tooltip">{parcelBlocked ? blockedHint : 'Remboursement'}</span>
                   </button>
                 )}
                 {!readOnly && !isTerminal && (
@@ -323,10 +654,11 @@ export default function AdminOrderCard({
                       type="button"
                       className="admin-icon-action-btn admin-btn-exchange-paid"
                       onClick={() => setExchangeModalOrder({ order, paymentResponsibility: 'silky_paid' })}
+                      disabled={parcelBlocked}
                       aria-label="Échange payé"
                     >
                       <img alt="" className="admin-btn-icon" src="/pictures/exchangesilky.png" />
-                      <span className="admin-tooltip">Échange payé</span>
+                      <span className="admin-tooltip">{parcelBlocked ? blockedHint : 'Échange payé'}</span>
                     </button>
                   )}
                   {!isTerminal && !isUnconfirmed && (
@@ -334,10 +666,11 @@ export default function AdminOrderCard({
                       type="button"
                       className="admin-icon-action-btn admin-btn-refund-free"
                       onClick={() => handleRefundOrder(order.id, 'silky_paid')}
+                      disabled={parcelBlocked}
                       aria-label="Remboursement gratuit"
                     >
                       <img alt="" className="admin-btn-icon" src="/pictures/refundsilky.png" />
-                      <span className="admin-tooltip">Remboursement gratuit</span>
+                      <span className="admin-tooltip">{parcelBlocked ? blockedHint : 'Remboursement gratuit'}</span>
                     </button>
                   )}
                 </div>
@@ -350,7 +683,7 @@ export default function AdminOrderCard({
       {/* Expanded Row */}
       {isExpanded && (
         <tr className="admin-order-expanded-row">
-          <td colSpan={8} className="admin-order-expanded-cell">
+          <td colSpan={9} className="admin-order-expanded-cell">
             <div className="admin-order-details">
               <div className="admin-expanded-header-info">
                 <p>
@@ -387,6 +720,16 @@ export default function AdminOrderCard({
                   <strong>Montant à payer:</strong> {formatPrice(payableAmount)}
                 </p>
               </div>
+
+              {!readOnly && (
+                <DeliveryBlock
+                  order={order}
+                  onRefresh={handleRefreshDelivery}
+                  onRetry={handleRetryDelivery}
+                />
+              )}
+
+              {!readOnly && <ClaimsBlock order={order} />}
 
               {/* Historical Exchanges */}
               {order.exchanges && order.exchanges.length > 0 && (
@@ -466,6 +809,14 @@ export default function AdminOrderCard({
                                       </li>
                                     ))}
                                   </ul>
+                                  {!readOnly && (
+                                    <ParcelDeliveryLine
+                                      record={ex}
+                                      ariaLabel={`Colis GOODEX de l'échange ${ex.exchangeNumber}`}
+                                      onRefresh={handleRefreshExchangeDelivery}
+                                      onRetry={handleRetryExchangeDelivery}
+                                    />
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -552,6 +903,14 @@ export default function AdminOrderCard({
                                       </li>
                                     ))}
                                   </ul>
+                                  {!readOnly && (
+                                    <ParcelDeliveryLine
+                                      record={ref}
+                                      ariaLabel={`Colis GOODEX du remboursement ${ref.refundNumber}`}
+                                      onRefresh={handleRefreshRefundDelivery}
+                                      onRetry={handleRetryRefundDelivery}
+                                    />
+                                  )}
                                 </div>
                               </td>
                             </tr>

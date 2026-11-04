@@ -108,7 +108,8 @@ export function ProductsProvider({ children }) {
     refreshProducts().finally(() => setLoading(false));
   }, [refreshProducts, isAdmin]);
 
-  const getProduct = useCallback((id) => products.find((p) => p.id === id), [products]);
+  // `key` is a product id or the slug used in its URL.
+  const getProduct = useCallback((key) => products.find((p) => p.id === key || (p.slug && p.slug === key)), [products]);
 
   const getByCategory = useCallback(
     (category, includeHidden = false) =>

@@ -6,3 +6,6 @@ dist
 .env.*
 !.env.example
 server/uploads/*
+# Legacy sample data with customer details: never track it
+server/data/orders.json
+server/data/reviews.json

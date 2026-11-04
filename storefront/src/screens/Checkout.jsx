@@ -3,7 +3,7 @@ import { ADMIN_URL } from '../lib/adminUrl';
 import { Link, useNavigate } from '../lib/router';
 import { useCart } from '../stores/cart';
 import { useProducts } from '../stores/products';
-import { productName } from '@shared/productText';
+import { cartItemName } from '@shared/productText';
 import { useAuth } from '../stores/auth';
 import { api, generateIdempotencyKey } from '../lib/apiClient';
 import { formatPrice } from '@shared/formatPrice';
@@ -43,12 +43,8 @@ export default function Checkout() {
   const { isAdmin, user } = useAuth();
   const { items, subtotal, deliveryFee, total, refreshCart, loading } = useCart();
   const { refreshProducts, getProduct } = useProducts();
-  // Cart lines keep the French name that was saved with them (it is what the order will hold); on Arabic pages
-  // the product's Arabic name is shown instead when the product has one.
-  const itemName = (item) => {
-    const product = getProduct(item.productId);
-    return product ? productName(product, locale) : item.name;
-  };
+  // The order keeps the French name; Arabic pages show the Arabic name the cart API sends with each line.
+  const itemName = (item) => cartItemName(item, locale);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});

@@ -1,6 +1,6 @@
 // Cart link with its count and the dropdown that opens for 5 seconds after an item is added.
 import { useEffect, useRef, useState } from 'react';
-import { productName } from '@shared/productText';
+import { cartItemName } from '@shared/productText';
 import { formatPrice } from '@shared/formatPrice';
 import { mediaUrl } from '@shared/media';
 import { Link } from '../../lib/router';
@@ -55,7 +55,7 @@ function HeaderCart() {
                 <div key={item.cartItemId} className="cart_dropdown_item">
                   <img src={mediaUrl(item.image || '/pictures/femme_example.jpg')} alt="" />
                   <div className="cart_dropdown_item_info">
-                    <span className="cart_dropdown_item_name">{getProduct(item.productId) ? productName(getProduct(item.productId), locale) : item.name}</span>
+                    <span className="cart_dropdown_item_name">{cartItemName(item, locale)}</span>
                     <span className="cart_dropdown_item_meta">
                       {detailsLabel(item.details, getProduct(item.productId))} × {item.quantity}
                     </span>

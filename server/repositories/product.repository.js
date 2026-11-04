@@ -22,6 +22,7 @@ import {
     refundItems,
     reviewGallery,
     siteSettings,
+    draftItems,
 } from '../models/index.js';
 
 /**
@@ -64,6 +65,303 @@ export function getStockKey(colorId, size) {
     return 'default';
 }
 
+/** Columns of a product row (with its category) that buildProductResponse needs. */
+const PRODUCT_COLUMNS = {
+    id: products.id,
+    title: products.title,
+    slug: products.slug,
+    description: products.description,
+    titleAr: products.titleAr,
+    descriptionAr: products.descriptionAr,
+    imageAlt: products.imageAlt,
+    imageAltAr: products.imageAltAr,
+    price: products.price,
+    discountAmount: products.discountAmount,
+    categoryId: products.categoryId,
+    categoryName: categories.name,
+    categorySlug: categories.slug,
+    collectionImageUrl: products.collectionImageUrl,
+    isFeatured: products.isFeatured,
+    isActive: products.isActive,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+};
+
+/**
+ * Turns a product row with its variants, images and videos into the response the storefront and the admin
+ * expect. Shared by findById (one product) and findAll (the whole list, loaded in a few queries).
+ */
+function buildProductResponse(product, variants, images, videos) {
+    const colorMap = new Map();
+    const sizeSet = new Set();
+    const stock = {};
+
+    for (const variant of variants) {
+        if (variant.size) {
+            sizeSet.add(
+                variant.size
+            );
+        }
+
+        const stockKey =
+            getStockKey(
+                variant.colorSlug,
+                variant.size
+            );
+
+        stock[stockKey] =
+            Number(
+                variant.stockQuantity
+            ) || 0;
+    }
+
+    /*
+     * Sort images by sortOrder explicitly.
+     */
+    const sortedImages =
+        [...images].sort(
+            (a, b) =>
+                (a.sortOrder ?? 0) -
+                (b.sortOrder ?? 0)
+        );
+
+    /*
+     * Populate colorMap in explicit sortOrder appearance order from images.
+     */
+    for (const image of sortedImages) {
+        if (!image.colorSlug) {
+            continue;
+        }
+
+        const colorSlug =
+            image.colorSlug;
+
+        if (
+            !colorMap.has(
+                colorSlug
+            )
+        ) {
+            const variantForColor = variants.find(
+                (v) => v.colorSlug === colorSlug
+            );
+            colorMap.set(
+                colorSlug,
+                {
+                    id: colorSlug,
+                    name:
+                        variantForColor?.colorName ||
+                        colorSlug
+                            .charAt(0)
+                            .toUpperCase() +
+                        colorSlug.slice(1),
+                    nameAr:
+                        variantForColor?.colorNameAr ||
+                        null,
+                    image:
+                        image.imageUrl,
+                    thumbnail:
+                        image.imageUrl,
+                    gallery: [],
+                    images: [image.imageUrl],
+                }
+            );
+        } else {
+            const color =
+                colorMap.get(
+                    colorSlug
+                );
+
+            color.images.push(
+                image.imageUrl
+            );
+            color.gallery.push(
+                image.imageUrl
+            );
+        }
+    }
+
+    /*
+     * Add any variants whose colorSlug was not in productImages (fallback / backward compat).
+     */
+    for (const variant of variants) {
+        if (
+            variant.colorSlug &&
+            !colorMap.has(
+                variant.colorSlug
+            )
+        ) {
+            const thumb =
+                variant.colorImageUrl ||
+                product.collectionImageUrl ||
+                '';
+            colorMap.set(
+                variant.colorSlug,
+                {
+                    id:
+                        variant.colorSlug,
+                    name:
+                        variant.colorName ||
+                        variant.colorSlug,
+                    nameAr:
+                        variant.colorNameAr ||
+                        null,
+                    image: thumb,
+                    thumbnail: thumb,
+                    gallery: [],
+                    images: thumb ? [thumb] : [],
+                }
+            );
+        }
+    }
+
+    /*
+     * Ensure color.thumbnail and color.image are consistently the first image.
+     */
+    for (
+        const color
+        of colorMap.values()
+    ) {
+        if (color.images.length) {
+            color.image =
+                color.images[0];
+            color.thumbnail =
+                color.images[0];
+            color.gallery =
+                color.images.slice(1);
+        } else if (color.image) {
+            color.thumbnail =
+                color.image;
+            color.images.push(
+                color.image
+            );
+            color.gallery = [];
+        }
+    }
+
+    /*
+     * Primary image.
+     */
+    const primaryImage =
+        sortedImages.find(
+            image =>
+                image.isPrimary
+        ) ||
+        sortedImages[0];
+
+    const allImageUrls =
+        sortedImages.map(
+            image =>
+                image.imageUrl
+        );
+
+    /*
+     * IMPORTANT:
+     *
+     * Preserve the existing frontend
+     * response contract.
+     */
+
+    return {
+        id:
+            product.id,
+
+        name:
+            product.title,
+
+        slug:
+            product.slug,
+
+        description:
+            product.description,
+
+        nameAr:
+            product.titleAr || null,
+
+        descriptionAr:
+            product.descriptionAr || null,
+
+        imageAlt:
+            product.imageAlt || null,
+
+        imageAltAr:
+            product.imageAltAr || null,
+
+        price:
+            parseFloat(
+                product.price
+            ),
+
+        discount:
+            parseFloat(
+                product.discountAmount ||
+                0
+            ),
+
+        category:
+            product.categorySlug,
+
+        categoryId:
+            product.categoryId,
+
+        mainImage:
+            primaryImage?.imageUrl ||
+            product.collectionImageUrl ||
+            '',
+
+        thumbnails:
+            allImageUrls.length
+                ? allImageUrls
+                : [
+                    product.collectionImageUrl,
+                ].filter(Boolean),
+
+        colors:
+            [...colorMap.values()],
+
+        sizes:
+            [...sizeSet],
+
+        variants: variants.map((v) => ({
+            id: v.id,
+            size: v.size,
+            colorSlug: v.colorSlug,
+            colorName: v.colorName,
+            colorNameAr: v.colorNameAr || null,
+            colorImageUrl: v.colorImageUrl,
+            stockQuantity: Number(v.stockQuantity) || 0,
+            sku: v.sku,
+        })),
+
+        videos: videos.map((v) => ({
+            id: v.id,
+            productId: v.productId,
+            videoUrl: v.videoUrl,
+            sortOrder: v.sortOrder,
+            createdAt: v.createdAt,
+        })),
+
+        stock,
+
+        collectionImage:
+            product.collectionImageUrl ||
+            primaryImage?.imageUrl ||
+            '',
+
+        isHidden:
+            product.isActive === false,
+
+        is_active:
+            Boolean(
+                product.isActive
+            ),
+
+        isFeatured:
+            Boolean(
+                product.isFeatured
+            ),
+    };
+}
+
 export const productRepository = {
     /* =====================================================
        CATEGORIES
@@ -83,38 +381,167 @@ export const productRepository = {
     },
 
     /* =====================================================
+       SITEMAP (published data only, no per-product queries)
+       ===================================================== */
+
+    async listPublishedProductStamps(tx = db) {
+        return tx
+            .select({
+                id: products.id,
+                slug: products.slug,
+                updatedAt: products.updatedAt,
+                titleAr: products.titleAr,
+                descriptionAr: products.descriptionAr,
+            })
+            .from(products)
+            .where(eq(products.isActive, true))
+            .orderBy(asc(products.createdAt));
+    },
+
+    /**
+     * What a product card needs, for the published products, newest first: ONE query (no variants, images or reviews are
+     * loaded; the main photo and the sold-out flag are sub-selects). Used by the storefront's home and collection pages
+     * and the recommendations of a product page, instead of the full product list.
+     * mainImage / collectionImage follow buildProductResponse: the primary photo (else the first by sort order), the
+     * collection photo set by the admin (else the primary photo). soldOut is true when the product has variants and every
+     * one of them is out of stock (the rule of shared/stock.js isProductOutOfStock).
+     */
+    async listPublishedProductSummaries({ categorySlug = null, limit = 100 } = {}, tx = db) {
+        const conditions = [eq(products.isActive, true)];
+        if (categorySlug) conditions.push(eq(categories.slug, categorySlug));
+        const rows = await tx
+            .select({
+                id: products.id,
+                slug: products.slug,
+                title: products.title,
+                titleAr: products.titleAr,
+                imageAlt: products.imageAlt,
+                imageAltAr: products.imageAltAr,
+                price: products.price,
+                discountAmount: products.discountAmount,
+                category: categories.slug,
+                collectionImageUrl: products.collectionImageUrl,
+                primaryImageUrl: sql`(
+                    SELECT pi.image_url FROM product_images pi
+                    WHERE pi.product_id = ${products.id}
+                    ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+                    LIMIT 1
+                )`,
+                soldOut: sql`COALESCE((
+                    SELECT bool_and(COALESCE(pv.stock_quantity, 0) <= 0) FROM product_variants pv
+                    WHERE pv.product_id = ${products.id}
+                ), false)`,
+            })
+            .from(products)
+            .innerJoin(categories, eq(products.categoryId, categories.id))
+            .where(and(...conditions))
+            .orderBy(desc(products.createdAt))
+            .limit(Math.min(Math.max(Number(limit) || 100, 1), 300));
+        return rows.map((row) => ({
+            id: row.id,
+            slug: row.slug,
+            name: row.title,
+            nameAr: row.titleAr || null,
+            imageAlt: row.imageAlt || null,
+            imageAltAr: row.imageAltAr || null,
+            price: parseFloat(row.price),
+            discount: parseFloat(row.discountAmount || 0),
+            category: row.category,
+            mainImage: row.primaryImageUrl || row.collectionImageUrl || '',
+            collectionImage: row.collectionImageUrl || row.primaryImageUrl || '',
+            soldOut: row.soldOut === true,
+        }));
+    },
+
+    async listCategorySlugsWithPublishedProducts(tx = db) {
+        return tx
+            .selectDistinct({ slug: categories.slug })
+            .from(categories)
+            .innerJoin(products, eq(products.categoryId, categories.id))
+            .where(eq(products.isActive, true))
+            .orderBy(asc(categories.slug));
+    },
+
+    /* =====================================================
        PRODUCTS - READ
        ===================================================== */
 
+    /**
+     * Every product (published ones only unless `includeHidden`), newest first, shaped exactly as findById returns
+     * them but loaded in four queries (products, variants, images, videos) instead of four per product.
+     */
     async findAll(
-        { includeHidden = true } = {},
+        { includeHidden = false } = {},
         tx = db
     ) {
-        const rows = includeHidden
-            ? await tx
-                .select()
-                .from(products)
-                .orderBy(desc(products.createdAt))
-            : await tx
-                .select()
-                .from(products)
-                .where(eq(products.isActive, true))
-                .orderBy(desc(products.createdAt));
+        const rows = await tx
+            .select(PRODUCT_COLUMNS)
+            .from(products)
+            .leftJoin(categories, eq(products.categoryId, categories.id))
+            .where(includeHidden ? undefined : eq(products.isActive, true))
+            .orderBy(desc(products.createdAt));
 
-        const result = [];
-
-        for (const product of rows) {
-            const fullProduct = await this.findById(
-                product.id,
-                tx
-            );
-
-            if (fullProduct) {
-                result.push(fullProduct);
-            }
+        if (!rows.length) {
+            return [];
         }
 
-        return result;
+        const ids = rows.map((row) => row.id);
+
+        // No ORDER BY here on purpose. findById sorts one product's rows in the database; rows that still tie (images
+        // with the same sort_order, variants saved before positions existed) come out in the order the database
+        // returns them. Reading everything unsorted, grouping per product and sorting with a stable sort gives each
+        // product that same order, where one big ORDER BY would shuffle tied rows differently.
+        const [variantRows, imageRows, videoRows] = await Promise.all([
+            tx.select().from(productVariants).where(inArray(productVariants.productId, ids)),
+            tx.select().from(productImages).where(inArray(productImages.productId, ids)),
+            tx.select().from(productVideos).where(inArray(productVideos.productId, ids)),
+        ]);
+
+        // NULLs sort last, as in an ascending ORDER BY.
+        const rank = (value) => {
+            if (value === null || value === undefined) {
+                return Infinity;
+            }
+            return typeof value === 'number' ? value : new Date(value).getTime();
+        };
+        const compareBy = (...keys) => (a, b) => {
+            for (const key of keys) {
+                const x = rank(a[key]);
+                const y = rank(b[key]);
+                if (x < y) {
+                    return -1;
+                }
+                if (x > y) {
+                    return 1;
+                }
+            }
+            return 0;
+        };
+        const groupByProduct = (list, compare) => {
+            const map = new Map();
+            for (const item of list) {
+                if (!map.has(item.productId)) {
+                    map.set(item.productId, []);
+                }
+                map.get(item.productId).push(item);
+            }
+            for (const group of map.values()) {
+                group.sort(compare);
+            }
+            return map;
+        };
+        const variantsBy = groupByProduct(variantRows, compareBy('position', 'createdAt'));
+        const imagesBy = groupByProduct(imageRows, compareBy('sortOrder'));
+        const videosBy = groupByProduct(videoRows, compareBy('sortOrder', 'createdAt'));
+
+        return rows.map((row) =>
+            buildProductResponse(
+                row,
+                variantsBy.get(row.id) || [],
+                imagesBy.get(row.id) || [],
+                videosBy.get(row.id) || []
+            )
+        );
     },
 
     async listPaginated(
@@ -191,6 +618,14 @@ export const productRepository = {
                     ),
                     ilike(
                         products.description,
+                        searchPattern
+                    ),
+                    ilike(
+                        products.titleAr,
+                        searchPattern
+                    ),
+                    ilike(
+                        products.descriptionAr,
                         searchPattern
                     )
                 )
@@ -269,31 +704,7 @@ export const productRepository = {
 
         const [product] =
             await tx
-                .select({
-                    id: products.id,
-                    title: products.title,
-                    slug: products.slug,
-                    description: products.description,
-                    price: products.price,
-                    discountAmount:
-                        products.discountAmount,
-                    categoryId:
-                        products.categoryId,
-                    categoryName:
-                        categories.name,
-                    categorySlug:
-                        categories.slug,
-                    collectionImageUrl:
-                        products.collectionImageUrl,
-                    isFeatured:
-                        products.isFeatured,
-                    isActive:
-                        products.isActive,
-                    createdAt:
-                        products.createdAt,
-                    updatedAt:
-                        products.updatedAt,
-                })
+                .select(PRODUCT_COLUMNS)
                 .from(products)
                 .leftJoin(
                     categories,
@@ -321,6 +732,7 @@ export const productRepository = {
                     )
                 )
                 .orderBy(
+                    asc(productVariants.position),
                     asc(productVariants.createdAt)
                 );
 
@@ -353,259 +765,7 @@ export const productRepository = {
                     asc(productVideos.createdAt)
                 );
 
-        /* =================================================
-           BUILD FRONTEND-COMPATIBLE RESPONSE
-           ================================================= */
-
-        const colorMap = new Map();
-        const sizeSet = new Set();
-        const stock = {};
-
-        for (const variant of variants) {
-            if (variant.size) {
-                sizeSet.add(
-                    variant.size
-                );
-            }
-
-            const stockKey =
-                getStockKey(
-                    variant.colorSlug,
-                    variant.size
-                );
-
-            stock[stockKey] =
-                Number(
-                    variant.stockQuantity
-                ) || 0;
-        }
-
-        /*
-         * Sort images by sortOrder explicitly.
-         */
-        const sortedImages =
-            [...images].sort(
-                (a, b) =>
-                    (a.sortOrder ?? 0) -
-                    (b.sortOrder ?? 0)
-            );
-
-        /*
-         * Populate colorMap in explicit sortOrder appearance order from images.
-         */
-        for (const image of sortedImages) {
-            if (!image.colorSlug) {
-                continue;
-            }
-
-            const colorSlug =
-                image.colorSlug;
-
-            if (
-                !colorMap.has(
-                    colorSlug
-                )
-            ) {
-                const variantForColor = variants.find(
-                    (v) => v.colorSlug === colorSlug
-                );
-                colorMap.set(
-                    colorSlug,
-                    {
-                        id: colorSlug,
-                        name:
-                            variantForColor?.colorName ||
-                            colorSlug
-                                .charAt(0)
-                                .toUpperCase() +
-                            colorSlug.slice(1),
-                        image:
-                            image.imageUrl,
-                        thumbnail:
-                            image.imageUrl,
-                        gallery: [],
-                        images: [image.imageUrl],
-                    }
-                );
-            } else {
-                const color =
-                    colorMap.get(
-                        colorSlug
-                    );
-
-                color.images.push(
-                    image.imageUrl
-                );
-                color.gallery.push(
-                    image.imageUrl
-                );
-            }
-        }
-
-        /*
-         * Add any variants whose colorSlug was not in productImages (fallback / backward compat).
-         */
-        for (const variant of variants) {
-            if (
-                variant.colorSlug &&
-                !colorMap.has(
-                    variant.colorSlug
-                )
-            ) {
-                const thumb =
-                    variant.colorImageUrl ||
-                    product.collectionImageUrl ||
-                    '';
-                colorMap.set(
-                    variant.colorSlug,
-                    {
-                        id:
-                            variant.colorSlug,
-                        name:
-                            variant.colorName ||
-                            variant.colorSlug,
-                        image: thumb,
-                        thumbnail: thumb,
-                        gallery: [],
-                        images: thumb ? [thumb] : [],
-                    }
-                );
-            }
-        }
-
-        /*
-         * Ensure color.thumbnail and color.image are consistently the first image.
-         */
-        for (
-            const color
-            of colorMap.values()
-        ) {
-            if (color.images.length) {
-                color.image =
-                    color.images[0];
-                color.thumbnail =
-                    color.images[0];
-                color.gallery =
-                    color.images.slice(1);
-            } else if (color.image) {
-                color.thumbnail =
-                    color.image;
-                color.images.push(
-                    color.image
-                );
-                color.gallery = [];
-            }
-        }
-
-        /*
-         * Primary image.
-         */
-        const primaryImage =
-            sortedImages.find(
-                image =>
-                    image.isPrimary
-            ) ||
-            sortedImages[0];
-
-        const allImageUrls =
-            sortedImages.map(
-                image =>
-                    image.imageUrl
-            );
-
-        /*
-         * IMPORTANT:
-         *
-         * Preserve the existing frontend
-         * response contract.
-         */
-
-        return {
-            id:
-                product.id,
-
-            name:
-                product.title,
-
-            slug:
-                product.slug,
-
-            description:
-                product.description,
-
-            price:
-                parseFloat(
-                    product.price
-                ),
-
-            discount:
-                parseFloat(
-                    product.discountAmount ||
-                    0
-                ),
-
-            category:
-                product.categorySlug,
-
-            categoryId:
-                product.categoryId,
-
-            mainImage:
-                primaryImage?.imageUrl ||
-                product.collectionImageUrl ||
-                '',
-
-            thumbnails:
-                allImageUrls.length
-                    ? allImageUrls
-                    : [
-                        product.collectionImageUrl,
-                    ].filter(Boolean),
-
-            colors:
-                [...colorMap.values()],
-
-            sizes:
-                [...sizeSet],
-
-            variants: variants.map((v) => ({
-                id: v.id,
-                size: v.size,
-                colorSlug: v.colorSlug,
-                colorName: v.colorName,
-                colorImageUrl: v.colorImageUrl,
-                stockQuantity: Number(v.stockQuantity) || 0,
-                sku: v.sku,
-            })),
-
-            videos: videos.map((v) => ({
-                id: v.id,
-                productId: v.productId,
-                videoUrl: v.videoUrl,
-                sortOrder: v.sortOrder,
-                createdAt: v.createdAt,
-            })),
-
-            stock,
-
-            collectionImage:
-                product.collectionImageUrl ||
-                primaryImage?.imageUrl ||
-                '',
-
-            isHidden:
-                product.isActive === false,
-
-            is_active:
-                Boolean(
-                    product.isActive
-                ),
-
-            isFeatured:
-                Boolean(
-                    product.isFeatured
-                ),
-        };
+        return buildProductResponse(product, variants, images, videos);
     },
 
     /* =====================================================
@@ -767,6 +927,10 @@ export const productRepository = {
             title,
             slug,
             description = '',
+            titleAr = null,
+            descriptionAr = null,
+            imageAlt = null,
+            imageAltAr = null,
             price,
             discountAmount = 0,
             categoryId,
@@ -785,6 +949,10 @@ export const productRepository = {
                     title,
                     slug,
                     description,
+                    titleAr,
+                    descriptionAr,
+                    imageAlt,
+                    imageAltAr,
                     price:
                         price.toString(),
                     discountAmount:
@@ -800,12 +968,14 @@ export const productRepository = {
          * Insert variants.
          */
 
-        for (const variant of variants) {
+        for (const [position, variant] of variants.entries()) {
             await tx
                 .insert(productVariants)
                 .values({
                     productId:
                         product.id,
+
+                    position,
 
                     size:
                         variant.size,
@@ -818,6 +988,10 @@ export const productRepository = {
                         variant.colorName ||
                         variant.colorSlug ||
                         variant.colorId,
+
+                    colorNameAr:
+                        variant.colorNameAr ||
+                        null,
 
                     colorImageUrl:
                         variant.colorImageUrl ||
@@ -914,6 +1088,34 @@ export const productRepository = {
         ) {
             updateFields.description =
                 payload.description;
+        }
+
+        if (
+            payload.titleAr !== undefined
+        ) {
+            updateFields.titleAr =
+                payload.titleAr;
+        }
+
+        if (
+            payload.descriptionAr !== undefined
+        ) {
+            updateFields.descriptionAr =
+                payload.descriptionAr;
+        }
+
+        if (
+            payload.imageAlt !== undefined
+        ) {
+            updateFields.imageAlt =
+                payload.imageAlt;
+        }
+
+        if (
+            payload.imageAltAr !== undefined
+        ) {
+            updateFields.imageAltAr =
+                payload.imageAltAr;
         }
 
         if (
@@ -1017,7 +1219,7 @@ export const productRepository = {
 
             const matchedExistingIds = new Set();
 
-            for (const variant of payload.variants) {
+            for (const [position, variant] of payload.variants.entries()) {
                 const size = String(variant.size ?? '').trim();
                 const colorSlug = String(
                     variant.colorSlug || variant.colorId || ''
@@ -1027,6 +1229,8 @@ export const productRepository = {
                     variant.colorSlug ||
                     variant.colorId ||
                     colorSlug;
+                const colorNameAr =
+                    variant.colorNameAr || null;
                 const colorImageUrl =
                     variant.colorImageUrl || null;
                 const stockQuantity = Number.isFinite(
@@ -1050,9 +1254,11 @@ export const productRepository = {
                     matchedExistingIds.add(matchedVariant.id);
 
                     const hasChanges =
+                        matchedVariant.position !== position ||
                         matchedVariant.size !== size ||
                         matchedVariant.colorSlug !== colorSlug ||
                         matchedVariant.colorName !== colorName ||
+                        (matchedVariant.colorNameAr || null) !== colorNameAr ||
                         (matchedVariant.colorImageUrl || null) !== colorImageUrl ||
                         Number(matchedVariant.stockQuantity) !== stockQuantity ||
                         matchedVariant.sku !== sku;
@@ -1061,9 +1267,11 @@ export const productRepository = {
                         await tx
                             .update(productVariants)
                             .set({
+                                position,
                                 size,
                                 colorSlug,
                                 colorName,
+                                colorNameAr,
                                 colorImageUrl,
                                 stockQuantity,
                                 sku,
@@ -1081,9 +1289,11 @@ export const productRepository = {
                         .insert(productVariants)
                         .values({
                             productId: id,
+                            position,
                             size,
                             colorSlug,
                             colorName,
+                            colorNameAr,
                             colorImageUrl,
                             stockQuantity,
                             sku,
@@ -1302,6 +1512,10 @@ export const productRepository = {
         // Check refundItems.imageUrl
         const [refRef] = await tx.select({ id: refundItems.id }).from(refundItems).where(eq(refundItems.imageUrl, imageUrl)).limit(1);
         if (refRef) return true;
+
+        // Check draftItems.imageUrl (draft orders keep the photo they were created with)
+        const [draftRef] = await tx.select({ id: draftItems.id }).from(draftItems).where(eq(draftItems.imageUrl, imageUrl)).limit(1);
+        if (draftRef) return true;
 
         // Check reviewGallery.imageUrl
         const [revRef] = await tx.select({ id: reviewGallery.id }).from(reviewGallery).where(eq(reviewGallery.imageUrl, imageUrl)).limit(1);

@@ -1,0 +1,38 @@
+/* Message shown instead of a review form to visitors who are not logged in. */
+.review_login_prompt {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.review_login_prompt p {
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.review_login_prompt_actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.review_login_prompt_btn {
+  display: inline-block;
+  padding: 10px 22px;
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  color: var(--color-primary);
+  background: transparent;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.review_login_prompt_btn_primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.review_login_prompt_btn:hover {
+  opacity: 0.88;
+}

@@ -2,11 +2,12 @@ import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { db } from '../db/orm.js';
 import { reviews, storeReviews, reviewGallery, products, users } from '../models/index.js';
 
+// Public serializers (published reviews on the home and product pages): never include the reviewer's email or user
+// id. Admin screens read the full rows through their own admin-only queries.
 function serializeStoreReview(row) {
   return {
     id: row.id,
     authorName: row.authorName,
-    email: row.email,
     body: row.body,
     rating: row.rating,
     status: row.status,
@@ -19,7 +20,6 @@ function serializeProductReview(row) {
   return {
     id: row.id,
     productId: row.productId,
-    userId: row.userId,
     authorName: row.authorName || 'Client',
     rating: row.rating,
     comment: row.comment,

@@ -78,7 +78,7 @@ async function runTests() {
   const [adminUser] = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
   if (adminUser) {
     adminToken = jwt.sign(
-      { id: adminUser.id, role: adminUser.role, email: adminUser.email },
+      { sub: adminUser.id, role: adminUser.role, email: adminUser.email },
       env.jwtSecret,
       { expiresIn: '1h' }
     );
@@ -91,7 +91,7 @@ async function runTests() {
       role: 'admin',
     }).returning();
     adminToken = jwt.sign(
-      { id: newAdmin.id, role: newAdmin.role, email: newAdmin.email },
+      { sub: newAdmin.id, role: newAdmin.role, email: newAdmin.email },
       env.jwtSecret,
       { expiresIn: '1h' }
     );

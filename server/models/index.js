@@ -9,4 +9,6 @@ export * from './contact.model.js';
 export * from './idempotency.model.js';
 export * from './notification.model.js';
 export * from './draft.model.js';
+export * from './delivery.model.js';
+export * from './claim.model.js';
 

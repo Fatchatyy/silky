@@ -59,6 +59,11 @@ export const exchangeRepository = {
     };
   },
 
+  async findById(id, tx = db) {
+    const [row] = await tx.select().from(orderExchanges).where(eq(orderExchanges.id, id));
+    return row || null;
+  },
+
   async createExchangeRecord({ orderId, exchangeNumber, exchangeSequence, paymentResponsibility = 'customer_paid', customerName, customerEmail = null, customerPhone, shippingAddress, subtotal, deliveryFee = 0, totalAmount, productAmountAdded = 0, productRefundObligation = 0 }, items = [], tx = db) {
     const [newExchange] = await tx.insert(orderExchanges).values({
       orderId,

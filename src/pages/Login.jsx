@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { Link, useNavigate } from '../i18n/router';
 import { useAuth } from '../context/AuthContext';
 import '../styles/auth.css';
+import { useT } from '../i18n/useT';
 
 export default function Login() {
+  const { t, known } = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, login } = useAuth();
@@ -30,20 +33,20 @@ export default function Login() {
     const trimmedId = (form.identifier || '').trim();
 
     if (!trimmedId) {
-      errors.identifier = "L'adresse e-mail ou le numéro de téléphone est obligatoire.";
+      errors.identifier = t('auth.identifierRequired');
     } else if (trimmedId.includes('@')) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedId)) {
-        errors.identifier = 'Veuillez entrer une adresse e-mail valide.';
+        errors.identifier = t('contact.emailInvalid');
       }
     } else {
       if (!/^\d{8}$/.test(trimmedId)) {
-        errors.identifier = 'Le numéro de téléphone doit contenir exactement 8 chiffres.';
+        errors.identifier = t('auth.phone8');
       }
     }
 
     const passwordVal = form.password || '';
     if (!passwordVal) {
-      errors.password = 'Le mot de passe est obligatoire.';
+      errors.password = t('auth.passwordRequired');
     }
 
     return errors;
@@ -75,7 +78,7 @@ export default function Login() {
       }
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err.message || 'Connexion impossible');
+      setError(known(err.message) || t('auth.loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -85,11 +88,11 @@ export default function Login() {
     <main>
       <section className="contact-section">
         <img src="/pictures/logo.png" alt="Silky" className="auth-logo" />
-        <h2 className="contact-title">Connexion</h2>
+        <h1 className="contact-title">{t('auth.login')}</h1>
 
         <form className="contact-form" onSubmit={handleSubmit} noValidate>
           <div className="form-group">
-            <label htmlFor="identifier">Adresse e-mail ou téléphone</label>
+            <label htmlFor="identifier">{t('auth.identifierLabel')}</label>
             <input
               type="text"
               id="identifier"
@@ -106,9 +109,9 @@ export default function Login() {
 
           <div className="form-group">
             <div className="label-row">
-              <label htmlFor="password">Mot de passe</label>
+              <label htmlFor="password">{t('auth.password')}</label>
               <Link to="/password-reset" className="forgot-link">
-                Mot de passe oublié?
+                {t('auth.forgot')}
               </Link>
             </div>
             <input
@@ -127,10 +130,10 @@ export default function Login() {
 
           <div className="form-actions">
             <button type="submit" className="submit-btn" disabled={loading}>
-              {loading ? 'Connexion...' : 'Se connecter'}
+              {loading ? t('auth.loggingIn') : t('auth.submitLogin')}
             </button>
-            <Link to="/signup" className="secondary-btn">
-              Créer un compte
+            <Link to="/signup" state={location.state} className="secondary-btn">
+              {t('auth.createAccount')}
             </Link>
           </div>
         </form>

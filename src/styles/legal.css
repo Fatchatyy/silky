@@ -1,0 +1,55 @@
+/* Long-form text pages (FAQ). */
+.legal_page {
+  max-width: 820px;
+  margin: 60px auto;
+  padding: 0 20px;
+  text-align: left;
+}
+
+.legal_page h1 {
+  font-family: Arial, sans-serif;
+  font-size: 32px;
+  font-weight: bold;
+  color: #000000;
+  margin: 0 0 12px;
+}
+
+.legal_page h2 {
+  font-family: Arial, sans-serif;
+  font-size: 20px;
+  font-weight: bold;
+  color: #000000;
+  margin: 32px 0 10px;
+  scroll-margin-top: 120px;
+}
+
+.legal_page p,
+.legal_page li {
+  font-size: 16px;
+  line-height: 1.7;
+  color: #000000;
+}
+
+.legal_page p {
+  margin: 0 0 14px;
+}
+
+.legal_page ul {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.legal_page a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .legal_page {
+    margin: 40px auto;
+  }
+
+  .legal_page h1 {
+    font-size: 26px;
+  }
+}

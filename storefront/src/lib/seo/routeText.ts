@@ -123,13 +123,13 @@ export const hasArabicPageText = (key: PageKey) => Boolean(PAGE_TEXT.ar[key]?.de
 // Display text of the named collections (titles and intro), French and Arabic.
 export const COLLECTIONS: Record<string, Record<Locale, { title: string; heroText: string }> & { fallbackImage: string }> = {
   femme: {
-    fr: { title: 'Collection Femme', heroText: 'Découvrez toute notre collection femme' },
-    ar: { title: 'مجموعة النساء', heroText: 'اكتشفوا كل مجموعتنا النسائية' },
+    fr: { title: 'Collection Femme', heroText: 'Découvrez la collection femme Silky : livraison à domicile en 24 à 48 heures, paiement à la livraison et échange de taille ou de couleur sous 48 heures.' },
+    ar: { title: 'مجموعة النساء', heroText: 'اكتشفوا مجموعة النساء من Silky: توصيل إلى المنزل في غضون 24 إلى 48 ساعة، والدفع عند الاستلام، وإمكانية تبديل المقاس أو اللون في غضون 48 ساعة.' },
     fallbackImage: '/pictures/femme_example.jpg',
   },
   enfant: {
-    fr: { title: 'Collection Enfant', heroText: 'Découvrez toute notre collection enfant' },
-    ar: { title: 'مجموعة الأطفال', heroText: 'اكتشفوا كل مجموعتنا للأطفال' },
+    fr: { title: 'Collection Enfant', heroText: 'Découvrez la collection enfant Silky : livraison à domicile en 24 à 48 heures, paiement à la livraison et échange de taille ou de couleur sous 48 heures.' },
+    ar: { title: 'مجموعة الأطفال', heroText: 'اكتشفوا مجموعة الأطفال من Silky: توصيل إلى المنزل في غضون 24 إلى 48 ساعة، والدفع عند الاستلام، وإمكانية تبديل المقاس أو اللون في غضون 48 ساعة.' },
     fallbackImage: '/pictures/enfant_example.jpg',
   },
 };

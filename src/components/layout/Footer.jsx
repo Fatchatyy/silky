@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link } from '../../i18n/router';
+import { useT } from '../../i18n/useT';
 
 export default function Footer() {
+  const { t } = useT();
   const handleNavClick = (targetPath) => {
     const [, hash] = (targetPath || '').split('#');
     if (hash) {
@@ -16,12 +18,12 @@ export default function Footer() {
   return (
     <footer className="site_footer">
       <div className="footer_tagline_container">
-        <h1 className="script_tagline">Original designs, Made in Tunisia</h1>
+        <p className="script_tagline">{t('footer.tagline')}</p>
         <p className="tagline_text">
-          Née en Tunisie, Silky rend le haut de gamme accessible à tous.
+          {t('footer.text1')}
         </p>
         <p className="tagline_text">
-          Profitez de vêtements durables et élégants au meilleur prix et avec un service toujours à votre écoute.
+          {t('footer.text2')}
         </p>
       </div>
 
@@ -32,7 +34,7 @@ export default function Footer() {
           <Link
             to="/"
             className="footer_logo_link"
-            title="Retour au haut de page"
+            title={t('footer.backToTop')}
             onClick={() => handleNavClick('/')}
           >
             <img src="/pictures/logo.png" alt="Silky Logo" className="footer_logo_img" />
@@ -53,7 +55,7 @@ export default function Footer() {
                 <img src="/pictures/gmail.png" alt="Email" />
               </a>
             </div>
-            <span className="follow_us_text">Suivez-nous</span>
+            <span className="follow_us_text">{t('footer.followUs')}</span>
           </div>
         </div>
 
@@ -61,26 +63,27 @@ export default function Footer() {
           <div className="footer_col">
             <h4>SILKY</h4>
             <ul>
-              <li><Link to="/" onClick={() => handleNavClick('/')}>Home</Link></li>
-              <li><Link to="/collection/femme" onClick={() => handleNavClick('/collection/femme')}>Femme</Link></li>
-              <li><Link to="/collection/enfant" onClick={() => handleNavClick('/collection/enfant')}>Enfant</Link></li>
+              <li><Link to="/" onClick={() => handleNavClick('/')}>{t('nav.home')}</Link></li>
+              <li><Link to="/collection/femme" onClick={() => handleNavClick('/collection/femme')}>{t('nav.women')}</Link></li>
+              <li><Link to="/collection/enfant" onClick={() => handleNavClick('/collection/enfant')}>{t('nav.kids')}</Link></li>
             </ul>
           </div>
 
           <div className="footer_col">
-            <h4>About</h4>
+            <h4>{t('footer.about')}</h4>
             <ul>
-              <li><Link to="/about" onClick={() => handleNavClick('/about')}>à propos de nous</Link></li>
+              <li><Link to="/about" onClick={() => handleNavClick('/about')}>{t('footer.aboutUs')}</Link></li>
             </ul>
           </div>
 
           <div className="footer_col">
-            <h4>Aide</h4>
+            <h4>{t('footer.help')}</h4>
             <ul>
-              <li><Link to="/service-client" onClick={() => handleNavClick('/service-client')}>Service client</Link></li>
-              <li><Link to="/contact" onClick={() => handleNavClick('/contact')}>Nous contacter</Link></li>
-              <li><Link to="/livraison-retours#livraison" onClick={() => handleNavClick('/livraison-retours#livraison')}>Informations de livraison</Link></li>
-              <li><Link to="/livraison-retours#retours" onClick={() => handleNavClick('/livraison-retours#retours')}>Politique de retours</Link></li>
+              <li><Link to="/service-client" onClick={() => handleNavClick('/service-client')}>{t('footer.customerService')}</Link></li>
+              <li><Link to="/contact" onClick={() => handleNavClick('/contact')}>{t('footer.contactUs')}</Link></li>
+              <li><Link to="/livraison-retours#livraison" onClick={() => handleNavClick('/livraison-retours#livraison')}>{t('footer.deliveryInfo')}</Link></li>
+              <li><Link to="/livraison-retours#retours" onClick={() => handleNavClick('/livraison-retours#retours')}>{t('footer.returnsPolicy')}</Link></li>
+              <li><Link to="/faq" onClick={() => handleNavClick('/faq')}>{t('footer.faq')}</Link></li>
             </ul>
           </div>
         </div>

@@ -11,6 +11,7 @@ import { runInTransaction } from '../repositories/transaction.repository.js';
 import { AppError } from '../utils/errors.js';
 import { sendOrderConfirmationEmail } from './email.service.js';
 import * as notificationService from './notification.service.js';
+import * as deliveryService from './delivery.service.js';
 import { DELIVERY_ECONOMICS } from '../config/delivery.js';
 import { generateRequestFingerprint } from '../utils/idempotency.js';
 import { resolveGovernorateSync } from '../config/governorates.js';
@@ -789,7 +790,8 @@ export async function refundOrder(orderId, options = {}) {
     : DELIVERY_ECONOMICS.REFUND_CUSTOMER_DELIVERY_FEE;
   const carrierCost = DELIVERY_ECONOMICS.CARRIER_COST_REFUND_DELIVERY;
 
-  return runInTransaction(async (tx) => {
+  let refundId;
+  const refundedOrder = await runInTransaction(async (tx) => {
     const lockedOrder = await orderRepository.findByIdForUpdate(orderId, tx);
     if (!lockedOrder) {
       throw new AppError('Commande non trouvée', 404);
@@ -810,6 +812,8 @@ export async function refundOrder(orderId, options = {}) {
     if (lockedOrder.status !== 'completed' && lockedOrder.status !== 'exchanged') {
       throw new AppError('Seules les commandes confirmées ou échangées peuvent faire l\'objet d\'un remboursement', 400);
     }
+
+    await deliveryService.assertParcelCreated(orderId, tx);
 
     const latestExchange = await exchangeRepository.findLatestExchange(orderId, tx);
 
@@ -857,7 +861,7 @@ export async function refundOrder(orderId, options = {}) {
 
     const refundNumber = `REF-${lockedOrder.orderNumber}`;
 
-    await refundRepository.createRefundRecord({
+    const refundRecord = await refundRepository.createRefundRecord({
       orderId,
       refundNumber,
       paymentResponsibility,
@@ -869,10 +873,16 @@ export async function refundOrder(orderId, options = {}) {
       deliveryFee,
       carrierCost,
     }, itemsToRestore, tx);
+    refundId = refundRecord.id;
 
     await orderRepository.updateStatus(orderId, 'refunded', tx);
     return orderRepository.findById(orderId, tx);
   });
+
+  // Post-commit, outside any transaction: the refund is final whatever GOODEX answers.
+  // ensureParcelForRefund never throws and records its own outcome on the delivery row.
+  await deliveryService.ensureParcelForRefund(refundId);
+  return refundedOrder;
 }
 
 export async function confirmOrder(orderId) {
@@ -880,7 +890,8 @@ export async function confirmOrder(orderId) {
     throw new AppError('ID de commande requis', 400);
   }
 
-  return runInTransaction(async (tx) => {
+  let confirmedNow = false;
+  const confirmed = await runInTransaction(async (tx) => {
     const lockedOrder = await orderRepository.findByIdForUpdate(orderId, tx);
     if (!lockedOrder) {
       throw new AppError('Commande non trouvée', 404);
@@ -900,10 +911,18 @@ export async function confirmOrder(orderId) {
 
     if (lockedOrder.status === 'pending' || lockedOrder.status === 'processing') {
       await orderRepository.updateStatus(orderId, 'completed', tx);
+      confirmedNow = true;
     }
 
     return orderRepository.findById(orderId, tx);
   });
+
+  // GOODEX parcel creation happens only after the confirmation has committed and
+  // never inside the transaction. ensureParcelForOrder never throws.
+  if (confirmedNow) {
+    await deliveryService.ensureParcelForOrder(orderId);
+  }
+  return confirmed;
 }
 
 export async function deliverOrder(orderId) {
@@ -932,6 +951,8 @@ export async function deliverOrder(orderId) {
     if (lockedOrder.status !== 'completed' && lockedOrder.status !== 'exchanged') {
       throw new AppError('Seules les commandes confirmées ou échangées peuvent être marquées comme livrées', 400);
     }
+
+    await deliveryService.assertParcelCreated(orderId, tx);
 
     await orderRepository.updateStatus(orderId, 'delivered', tx);
     return orderRepository.findById(orderId, tx);

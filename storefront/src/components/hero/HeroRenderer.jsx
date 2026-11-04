@@ -21,7 +21,10 @@ function getImageBgStyle(imageUrl, pos) {
 }
 
 export default function HeroRenderer({ heroConfig: propConfig, theme }) {
-  const { t, known } = useT();
+  const { t, known, locale } = useT();
+  // The text of the page language: the Arabic version the admin wrote when there is one, else the French text (translated
+  // by `known` when it is one of the shop's standard phrases).
+  const pick = (fr, ar) => (locale === 'ar' && typeof ar === 'string' && ar.trim() ? ar.trim() : known(fr));
 
   // Prefer passed prop (useful for live preview), fallback to theme.heroConfig or legacy theme properties
   const config = propConfig || theme?.heroConfig || {
@@ -95,8 +98,8 @@ export default function HeroRenderer({ heroConfig: propConfig, theme }) {
       <main className="hero_container" aria-label={t('hero.banner')}>
         {(mainText || smallText) && (
           <div className="hero_text_overlay">
-            {mainText && <h1>{known(mainText)}</h1>}
-            {smallText && <p>{known(smallText)}</p>}
+            {mainText && <h1>{pick(mainText, opt1.mainTextAr)}</h1>}
+            {smallText && <p>{pick(smallText, opt1.smallTextAr)}</p>}
           </div>
         )}
 
@@ -107,7 +110,7 @@ export default function HeroRenderer({ heroConfig: propConfig, theme }) {
           />
           {leftBtn.visible && leftBtn.text && (
             <Link to={leftBtn.destination || '/collection/femme'} className="cta_button">
-              {known(leftBtn.text)}
+              {pick(leftBtn.text, leftBtn.textAr)}
             </Link>
           )}
         </section>
@@ -119,7 +122,7 @@ export default function HeroRenderer({ heroConfig: propConfig, theme }) {
           />
           {rightBtn.visible && rightBtn.text && (
             <Link to={rightBtn.destination || '/collection/enfant'} className="cta_button">
-              {known(rightBtn.text)}
+              {pick(rightBtn.text, rightBtn.textAr)}
             </Link>
           )}
         </section>
@@ -145,11 +148,11 @@ export default function HeroRenderer({ heroConfig: propConfig, theme }) {
           style={getImageBgStyle(img, opt2.imagePos)}
         />
         <div className={`hero_single_content ${position}`}>
-          {mainText && <h1>{known(mainText)}</h1>}
-          {smallText && <p>{known(smallText)}</p>}
+          {mainText && <h1>{pick(mainText, opt2.mainTextAr)}</h1>}
+          {smallText && <p>{pick(smallText, opt2.smallTextAr)}</p>}
           {btn.visible && btn.text && (
             <Link to={btn.destination || '/collection/femme'} className="cta_button">
-              {known(btn.text)}
+              {pick(btn.text, btn.textAr)}
             </Link>
           )}
         </div>
@@ -194,11 +197,11 @@ export default function HeroRenderer({ heroConfig: propConfig, theme }) {
                 style={getImageBgStyle(img, slide.imagePos)}
               />
               <div className={`hero_single_content ${position}`}>
-                {slide.mainText && <SlideHeading>{known(slide.mainText)}</SlideHeading>}
-                {slide.smallText && <p>{known(slide.smallText)}</p>}
+                {slide.mainText && <SlideHeading>{pick(slide.mainText, slide.mainTextAr)}</SlideHeading>}
+                {slide.smallText && <p>{pick(slide.smallText, slide.smallTextAr)}</p>}
                 {btn.visible && btn.text && (
                   <Link to={btn.destination || '/collection/femme'} className="cta_button">
-                    {known(btn.text)}
+                    {pick(btn.text, btn.textAr)}
                   </Link>
                 )}
               </div>

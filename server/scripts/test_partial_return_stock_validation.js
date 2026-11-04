@@ -15,6 +15,7 @@
  */
 
 import '../config/env.js';
+import './helpers/parcel_guard_off.js';
 import { pool } from '../db/pool.js';
 import { runExchangesMigration } from '../db/migrations/add_exchanges.js';
 import { runRefundsMigration } from '../db/migrations/add_refunds.js';

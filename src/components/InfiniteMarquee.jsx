@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../i18n/useT';
 
 export default function InfiniteMarquee({
   children,
@@ -9,6 +10,7 @@ export default function InfiniteMarquee({
   showArrows = true,
   className = '',
 }) {
+  const { t } = useT();
   const viewportRef = useRef(null);
   const trackRef = useRef(null);
   const sequenceRef = useRef(null);
@@ -215,7 +217,7 @@ export default function InfiniteMarquee({
               e.stopPropagation();
               handleArrowClick(-1);
             }}
-            aria-label={isVertical ? 'Défiler vers le haut' : 'Défiler vers la gauche'}
+            aria-label={isVertical ? t('marquee.up') : t('marquee.left')}
           >
             <span className={isVertical ? 'ticker_arrow_icon_vertical' : undefined}>❮</span>
           </button>
@@ -226,7 +228,7 @@ export default function InfiniteMarquee({
               e.stopPropagation();
               handleArrowClick(1);
             }}
-            aria-label={isVertical ? 'Défiler vers le bas' : 'Défiler vers la droite'}
+            aria-label={isVertical ? t('marquee.down') : t('marquee.right')}
           >
             <span className={isVertical ? 'ticker_arrow_icon_vertical' : undefined}>❯</span>
           </button>

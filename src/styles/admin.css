@@ -1095,6 +1095,11 @@
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.admin-icon-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .admin-icon-action-btn .admin-btn-icon {
   width: 18px;
   height: 18px;
@@ -1968,70 +1973,6 @@
     padding: 12px 10px;
   }
 
-  /* --- Inventory table card layout for small mobile --- */
-  .admin-inventory-table thead {
-    display: none;
-  }
-
-  .admin-inventory-table,
-  .admin-inventory-table tbody,
-  .admin-inventory-table tr,
-  .admin-inventory-table td {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .admin-inventory-table tr {
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    overflow: hidden;
-    background: #fff;
-  }
-
-  .admin-inventory-table td {
-    padding: 8px 12px;
-    border-bottom: 1px solid #f0f0f0;
-    font-size: 0.88rem;
-    text-align: left;
-  }
-
-  .admin-inventory-table td:last-child {
-    border-bottom: none;
-  }
-
-  .admin-inventory-table td::before {
-    content: attr(data-label);
-    display: inline-block;
-    font-weight: 700;
-    color: var(--color-primary, #8d191c);
-    min-width: 80px;
-    margin-right: 8px;
-    font-size: 0.8rem;
-  }
-
-  .admin-inventory-table td input {
-    width: 80px;
-  }
-
-  .admin-inventory-row--low {
-    border-left: 3px solid #e67e22;
-  }
-
-  .admin-inventory-row--low td:first-child {
-    border-left: none;
-  }
-
-  .stock-table {
-    font-size: 0.82rem;
-  }
-
-  .stock-table th,
-  .stock-table td {
-    padding: 8px 6px;
-  }
-
   .admin-gallery-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -2683,20 +2624,6 @@
   width: 80px;
 }
 
-.admin-inventory-row--low {
-  background: #fff8f0;
-}
-
-.admin-inventory-row--low td:first-child {
-  border-left: 3px solid #e67e22;
-}
-
-.admin-inventory-sku {
-  font-family: monospace;
-  font-size: 0.85rem;
-  color: #666;
-}
-
 .admin-inventory-alert {
   color: #e67e22;
   font-weight: 600;
@@ -2999,6 +2926,11 @@
 
 .admin-segment-btn:hover {
   color: #1e293b;
+}
+
+/* GOODEX failure sub-filter: red while some confirmed orders have no parcel. */
+.admin-segment-btn.has-problem {
+  color: #b91c1c;
 }
 
 .admin-segment-btn.active {
@@ -5128,7 +5060,7 @@
   top: 0;
   z-index: 10;
   background: #f8fafc;
-  padding: 12px 14px;
+  padding: 12px 10px;
   font-weight: 600;
   color: #475569;
   font-size: 0.85rem;
@@ -5194,7 +5126,7 @@
 }
 
 .admin-table-td {
-  padding: 12px 14px;
+  padding: 12px 10px;
   vertical-align: middle;
   border-bottom: 1px solid #f1f5f9;
 }
@@ -5242,24 +5174,86 @@
 }
 
 .admin-table-td.col-client {
-  min-width: 140px;
+  min-width: 110px;
   font-weight: 500;
   color: #1e293b;
 }
 
 .admin-table-td.col-phone {
-  min-width: 110px;
+  min-width: 96px;
   font-size: 0.86rem;
   color: #475569;
   white-space: nowrap;
 }
 
 .admin-table-td.col-status {
-  min-width: 120px;
+  min-width: 104px;
+}
+
+.admin-table-td.col-delivery {
+  min-width: 100px;
+}
+
+/* The header may wrap ("Statut / livraison") so the column stays narrow. */
+.admin-table-th.col-delivery,
+.admin-table-th.col-delivery .admin-th-content {
+  white-space: normal;
+}
+
+.admin-delivery-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  margin: 0 6px 4px 0;
+  border-radius: 20px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.1;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.admin-delivery-badge.ok {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #dbeafe;
+}
+
+.admin-delivery-badge.pending {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.admin-delivery-badge.warn {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #ffedd5;
+}
+
+.admin-delivery-badge.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fee2e2;
+}
+
+.admin-delivery-warning {
+  display: inline-block;
+  margin-right: 6px;
+  color: #c2410c;
+  font-size: 0.95rem;
+  cursor: help;
+}
+
+.admin-delivery-ean {
+  display: block;
+  font-size: 0.78rem;
+  color: #475569;
+  word-break: break-all;
 }
 
 .admin-table-td.col-price {
-  min-width: 110px;
+  min-width: 100px;
   white-space: nowrap;
 }
 
@@ -5537,5 +5531,731 @@
   user-select: none;
 }
 
+/* ==========================================================================
+   GOODEX delivery & claims UI (cards, buttons, alerts, forms, tables)
+   ========================================================================== */
+.gx-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: #1e293b;
+}
 
+.gx-card {
+  box-sizing: border-box;
+}
 
+.gx-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gx-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.gx-card__spacer {
+  flex: 1 1 auto;
+}
+
+.gx-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.gx-card__actions--between {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gx-card .admin-delivery-badge,
+.gx-claim .admin-delivery-badge {
+  margin: 0;
+}
+
+.gx-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.gx-muted {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.gx-empty {
+  margin: 0;
+  padding: 10px 0;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.gx-icon {
+  flex-shrink: 0;
+}
+
+.gx-code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+/* ---- key / value list ---- */
+.gx-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px 20px;
+  margin: 0;
+}
+
+.gx-kv--compact {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px 18px;
+}
+
+.gx-kv__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gx-kv dt {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.gx-kv dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+}
+
+/* ---- buttons ---- */
+.gx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gx-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.gx-btn:focus-visible,
+.gx-copy:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(141, 25, 28, 0.25);
+}
+
+.gx-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.gx-btn.is-busy {
+  cursor: progress;
+}
+
+.gx-btn--primary {
+  background: var(--color-primary, #8d191c);
+  border-color: var(--color-primary, #8d191c);
+  color: #fff;
+}
+
+.gx-btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover, #731417);
+  border-color: var(--color-primary-hover, #731417);
+}
+
+.gx-btn--danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.gx-btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #f87171;
+}
+
+.gx-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-primary, #8d191c);
+}
+
+.gx-btn--ghost:hover:not(:disabled) {
+  border-color: transparent;
+  background: rgba(141, 25, 28, 0.08);
+}
+
+.gx-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: gx-spin 0.7s linear infinite;
+}
+
+@keyframes gx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.gx-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gx-copy:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* ---- alerts ---- */
+.gx-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.gx-alert__title {
+  font-weight: 700;
+}
+
+.gx-alert__meta {
+  margin-left: 6px;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.gx-alert--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left-color: #dc2626;
+  color: #7f1d1d;
+}
+
+.gx-alert--warn {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  border-left-color: #ea580c;
+  color: #7c2d12;
+}
+
+.gx-alert--info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+  color: #1e3a8a;
+}
+
+.gx-alert--ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left-color: #16a34a;
+  color: #14532d;
+}
+
+/* ---- form ---- */
+.gx-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.gx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.gx-field--wide,
+.gx-note,
+.gx-form__actions {
+  grid-column: 1 / -1;
+}
+
+.gx-field__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.gx-field__label em {
+  color: #dc2626;
+  font-style: normal;
+}
+
+.gx-field__label small {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.gx-field__hint {
+  align-self: flex-end;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.gx-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gx-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #8d191c);
+  box-shadow: 0 0 0 3px rgba(141, 25, 28, 0.12);
+}
+
+textarea.gx-input {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.gx-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.gx-form__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- claims ---- */
+.gx-claims {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gx-claim {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.gx-claim--ok {
+  border-left-color: #16a34a;
+}
+
+.gx-claim--warn {
+  border-left-color: #ea580c;
+}
+
+.gx-claim--pending {
+  border-left-color: #2563eb;
+}
+
+.gx-claim--error {
+  border-left-color: #dc2626;
+}
+
+.gx-claim--none {
+  border-left-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.gx-claim__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gx-claim__ref {
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.gx-claim__type {
+  color: #475569;
+}
+
+.gx-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-left: 3px solid #94a3b8;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.85rem;
+  color: #1e293b;
+}
+
+.gx-quote__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* ---- claims panel ---- */
+.gx-panel {
+  margin: 12px 0;
+}
+
+.gx-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.gx-table-wrap.is-loading {
+  opacity: 0.6;
+}
+
+.gx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.gx-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.gx-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.gx-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.gx-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.gx-table__wrap {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+
+.gx-table__end {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gx-table__end > * + * {
+  margin-left: 6px;
+}
+
+/* Claims page: EAN search row above the table. */
+.gx-claims-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gx-claims-search .gx-input {
+  flex: 1;
+  min-width: 220px;
+  max-width: 420px;
+}
+
+/* Exchange form: explicit GOODEX "décharge" choice (no default). */
+.admin-form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.admin-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-radio-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  text-align: left;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+/* Form inputs are full-width by default; a radio must keep its natural size. */
+.admin-radio-option input[type='radio'] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* GOODEX parcel of one exchange, inside the exchange history row. */
+.gx-exchange-delivery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+
+.gx-exchange-delivery__label {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.gx-exchange-delivery__error {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  color: #b91c1c;
+}
+
+/* Orders table: columns sit closer together (less side padding and slightly lower minimum
+   widths, the content still wraps or sizes the column) so the table needs less width and
+   scrolls sideways less. The Actions column and its buttons are untouched. Scoped to the orders
+   page; Brouillons shares the table styles. */
+.admin-orders-table--tight .admin-table-td:not(.col-select),
+.admin-orders-table--tight thead th:not(.col-select) {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.admin-orders-table--tight .admin-table-th.col-select,
+.admin-orders-table--tight .admin-table-td.col-select {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.admin-orders-table--tight .admin-table-td.col-date { min-width: 125px; }
+.admin-orders-table--tight .admin-table-td.col-id { min-width: 105px; }
+.admin-orders-table--tight .admin-table-td.col-client { min-width: 85px; }
+.admin-orders-table--tight .admin-table-td.col-phone { min-width: 80px; }
+.admin-orders-table--tight .admin-table-td.col-status { min-width: 85px; }
+.admin-orders-table--tight .admin-table-td.col-price { min-width: 85px; }
+
+/* Produits and Inventaire on phones and small tablets.
+   The mobile rules for these pages inside the media queries above sit BEFORE the base rules of the same
+   selectors (.admin-grid, .admin-products-section, .admin-products-panel, .stock-table, ...), so the base rules
+   won: on a phone the product editor stayed squeezed into the 240-300px list column and the nested panels kept
+   their desktop padding. These rules come last so they apply. Layout only, no behaviour. */
+@media (max-width: 768px) {
+  .admin-grid {
+    display: block;
+  }
+
+  .admin-products-section {
+    padding: 16px;
+  }
+
+  .admin-products-panel {
+    padding: 16px;
+  }
+
+  .product-list {
+    max-height: 60vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-products-section,
+  .admin-products-panel {
+    padding: 12px 10px;
+  }
+
+  .stock-table {
+    font-size: 0.82rem;
+  }
+
+  .stock-table th,
+  .stock-table td {
+    padding: 8px 6px;
+  }
+}
+
+/* Inventaire uses the shared table look of Commandes and Brouillons (admin-orders-table-wrap / admin-orders-table /
+   admin-table-th / admin-table-td); only what is specific to its columns is set here. */
+.admin-inventory-table {
+  min-width: 720px;
+}
+
+.admin-inventory-table td {
+  white-space: nowrap;
+}
+
+.admin-inventory-table td:first-child {
+  white-space: normal;
+  min-width: 150px;
+}
+
+.admin-inventory-table td input {
+  width: 80px;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.admin-inventory-table td input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.admin-inventory-table .admin-secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Produits: table + pagination like Brouillons, create/edit form in a modal, reviews panel under the table. */
+.admin-products-table {
+  min-width: 620px;
+}
+
+.admin-products-table-thumb {
+  display: block;
+  width: 40px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #eee;
+}
+
+.admin-products-table tr.product-hidden .admin-products-table-thumb {
+  opacity: 0.55;
+}
+
+.admin-secondary-btn.active {
+  background: var(--color-secondary);
+  border-color: var(--color-primary);
+}
+
+.admin-product-modal {
+  max-width: 920px;
+}
+
+.admin-product-modal-body {
+  padding: 20px 24px;
+}
+
+.admin-products-reviews-panel {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.admin-products-reviews-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-products-reviews-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--color-primary);
+}
+
+@media (max-width: 480px) {
+  .admin-product-modal-body {
+    padding: 14px 12px;
+  }
+
+  .admin-products-reviews-panel {
+    padding: 12px;
+  }
+}

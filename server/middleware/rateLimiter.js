@@ -165,3 +165,36 @@ export const resetPasswordLimiter = createRateLimiter({
   keyGenerator: (req) => `auth_reset_password:${req.ip || req.socket?.remoteAddress || 'ip'}`,
 });
 
+// 9. Public provider webhook limiter: generous 600 requests per minute per IP, so a
+// burst of status changes from the carrier is not rejected (a 429 may never be retried)
+export const webhookLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 600,
+  message: 'Trop de requêtes.',
+  keyGenerator: (req) => `webhook:${req.ip || req.socket?.remoteAddress || 'ip'}`,
+});
+
+// 10. Public contact form: 10 messages per 15 minutes per IP (each one raises an admin notification)
+export const contactLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Trop de messages envoyés. Veuillez réessayer plus tard.',
+  keyGenerator: (req) => `contact:${req.ip || req.socket?.remoteAddress || 'ip'}`,
+});
+
+// 11. Review submission (store and product): 10 per 15 minutes per account + IP
+export const reviewLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Trop d\'avis envoyés. Veuillez réessayer plus tard.',
+  keyGenerator: (req) => `review:${req.ip || req.socket?.remoteAddress || 'ip'}:${req.user?.id || 'guest'}`,
+});
+
+// 12. Adding to the cart: 300 per minute per IP. Deliberately generous (several shoppers can share one IP);
+// it only stops a script from creating guest carts in bulk by sending a new guest session with every request.
+export const cartAddLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 300,
+  message: 'Trop de requêtes. Veuillez patienter un instant.',
+  keyGenerator: (req) => `cart_add:${req.ip || req.socket?.remoteAddress || 'ip'}`,
+});

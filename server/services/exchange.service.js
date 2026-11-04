@@ -4,6 +4,7 @@ import { productRepository } from '../repositories/product.repository.js';
 import { themeRepository } from '../repositories/theme.repository.js';
 import { runInTransaction } from '../repositories/transaction.repository.js';
 import { AppError } from '../utils/errors.js';
+import * as deliveryService from './delivery.service.js';
 import { DELIVERY_ECONOMICS } from '../config/delivery.js';
 
 function parseCustomerName(fullName = '') {
@@ -357,7 +358,8 @@ export async function createExchange({ orderId, customer, items, deliveryFee = n
     ? DELIVERY_ECONOMICS.RESPONSIBILITIES.SILKY_PAID
     : DELIVERY_ECONOMICS.RESPONSIBILITIES.CUSTOMER_PAID;
 
-  return runInTransaction(async (tx) => {
+  let exchangeId;
+  const updatedOrder = await runInTransaction(async (tx) => {
     const lockedOrder = await orderRepository.findByIdForUpdate(orderId, tx);
     if (!lockedOrder) {
       throw new AppError('Commande introuvable', 404);
@@ -370,6 +372,8 @@ export async function createExchange({ orderId, customer, items, deliveryFee = n
     if (lockedOrder.status !== 'completed' && lockedOrder.status !== 'exchanged') {
       throw new AppError('Seules les commandes confirmées ou échangées peuvent faire l\'objet d\'un échange', 400);
     }
+
+    await deliveryService.assertParcelCreated(orderId, tx);
 
     const latestExchange = await exchangeRepository.findLatestExchange(orderId, tx);
 
@@ -472,7 +476,7 @@ export async function createExchange({ orderId, customer, items, deliveryFee = n
     const productAmountAdded = Math.max(0, subtotal - previousSubtotal);
     const productRefundObligation = Math.max(0, previousSubtotal - subtotal);
 
-    await exchangeRepository.createExchangeRecord({
+    const exchangeRecord = await exchangeRepository.createExchangeRecord({
       orderId,
       exchangeNumber,
       exchangeSequence: sequence,
@@ -487,11 +491,18 @@ export async function createExchange({ orderId, customer, items, deliveryFee = n
       productAmountAdded,
       productRefundObligation,
     }, resolvedExchangeItems, tx);
+    exchangeId = exchangeRecord.id;
 
     await orderRepository.updateStatus(orderId, 'exchanged', tx);
 
     return orderRepository.findById(orderId, tx);
   });
+
+  // Post-commit, outside any transaction: the exchange is final whatever GOODEX answers.
+  // This is the exchange's own parcel; the ordinary order parcel path is never involved.
+  // ensureParcelForExchange never throws and records its own outcome on the delivery row.
+  await deliveryService.ensureParcelForExchange(exchangeId);
+  return updatedOrder;
 }
 
 

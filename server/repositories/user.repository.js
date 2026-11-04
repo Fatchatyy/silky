@@ -94,11 +94,31 @@ export const userRepository = {
     return updated || null;
   },
 
+  /** Current role and revocation moment of an account, read on every authenticated request. */
+  async findAuthState(id, tx = db) {
+    if (!id) return null;
+    const [row] = await tx.select({
+      role: users.role,
+      tokensValidAfter: users.tokensValidAfter,
+    }).from(users).where(eq(users.id, id));
+    return row || null;
+  },
+
+  /** Refuses every token issued before now (second precision, same clock as the token's iat). */
+  async revokeTokens(userId, tx = db) {
+    await tx.update(users)
+      .set({ tokensValidAfter: new Date(Math.floor(Date.now() / 1000) * 1000) })
+      .where(eq(users.id, userId));
+  },
+
   async updatePassword(userId, passwordHash, tx = db) {
+    const now = new Date();
     const [updated] = await tx.update(users)
       .set({
         passwordHash,
-        updatedAt: new Date(),
+        updatedAt: now,
+        // A new password ends every session opened with the old one.
+        tokensValidAfter: new Date(Math.floor(now.getTime() / 1000) * 1000),
       })
       .where(eq(users.id, userId))
       .returning({ id: users.id });

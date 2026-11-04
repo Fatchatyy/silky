@@ -131,10 +131,7 @@ export const draftConversions = pgTable(
   'draft_conversions',
   {
     draftId: uuid('draft_id')
-      .primaryKey()
-      .references(() => drafts.id, {
-        onDelete: 'cascade',
-      }),
+      .primaryKey(),
 
     orderId: uuid('order_id')
       .notNull()

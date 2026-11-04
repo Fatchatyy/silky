@@ -3,6 +3,8 @@ import { productRepository } from '../repositories/product.repository.js';
 import * as notificationService from './notification.service.js';
 import { AppError } from '../utils/errors.js';
 
+const MAX_REVIEW_LENGTH = 3000;
+
 export async function getPublishedStoreReviews() {
   return reviewRepository.getPublishedStoreReviews();
 }
@@ -14,6 +16,9 @@ export async function getAllStoreReviews() {
 export async function createStoreReview({ authorName, email, body, rating, userId = null, guestSessionId = null }) {
   if (!authorName?.trim() || !body?.trim()) {
     throw new AppError('Le nom et l\'avis sont requis', 400);
+  }
+  if (body.trim().length > MAX_REVIEW_LENGTH) {
+    throw new AppError(`L'avis ne doit pas dépasser ${MAX_REVIEW_LENGTH} caractères`, 400);
   }
   const ratingNum = parseInt(rating, 10);
   if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
@@ -54,7 +59,7 @@ export async function deleteStoreReview(id) {
 
 export async function getProductReviews(productId) {
   const result = await reviewRepository.getProductReviews(productId);
-  if (result === null) throw new AppError('Product not found', 404);
+  if (result === null) throw new AppError('Produit non trouvé', 404);
   return result;
 }
 
@@ -66,6 +71,9 @@ export async function createProductReview({ productId, userId = null, guestSessi
   if (!comment?.trim()) {
     throw new AppError('Le commentaire est requis', 400);
   }
+  if (comment.trim().length > MAX_REVIEW_LENGTH) {
+    throw new AppError(`Le commentaire ne doit pas dépasser ${MAX_REVIEW_LENGTH} caractères`, 400);
+  }
   const ratingNum = parseInt(rating, 10);
   if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
     throw new AppError('La note doit être entre 1 et 5', 400);
@@ -73,7 +81,7 @@ export async function createProductReview({ productId, userId = null, guestSessi
 
   const product = await productRepository.findById(productId);
   if (!product || !product.is_active) {
-    throw new AppError('Product not found', 404);
+    throw new AppError('Produit non trouvé', 404);
   }
 
   const review = await reviewRepository.createProductReview({

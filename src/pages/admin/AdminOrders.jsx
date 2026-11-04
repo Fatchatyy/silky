@@ -3,7 +3,8 @@ import { api } from '../../api/client';
 import { generateDocumentsPdf, buildDocumentsToDownload } from '../../utils/orderPdf';
 import AdminManualOrderModal from './AdminManualOrderModal';
 import AdminExchangeModal from './AdminExchangeModal';
-import AdminOrderCard from '../../components/admin/AdminOrderCard';
+import AdminOrderCard, { getDeliveryFilterBucket, getExchangeFilterBucket } from '../../components/admin/AdminOrderCard';
+import { orderMatchesSearch } from '../../utils/orderSearch';
 
 const formatPrice = (amount) =>
   (Number(amount) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' TND';
@@ -33,6 +34,8 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Kept apart from `error`: every reload clears `error`, and this must outlive the modal.
+  const [parcelWarning, setParcelWarning] = useState('');
   const [expandedOrderIds, setExpandedOrderIds] = useState([]);
   const [manualOrderOpen, setManualOrderOpen] = useState(false);
   const [exchangeModalOrder, setExchangeModalOrder] = useState(null);
@@ -42,6 +45,8 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
   const [downloading, setDownloading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  // Sub-filter of "Confirmée" and "Échangée": all | created (parcel at GOODEX) | failed (parcel not created / uncertain)
+  const [deliveryFilter, setDeliveryFilter] = useState('all');
   const [sortDirection, setSortDirection] = useState('desc'); // 'desc' (newest -> oldest), 'asc' (oldest -> newest)
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -78,23 +83,29 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
     return () => clearInterval(id);
   }, []);
 
-  // Filtering pipeline: search query + status dropdown
-  const filteredOrders = orders.filter((order) => {
-    // 1. Search Query Filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const orderNumMatch = order.orderNumber?.toLowerCase().includes(q);
-      const orderIdMatch = order.id?.toLowerCase().includes(q);
-      const firstName = (order.customer?.firstName || order.customer?.name || '').toLowerCase();
-      const lastName = (order.customer?.lastName || '').toLowerCase();
-      const fullName = `${firstName} ${lastName}`.trim();
-      const nameMatch = firstName.includes(q) || lastName.includes(q) || fullName.includes(q);
-      const phoneMatch = order.customer?.phone?.toLowerCase().includes(q);
-      const emailMatch = order.customer?.email?.toLowerCase().includes(q);
+  const isConfirmedStatus = (order) => order.status === 'completed' || order.status === 'confirmed';
 
-      if (!(orderNumMatch || orderIdMatch || nameMatch || phoneMatch || emailMatch)) {
-        return false;
-      }
+  // GOODEX sub-filter: confirmed orders look at their own parcel, exchanged orders at the exchange parcels.
+  const hasDeliverySubfilter = statusFilter === 'confirmed' || statusFilter === 'exchanged';
+  const bucketOf = statusFilter === 'exchanged' ? getExchangeFilterBucket : getDeliveryFilterBucket;
+
+  // Counts shown on the sub-filter: orders of the chosen status matching the search box.
+  const deliveryCounts = { all: 0, created: 0, failed: 0 };
+  if (hasDeliverySubfilter) {
+    orders.forEach((order) => {
+      const inStatus = statusFilter === 'exchanged' ? order.status === 'exchanged' : isConfirmedStatus(order);
+      if (!inStatus || !orderMatchesSearch(order, searchQuery)) return;
+      deliveryCounts.all += 1;
+      const bucket = bucketOf(order);
+      if (bucket) deliveryCounts[bucket] += 1;
+    });
+  }
+
+  // Filtering pipeline: search query + status dropdown (+ GOODEX sub-filter for "Confirmée")
+  const filteredOrders = orders.filter((order) => {
+    // 1. Search Query Filter (order number/id, name, phone, e-mail, GOODEX EAN)
+    if (!orderMatchesSearch(order, searchQuery)) {
+      return false;
     }
 
     // 2. Status Filter
@@ -102,11 +113,13 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
       if (statusFilter === 'unconfirmed') {
         if (order.status !== 'pending' && order.status !== 'processing') return false;
       } else if (statusFilter === 'confirmed') {
-        if (order.status !== 'completed' && order.status !== 'confirmed') return false;
+        if (!isConfirmedStatus(order)) return false;
+        if (deliveryFilter !== 'all' && bucketOf(order) !== deliveryFilter) return false;
       } else if (statusFilter === 'delivered') {
         if (order.status !== 'delivered') return false;
       } else if (statusFilter === 'exchanged') {
         if (order.status !== 'exchanged') return false;
+        if (deliveryFilter !== 'all' && bucketOf(order) !== deliveryFilter) return false;
       } else if (statusFilter === 'refunded') {
         if (order.status !== 'refunded') return false;
       } else if (statusFilter === 'cancelled') {
@@ -146,6 +159,7 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
       }
       setSearchQuery('');
       setStatusFilter('all');
+      setDeliveryFilter('all');
       setActiveHighlightId(highlightOrderId);
       const timer = setTimeout(() => {
         const el = document.getElementById(`order-${highlightOrderId}`);
@@ -277,8 +291,9 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
         .filter((o) => o.status === 'pending' || o.status === 'processing')
         .map((o) => o.id);
 
+      let confirmedOrders = [];
       if (unconfirmedIds.length > 0) {
-        await api.confirmOrders(unconfirmedIds);
+        confirmedOrders = await api.confirmOrders(unconfirmedIds);
       }
 
       // 2. Build deterministic ordered document list
@@ -298,6 +313,7 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
       if (unconfirmedIds.length > 0) {
         loadOrders();
         onOrderCreated?.();
+        warnAboutDelivery(confirmedOrders);
       }
     } catch (err) {
       setError(err.message || 'Erreur lors de la confirmation ou du téléchargement');
@@ -310,7 +326,7 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
     setError('');
     try {
       // 1. Explicit order confirmation operation for this single order
-      await api.confirmOrders([order.id]);
+      const confirmedOrders = await api.confirmOrders([order.id]);
 
       // 2. Build deterministic ordered document list
       const documentsToDownload = buildDocumentsToDownload(
@@ -328,8 +344,127 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
       setSelectedOrderIds((prev) => prev.filter((id) => id !== order.id));
       loadOrders();
       onOrderCreated?.();
+      warnAboutDelivery(confirmedOrders);
     } catch (err) {
       setError(err.message || 'Erreur lors de la confirmation de la commande');
+    }
+  };
+
+  // Confirmation succeeded; tell the admin when the GOODEX parcel did not get created.
+  const warnAboutDelivery = (confirmedOrders) => {
+    const problems = (Array.isArray(confirmedOrders) ? confirmedOrders : []).filter(
+      (o) => o?.delivery && o.delivery.state !== 'created',
+    );
+    if (problems.length === 0) {
+      setParcelWarning('');
+      return;
+    }
+    // Own state, not `error`: the reload that follows a confirmation clears `error` at once.
+    const reasons = problems.map((o) => `${o.orderNumber} (${o.delivery.lastError || 'résultat incertain'})`);
+    setParcelWarning(
+      `Commande confirmée, mais le colis GOODEX n'a pas été créé pour : ${reasons.join(' ; ')}. Ouvrez la commande pour réessayer.`,
+    );
+  };
+
+  // The exchange is saved either way. This stays on the page (the modal closes by itself) when
+  // its GOODEX parcel was not created, with the reason, until the admin acts.
+  const warnAboutExchangeDelivery = (updatedOrder) => {
+    const parcel = updatedOrder?.exchanges?.[0]?.delivery;
+    if (parcel?.state === 'created') {
+      setParcelWarning('');
+      return;
+    }
+    const reason = parcel?.lastError ? ` Motif : ${parcel.lastError}.` : '';
+    const uncertain = parcel?.state === 'unknown' ? ' Vérifiez chez GOODEX avant de réessayer.' : '';
+    setParcelWarning(
+      `Échange enregistré, mais le colis GOODEX n'a pas été créé pour ${updatedOrder?.orderNumber || 'la commande'}.${reason}${uncertain} Ouvrez la commande, section « Historique des Échanges », pour réessayer.`,
+    );
+  };
+
+  // Returns an error message ('' on success) for the delivery block to show inline, so a
+  // tracking failure never replaces the saved status or breaks the page. The orders list
+  // itself only reads saved data from Silky's database; GOODEX is called here, one order
+  // at a time, on an explicit refresh or (cooldown permitting) when details are opened.
+  const handleRefreshDelivery = async (orderId, { onlyIfStale = false } = {}) => {
+    try {
+      const result = await api.refreshOrderDelivery(orderId, { onlyIfStale });
+      if (!result?.refreshSkipped) loadOrders();
+      return '';
+    } catch (err) {
+      return err.message || 'Erreur lors de la récupération du statut de livraison';
+    }
+  };
+
+  const handleRetryDelivery = async (orderId, acknowledgeUnknown = false) => {
+    if (
+      acknowledgeUnknown &&
+      !window.confirm("Le résultat de la création précédente est incertain. Avez-vous vérifié chez GOODEX qu'aucun colis n'existe pour cette commande ?")
+    ) {
+      return;
+    }
+    setError('');
+    setParcelWarning('');
+    try {
+      await api.retryOrderDelivery(orderId, acknowledgeUnknown);
+      loadOrders();
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la création du colis');
+    }
+  };
+
+  // Same contract as the order parcel handlers, for the parcel of one exchange.
+  const handleRefreshExchangeDelivery = async (exchangeId) => {
+    try {
+      await api.refreshExchangeDelivery(exchangeId);
+      loadOrders();
+      return '';
+    } catch (err) {
+      return err.message || 'Erreur lors de la récupération du statut de livraison';
+    }
+  };
+
+  const handleRetryExchangeDelivery = async (exchangeId, acknowledgeUnknown = false) => {
+    if (
+      acknowledgeUnknown &&
+      !window.confirm("Le résultat de la création précédente est incertain. Avez-vous vérifié chez GOODEX qu'aucun colis n'existe pour cet échange ?")
+    ) {
+      return;
+    }
+    setError('');
+    setParcelWarning('');
+    try {
+      await api.retryExchangeDelivery(exchangeId, acknowledgeUnknown);
+      loadOrders();
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la création du colis');
+    }
+  };
+
+  // Same contract again, for the parcel of one refund.
+  const handleRefreshRefundDelivery = async (refundId) => {
+    try {
+      await api.refreshRefundDelivery(refundId);
+      loadOrders();
+      return '';
+    } catch (err) {
+      return err.message || 'Erreur lors de la récupération du statut de livraison';
+    }
+  };
+
+  const handleRetryRefundDelivery = async (refundId, acknowledgeUnknown = false) => {
+    if (
+      acknowledgeUnknown &&
+      !window.confirm("Le résultat de la création précédente est incertain. Avez-vous vérifié chez GOODEX qu'aucun colis n'existe pour ce remboursement ?")
+    ) {
+      return;
+    }
+    setError('');
+    setParcelWarning('');
+    try {
+      await api.retryRefundDelivery(refundId, acknowledgeUnknown);
+      loadOrders();
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la création du colis');
     }
   };
 
@@ -462,7 +597,7 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
           <input
             type="text"
             className="admin-orders-search-input"
-            placeholder="Rechercher par N° commande, nom client, téléphone, email..."
+            placeholder="Rechercher par N° commande, nom client, téléphone, email, code de suivi..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -491,6 +626,7 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
+              setDeliveryFilter('all');
               setCurrentPage(1);
             }}
             aria-label="Filtrer par statut"
@@ -504,6 +640,29 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
             <option value="cancelled">Annulée</option>
           </select>
         </div>
+
+        {hasDeliverySubfilter && (
+          <div className="admin-segmented-control" role="group" aria-label="Filtrer par livraison GOODEX">
+            {[
+              { value: 'all', label: 'Toutes' },
+              { value: 'created', label: 'Colis créé' },
+              { value: 'failed', label: 'Échec GOODEX' },
+            ].map((opt) => (
+              <button
+                type="button"
+                key={opt.value}
+                className={`admin-segment-btn${deliveryFilter === opt.value ? ' active' : ''}${opt.value === 'failed' && deliveryCounts.failed > 0 ? ' has-problem' : ''}`}
+                title={opt.value === 'failed' ? 'Colis non créé chez GOODEX, résultat incertain, ou colis introuvable (à réessayer ou vérifier)' : undefined}
+                onClick={() => {
+                  setDeliveryFilter(opt.value);
+                  setCurrentPage(1);
+                }}
+              >
+                {opt.label} · {deliveryCounts[opt.value]}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <AdminManualOrderModal
@@ -517,11 +676,21 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
         order={exchangeModalOrder?.order || exchangeModalOrder}
         paymentResponsibility={exchangeModalOrder?.paymentResponsibility || 'customer_paid'}
         onClose={() => setExchangeModalOrder(null)}
-        onSuccess={() => {
+        onSuccess={(updatedOrder) => {
           loadOrders();
           onOrderCreated?.();
+          warnAboutExchangeDelivery(updatedOrder);
         }}
       />
+
+      {parcelWarning && (
+        <p className="admin-error" role="alert" style={{ marginBottom: '16px' }}>
+          {parcelWarning}{' '}
+          <button type="button" className="admin-btn secondary" onClick={() => setParcelWarning('')}>
+            Fermer
+          </button>
+        </p>
+      )}
 
       {error && <p className="admin-error" style={{ marginBottom: '16px' }}>{error}</p>}
 
@@ -537,7 +706,7 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
         <>
           {/* Main Orders Table */}
           <div className="admin-orders-table-wrap">
-            <table className="admin-orders-table">
+            <table className="admin-orders-table admin-orders-table--tight">
               <thead>
                 <tr className="admin-table-header-row">
                   <th className="admin-table-th col-select">
@@ -588,6 +757,11 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
                       <span>Statut</span>
                     </div>
                   </th>
+                  <th className="admin-table-th col-delivery">
+                    <div className="admin-th-content">
+                      <span>Statut livraison</span>
+                    </div>
+                  </th>
                   <th className="admin-table-th col-price">
                     <div className="admin-th-content">
                       <img src="/pictures/money.png" alt="" className="admin-th-icon" />
@@ -619,6 +793,12 @@ export default function AdminOrders({ refreshKey = 0, onOrderCreated, highlightO
                     setExchangeModalOrder={setExchangeModalOrder}
                     handleRefundOrder={handleRefundOrder}
                     handleCancelOrder={handleCancelOrder}
+                    handleRefreshDelivery={handleRefreshDelivery}
+                    handleRetryDelivery={handleRetryDelivery}
+                    handleRefreshExchangeDelivery={handleRefreshExchangeDelivery}
+                    handleRetryExchangeDelivery={handleRetryExchangeDelivery}
+                    handleRefreshRefundDelivery={handleRefreshRefundDelivery}
+                    handleRetryRefundDelivery={handleRetryRefundDelivery}
                     toggleSelectExchange={toggleSelectExchange}
                     toggleSelectRefund={toggleSelectRefund}
                     tick={tick}

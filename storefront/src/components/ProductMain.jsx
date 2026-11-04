@@ -275,6 +275,7 @@ function ProductMain({ product, breadcrumb = null }) {
       size: selectedSize ?? null,
       quantity,
       name: product.name,
+      nameAr: product.nameAr ?? null,
       price: getEffectivePrice(product),
       image: mainImage || product.mainImage,
       details: buildDetails(),

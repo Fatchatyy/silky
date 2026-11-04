@@ -108,6 +108,9 @@ function sanitizePos(pos) {
   return { x, y, zoom };
 }
 
+// Optional Arabic version of a hero text (title, subtitle, button label): '' means "none" (the page then shows the French text).
+const arText = (value) => (typeof value === 'string' ? value.trim().slice(0, 500) : '');
+
 function parseHeroConfig(raw, legacyLeft, legacyRight) {
   const defaults = buildDefaultHeroConfig(legacyLeft, legacyRight);
   if (raw === null || raw === undefined || raw === '') {
@@ -126,17 +129,21 @@ function parseHeroConfig(raw, legacyLeft, legacyRight) {
     const option1 = {
       mainText: parsed.option1?.mainText !== undefined ? String(parsed.option1.mainText) : defaults.option1.mainText,
       smallText: parsed.option1?.smallText !== undefined ? String(parsed.option1.smallText) : defaults.option1.smallText,
+      mainTextAr: arText(parsed.option1?.mainTextAr),
+      smallTextAr: arText(parsed.option1?.smallTextAr),
       leftImage: parsed.option1?.leftImage !== undefined ? String(parsed.option1.leftImage) : defaults.option1.leftImage,
       leftImagePos: sanitizePos(parsed.option1?.leftImagePos),
       rightImage: parsed.option1?.rightImage !== undefined ? String(parsed.option1.rightImage) : defaults.option1.rightImage,
       rightImagePos: sanitizePos(parsed.option1?.rightImagePos),
       leftButton: {
         text: parsed.option1?.leftButton?.text !== undefined ? String(parsed.option1.leftButton.text) : defaults.option1.leftButton.text,
+        textAr: arText(parsed.option1?.leftButton?.textAr),
         destination: parsed.option1?.leftButton?.destination !== undefined ? String(parsed.option1.leftButton.destination) : defaults.option1.leftButton.destination,
         visible: parsed.option1?.leftButton?.visible !== undefined ? Boolean(parsed.option1.leftButton.visible) : true,
       },
       rightButton: {
         text: parsed.option1?.rightButton?.text !== undefined ? String(parsed.option1.rightButton.text) : defaults.option1.rightButton.text,
+        textAr: arText(parsed.option1?.rightButton?.textAr),
         destination: parsed.option1?.rightButton?.destination !== undefined ? String(parsed.option1.rightButton.destination) : defaults.option1.rightButton.destination,
         visible: parsed.option1?.rightButton?.visible !== undefined ? Boolean(parsed.option1.rightButton.visible) : true,
       },
@@ -145,11 +152,14 @@ function parseHeroConfig(raw, legacyLeft, legacyRight) {
     const option2 = {
       mainText: parsed.option2?.mainText !== undefined ? String(parsed.option2.mainText) : defaults.option2.mainText,
       smallText: parsed.option2?.smallText !== undefined ? String(parsed.option2.smallText) : defaults.option2.smallText,
+      mainTextAr: arText(parsed.option2?.mainTextAr),
+      smallTextAr: arText(parsed.option2?.smallTextAr),
       image: parsed.option2?.image !== undefined ? String(parsed.option2.image) : defaults.option2.image,
       imagePos: sanitizePos(parsed.option2?.imagePos),
       textPosition: ['left', 'right'].includes(parsed.option2?.textPosition) ? parsed.option2.textPosition : 'left',
       button: {
         text: parsed.option2?.button?.text !== undefined ? String(parsed.option2.button.text) : defaults.option2.button.text,
+        textAr: arText(parsed.option2?.button?.textAr),
         destination: parsed.option2?.button?.destination !== undefined ? String(parsed.option2.button.destination) : defaults.option2.button.destination,
         visible: parsed.option2?.button?.visible !== undefined ? Boolean(parsed.option2.button.visible) : true,
       },
@@ -165,11 +175,14 @@ function parseHeroConfig(raw, legacyLeft, legacyRight) {
       id: s.id || `slide-${i + 1}`,
       mainText: s.mainText !== undefined ? String(s.mainText) : '',
       smallText: s.smallText !== undefined ? String(s.smallText) : '',
+      mainTextAr: arText(s.mainTextAr),
+      smallTextAr: arText(s.smallTextAr),
       image: s.image !== undefined ? String(s.image) : '',
       imagePos: sanitizePos(s.imagePos),
       textPosition: ['left', 'right'].includes(s.textPosition) ? s.textPosition : (i % 2 === 0 ? 'left' : 'right'),
       button: {
         text: s.button?.text !== undefined ? String(s.button.text) : 'Découvrir',
+        textAr: arText(s.button?.textAr),
         destination: s.button?.destination !== undefined ? String(s.button.destination) : '/',
         visible: s.button?.visible !== undefined ? Boolean(s.button.visible) : true,
       },

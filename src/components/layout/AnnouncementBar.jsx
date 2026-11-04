@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useT } from '../../i18n/useT';
 
 const DEFAULT_ANNOUNCEMENTS = [
   { text: 'Livraison sur toute la Tunisie!', bold: false, italic: false, underline: false },
@@ -45,6 +46,7 @@ function AnnouncementTrack({ phrases, repeat = 1 }) {
 
 export default function AnnouncementBar() {
   const { theme } = useTheme();
+  const { t } = useT();
   const announcements = theme?.announcements !== undefined
     ? theme.announcements
     : DEFAULT_ANNOUNCEMENTS;
@@ -100,7 +102,7 @@ export default function AnnouncementBar() {
   }
 
   return (
-    <div id="top" ref={containerRef} className="announcement_bar" aria-label="Annonces">
+    <div id="top" ref={containerRef} className="announcement_bar" aria-label={t('announcements.label')}>
       {/* Hidden element to measure base sequence width based on actual rendered styles */}
       <div
         ref={measureRef}

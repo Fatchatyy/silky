@@ -3,7 +3,20 @@ import { env } from '../config/env.js';
 
 const { Pool } = pg;
 
-export const pool = new Pool({ connectionString: env.databaseUrl });
+// connectionTimeoutMillis: a request waits at most 30 s for a free connection (or for the database to answer) and then
+// fails, instead of waiting forever when the database is unreachable.
+export const pool = new Pool({
+  connectionString: env.databaseUrl,
+  connectionTimeoutMillis: env.dbConnectionTimeoutMs,
+  max: env.dbPoolMax,
+  ...(env.dbStatementTimeoutMs > 0 ? { statement_timeout: env.dbStatementTimeoutMs } : {}),
+});
+
+// An idle connection can break (database restart, network drop). The pool reports it as an 'error' event; with no
+// listener Node stops the whole process. The broken connection is discarded by the pool and a new one is opened on demand.
+pool.on('error', (err) => {
+  console.error('[db] Idle database connection error:', err.message);
+});
 
 export async function withTransaction(fn) {
   const client = await pool.connect();

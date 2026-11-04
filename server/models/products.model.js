@@ -41,6 +41,14 @@ export const products = pgTable(
 
     description: text('description').default('').notNull(),
 
+    titleAr: varchar('title_ar', { length: 255 }),
+
+    descriptionAr: text('description_ar'),
+
+    imageAlt: varchar('image_alt', { length: 255 }),
+
+    imageAltAr: varchar('image_alt_ar', { length: 255 }),
+
     price: numeric('price', {
       precision: 10,
       scale: 3,
@@ -126,7 +134,14 @@ export const productVariants = pgTable(
       length: 64,
     }).notNull(),
 
+    colorNameAr: varchar('color_name_ar', {
+      length: 64,
+    }),
+
     colorImageUrl: text('color_image_url'),
+
+    // Place of the variant in its product's list (see db/migrations/add_variant_position.js). NULL = not set yet.
+    position: integer('position'),
 
     stockQuantity: integer('stock_quantity')
       .default(0)

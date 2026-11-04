@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { Link, useNavigate } from '../i18n/router';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import '../styles/pwreset.css';
+import { useT } from '../i18n/useT';
 
 export default function PasswordReset() {
+  const { t, known } = useT();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
@@ -48,9 +51,9 @@ export default function PasswordReset() {
     const errors = {};
     const trimmedEmail = (email || '').trim();
     if (!trimmedEmail) {
-      errors.email = "L'adresse e-mail est obligatoire.";
+      errors.email = t('contact.emailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      errors.email = 'Veuillez entrer une adresse e-mail valide.';
+      errors.email = t('contact.emailInvalid');
     }
     return errors;
   };
@@ -81,11 +84,11 @@ export default function PasswordReset() {
       } else {
         // Real email sent — show a clean confirmation
         setMessage(
-          'Un e-mail vous a été envoyé. Vérifiez votre boîte de réception et suivez le lien pour réinitialiser votre mot de passe.',
+          t('reset.sentOk'),
         );
       }
     } catch (err) {
-      setError(err.message || 'Envoi impossible');
+      setError(known(err.message) || t('reset.sendFailed'));
     } finally {
       setLoading(false);
     }
@@ -95,17 +98,17 @@ export default function PasswordReset() {
     const errors = {};
 
     if (!password) {
-      errors.password = 'Le mot de passe est obligatoire.';
+      errors.password = t('auth.passwordRequired');
     } else if (password.length < 8) {
-      errors.password = 'Le mot de passe doit contenir au moins 8 caractères.';
+      errors.password = t('auth.passwordMin');
     }
 
     if (!confirmPassword) {
-      errors.confirmPassword = 'Veuillez confirmer le mot de passe.';
+      errors.confirmPassword = t('reset.confirmRequired');
     } else if (confirmPassword.length < 8) {
-      errors.confirmPassword = 'Le mot de passe doit contenir au moins 8 caractères.';
+      errors.confirmPassword = t('auth.passwordMin');
     } else if (password !== confirmPassword) {
-      errors.confirmPassword = 'Les mots de passe ne correspondent pas.';
+      errors.confirmPassword = t('reset.mismatch');
     }
 
     return errors;
@@ -128,9 +131,9 @@ export default function PasswordReset() {
 
     try {
       const result = await api.resetPassword({ token, newPassword: password });
-      setMessage(result.message);
+      setMessage(known(result.message));
     } catch (err) {
-      setError(err.message || 'Réinitialisation impossible');
+      setError(known(err.message) || t('reset.failed'));
     } finally {
       setLoading(false);
     }
@@ -140,22 +143,22 @@ export default function PasswordReset() {
     <main>
       <section className="contact-section">
         <img src="/pictures/logo.png" alt="Silky" className="auth-logo" />
-        <h1 className="contact-title">Connexion</h1>
+        <h1 className="contact-title">{t('auth.login')}</h1>
         <h2 className="reset-subtitle">
-          {isResetStep ? 'Choisissez un nouveau mot de passe' : 'Réinitialiser votre mot de passe'}
+          {isResetStep ? t('reset.chooseNew') : t('reset.title')}
         </h2>
 
         {!isResetStep && (
           <div className="reset-intro">
-            <p>Entrez votre adresse e-mail.</p>
-            <p>Nous vous envoyons un e-mail pour réinitialiser votre mot de passe.</p>
+            <p>{t('reset.intro1')}</p>
+            <p>{t('reset.intro2')}</p>
           </div>
         )}
 
         {isResetStep ? (
           <form className="contact-form" onSubmit={handleResetSubmit} noValidate>
             <div className="form-group">
-              <label htmlFor="password">Nouveau mot de passe</label>
+              <label htmlFor="password">{t('reset.newPassword')}</label>
               <input
                 type="password"
                 id="password"
@@ -170,7 +173,7 @@ export default function PasswordReset() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="confirmPassword">Confirmer le mot de passe</label>
+              <label htmlFor="confirmPassword">{t('reset.confirmPassword')}</label>
               <input
                 type="password"
                 id="confirmPassword"
@@ -189,17 +192,17 @@ export default function PasswordReset() {
 
             <div className="form-actions">
               <button type="submit" className="submit-btn" disabled={loading}>
-                {loading ? 'Enregistrement...' : 'Enregistrer'}
+                {loading ? t('common.saving') : t('common.save')}
               </button>
               <Link to="/login" className="cancel-link">
-                Retour à la connexion
+                {t('reset.back')}
               </Link>
             </div>
           </form>
         ) : (
           <form className="contact-form" onSubmit={handleForgotSubmit} noValidate>
             <div className="form-group">
-              <label htmlFor="email">Adresse e-mail</label>
+              <label htmlFor="email">{t('contact.email')}</label>
               <input
                 type="email"
                 id="email"
@@ -218,10 +221,10 @@ export default function PasswordReset() {
 
             <div className="form-actions">
               <button type="submit" className="submit-btn" disabled={loading}>
-                {loading ? 'Envoi...' : 'Envoyer'}
+                {loading ? t('common.sending') : t('contact.send')}
               </button>
               <Link to="/login" className="cancel-link">
-                Annuler
+                {t('common.cancel')}
               </Link>
             </div>
           </form>

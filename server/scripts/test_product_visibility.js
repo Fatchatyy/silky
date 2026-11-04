@@ -15,6 +15,7 @@
  */
 import crypto from 'node:crypto';
 import http from 'node:http';
+import { createAccount, removeAccounts } from './helpers/test_accounts.js';
 
 const REQUIRED_DB = 'silky_test';
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
@@ -95,8 +96,10 @@ async function post(path, body, token) {
   return { status: res.status, data, text };
 }
 
+const accountIds = {};
+
 function signToken(role, options = {}) {
-  return jwt.sign({ sub: crypto.randomUUID(), email: `${role}@visibility.test`, role }, env.jwtSecret, {
+  return jwt.sign({ sub: accountIds[role] ?? crypto.randomUUID(), email: `${role}@visibility.test`, role }, env.jwtSecret, {
     expiresIn: 600,
     ...options,
   });
@@ -148,6 +151,8 @@ async function runTests() {
     const hidden = await makeProduct(`HIDDEN ${marker}`, false);
     await db.insert(productVideos).values({ productId: hidden.id, videoUrl: `/uploads/${marker}.mp4`, sortOrder: 0 });
 
+    accountIds.admin = await createAccount(pool, 'admin', 'visibility');
+    accountIds.customer = await createAccount(pool, 'customer', 'visibility');
     const adminToken = signToken('admin');
     const customerToken = signToken('customer');
     const expiredToken = signToken('admin', { expiresIn: -60 });
@@ -288,6 +293,7 @@ try {
     server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
   }
+  await removeAccounts(pool).catch(() => {});
   await pool.end().catch(() => {});
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   process.exitCode = failed > 0 ? 1 : 0;

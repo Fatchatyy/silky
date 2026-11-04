@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { Link, useNavigate } from '../i18n/router';
 import { useAuth } from '../context/AuthContext';
 import '../styles/auth.css';
+import { useT } from '../i18n/useT';
 
 export default function Signup() {
+  const { t, known } = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, register } = useAuth();
 
   const [form, setForm] = useState({ prenom: '', nom: '', identifier: '', password: '' });
@@ -29,40 +33,40 @@ export default function Signup() {
 
     const trimmedPrenom = (form.prenom || '').trim();
     if (!trimmedPrenom) {
-      errors.prenom = 'Le prénom est obligatoire.';
+      errors.prenom = t('contact.firstNameRequired');
     } else if (trimmedPrenom.length < 3) {
-      errors.prenom = 'Le prénom doit contenir au moins 3 lettres.';
+      errors.prenom = t('contact.firstNameMin');
     } else if (trimmedPrenom.length > 35) {
-      errors.prenom = 'Le prénom ne doit pas dépasser 35 lettres.';
+      errors.prenom = t('contact.firstNameMax');
     }
 
     const trimmedNom = (form.nom || '').trim();
     if (!trimmedNom) {
-      errors.nom = 'Le nom est obligatoire.';
+      errors.nom = t('contact.lastNameRequired');
     } else if (trimmedNom.length < 3) {
-      errors.nom = 'Le nom doit contenir au moins 3 lettres.';
+      errors.nom = t('contact.lastNameMin');
     } else if (trimmedNom.length > 35) {
-      errors.nom = 'Le nom ne doit pas dépasser 35 lettres.';
+      errors.nom = t('contact.lastNameMax');
     }
 
     const trimmedId = (form.identifier || '').trim();
     if (!trimmedId) {
-      errors.identifier = "L'adresse e-mail ou le numéro de téléphone est obligatoire.";
+      errors.identifier = t('auth.identifierRequired');
     } else if (trimmedId.includes('@')) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedId)) {
-        errors.identifier = 'Veuillez entrer une adresse e-mail valide.';
+        errors.identifier = t('contact.emailInvalid');
       }
     } else {
       if (!/^\d{8}$/.test(trimmedId)) {
-        errors.identifier = 'Le numéro de téléphone doit contenir exactement 8 chiffres.';
+        errors.identifier = t('auth.phone8');
       }
     }
 
     const passwordVal = form.password || '';
     if (!passwordVal) {
-      errors.password = 'Le mot de passe est obligatoire.';
+      errors.password = t('auth.passwordRequired');
     } else if (passwordVal.length < 8) {
-      errors.password = 'Le mot de passe doit contenir au moins 8 caractères.';
+      errors.password = t('auth.passwordMin');
     }
 
     return errors;
@@ -89,9 +93,12 @@ export default function Signup() {
         identifier: form.identifier.trim(),
         password: form.password,
       });
-      navigate('/account', { replace: true });
+      // Back to the page the visitor came from (for example a review prompt); an internal path only.
+      const from = location.state?.from;
+      const backTo = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/account';
+      navigate(backTo, { replace: true });
     } catch (err) {
-      setError(err.message || 'Création de compte impossible');
+      setError(known(err.message) || t('auth.signupFailed'));
     } finally {
       setLoading(false);
     }
@@ -101,11 +108,11 @@ export default function Signup() {
     <main>
       <section className="contact-section">
         <img src="/pictures/logo.png" alt="Silky" className="auth-logo" />
-        <h2 className="contact-title">Créer un compte</h2>
+        <h1 className="contact-title">{t('auth.createAccount')}</h1>
 
         <form className="contact-form" onSubmit={handleSubmit} noValidate>
           <div className="form-group">
-            <label htmlFor="prenom">Prénom</label>
+            <label htmlFor="prenom">{t('contact.firstName')}</label>
             <input
               type="text"
               id="prenom"
@@ -119,7 +126,7 @@ export default function Signup() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="nom">Nom</label>
+            <label htmlFor="nom">{t('contact.lastName')}</label>
             <input
               type="text"
               id="nom"
@@ -133,7 +140,7 @@ export default function Signup() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="identifier">Adresse e-mail ou téléphone</label>
+            <label htmlFor="identifier">{t('auth.identifierLabel')}</label>
             <input
               type="text"
               id="identifier"
@@ -149,7 +156,7 @@ export default function Signup() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Mot de passe</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               type="password"
               id="password"
@@ -166,10 +173,10 @@ export default function Signup() {
 
           <div className="form-actions">
             <button type="submit" className="submit-btn" disabled={loading}>
-              {loading ? 'Création...' : 'Créer'}
+              {loading ? t('auth.creating') : t('auth.create')}
             </button>
-            <Link to="/login" className="secondary-btn">
-              Déjà un compte ?
+            <Link to="/login" state={location.state} className="secondary-btn">
+              {t('auth.haveAccount')}
             </Link>
           </div>
         </form>

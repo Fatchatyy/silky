@@ -14,6 +14,7 @@ function formatCategoryLabel(cat) {
 export default function HeroButtonEditor({ button, onSave, onCancel }) {
   const { products, refreshProducts } = useProducts();
   const [text, setText] = useState(button?.text || '');
+  const [textAr, setTextAr] = useState(button?.textAr || '');
   const [destination, setDestination] = useState(button?.destination || '/collection/femme');
   const popoverRef = useRef(null);
 
@@ -49,6 +50,7 @@ export default function HeroButtonEditor({ button, onSave, onCancel }) {
 
   useEffect(() => {
     setText(button?.text || '');
+    setTextAr(button?.textAr || '');
     setDestination(button?.destination || '/collection/femme');
   }, [button]);
 
@@ -69,6 +71,7 @@ export default function HeroButtonEditor({ button, onSave, onCancel }) {
     onSave({
       ...button,
       text: text.trim() || 'Bouton',
+      textAr: textAr.trim(),
       destination: destination || '/collection/femme',
       visible: true,
     });
@@ -95,6 +98,19 @@ export default function HeroButtonEditor({ button, onSave, onCancel }) {
           onChange={(e) => setText(e.target.value)}
           placeholder="Ex: Femme, Découvrir..."
           autoFocus
+        />
+      </div>
+
+      <div>
+        <label htmlFor="hero_btn_text_ar_input">Texte bouton en arabe (facultatif)</label>
+        <input
+          id="hero_btn_text_ar_input"
+          type="text"
+          dir="rtl"
+          lang="ar"
+          value={textAr}
+          onChange={(e) => setTextAr(e.target.value)}
+          placeholder="مثال: نساء، اكتشفوا"
         />
       </div>
 

@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link } from '../i18n/router';
 import ProductCard from './ProductCard';
+import { useT } from '../i18n/useT';
 
 export default function CollectionSection({ title, image, products, viewAllHref = '#' }) {
+  const { t } = useT();
   return (
     <section className="collection_section">
       <h2 className="collection_title">{title}</h2>
@@ -20,7 +22,7 @@ export default function CollectionSection({ title, image, products, viewAllHref 
 
       <div className="button_container">
         <Link to={viewAllHref} className="tout_button">
-          TOUT
+          {t('collection.all')}
         </Link>
       </div>
     </section>

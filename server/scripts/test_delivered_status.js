@@ -5,6 +5,7 @@
  * and idempotency without connecting to PostgreSQL or modifying the database.
  */
 
+import './helpers/parcel_guard_off.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { exchangeRepository } from '../repositories/exchange.repository.js';
 import { productRepository } from '../repositories/product.repository.js';

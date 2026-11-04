@@ -10,6 +10,17 @@ import { sendPasswordResetEmail, sendWelcomeEmail } from './email.service.js';
 
 const BCRYPT_ROUNDS = 12;
 
+// Hash of a throw-away password. Login compares against it when the account does not exist (or is an admin),
+// so an unknown identifier takes as long as a wrong password and the response time does not reveal which accounts exist.
+const DUMMY_PASSWORD_HASH = '$2b$12$L8Wib2bXvb3ELY6bcCnUNuQcXDlcMbRjYxeKY0FdZuHulOeTIs4jm';
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function safeEqual(a, b) {
+  const left = crypto.createHash('sha256').update(String(a)).digest();
+  const right = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(left, right);
+}
+
 function sanitizeUser(row) {
   return {
     id: row.id,
@@ -43,6 +54,9 @@ export async function registerUser({ identifier, email, password, fullName, phon
   let finalPhone = null;
 
   if (inputIdentifier.includes('@')) {
+    if (!EMAIL_FORMAT.test(inputIdentifier)) {
+      throw new AppError('Veuillez entrer une adresse e-mail valide.', 400);
+    }
     finalEmail = inputIdentifier.toLowerCase();
     finalPhone = phoneNumber?.trim() || null;
   } else {
@@ -97,6 +111,7 @@ export async function loginUser({ identifier, email, password, guestSessionId })
 
   const user = await userRepository.findByIdentifier(inputIdentifier);
   if (!user || user.role === 'admin') {
+    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
     throw new AppError('Connexion impossible. Identifiants incorrects.', 401);
   }
 
@@ -116,7 +131,7 @@ export async function loginUser({ identifier, email, password, guestSessionId })
 
 export async function requestPasswordReset(email) {
   if (!email?.trim()) {
-    throw new AppError('Email is required', 400);
+    throw new AppError("L'adresse e-mail est obligatoire.", 400);
   }
 
   const user = await userRepository.findByEmail(email);
@@ -142,11 +157,10 @@ export async function requestPasswordReset(email) {
     message: 'If an account exists, a reset link has been sent.',
   };
 
-  // Only expose the raw token in the response when there are no real SMTP
-  // credentials (i.e. Ethereal / no-email dev mode). Once SMTP_USER is set
-  // the email is actually delivered, so the token must never appear in the API
-  // response regardless of NODE_ENV.
-  if (!env.isProduction && !env.smtpUser) {
+  // Only expose the raw token in the response in development, when EXPOSE_RESET_TOKEN=true asks for it (never in
+  // production, see env.exposeResetToken) and there are no real SMTP credentials (Ethereal / no-email dev mode).
+  // Once SMTP_USER is set the email is actually delivered, so the token must never appear in the API response.
+  if (env.exposeResetToken && !env.smtpUser) {
     payload.resetToken = rawToken;
     payload.expiresAt = expiresAt.toISOString();
   }
@@ -156,7 +170,7 @@ export async function requestPasswordReset(email) {
 
 export async function resetPassword({ token, newPassword }) {
   if (!token?.trim() || !newPassword) {
-    throw new AppError('Token and new password are required', 400);
+    throw new AppError('Le lien et le nouveau mot de passe sont requis.', 400);
   }
 
   if (newPassword.length < 8) {
@@ -262,7 +276,7 @@ export async function updateProfile(userId, { fullName, phoneNumber, email }) {
 
 export async function changePassword(userId, { currentPassword, newPassword }) {
   if (!currentPassword || !newPassword) {
-    throw new AppError('Current and new password are required', 400);
+    throw new AppError('Le mot de passe actuel et le nouveau mot de passe sont requis.', 400);
   }
 
   if (newPassword.length < 8) {
@@ -282,7 +296,9 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
   const nextHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
   await userRepository.updatePassword(userId, nextHash);
 
-  return { message: 'Password updated successfully' };
+  // The new password ended every earlier session, including this one: hand back a fresh token so the user stays signed in here.
+  const user = await userRepository.findById(userId);
+  return { message: 'Password updated successfully', token: signAccessToken(user) };
 }
 
 export async function getProfile(userId) {
@@ -296,7 +312,7 @@ export async function getProfile(userId) {
 /** Legacy admin panel login — issues JWT for the seeded admin user. */
 export async function adminPanelLogin(password) {
 
-  if (password !== env.adminPassword) {
+  if (typeof password !== 'string' || !safeEqual(password, env.adminPassword)) {
     throw new AppError('Invalid password', 401);
   }
 

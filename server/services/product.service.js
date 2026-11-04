@@ -8,7 +8,9 @@ import {
 } from '../repositories/product.repository.js';
 
 import { UPLOADS_DIR } from '../utils/upload.js';
+import { removeImageVariants } from '../utils/imageVariants.js';
 import { AppError } from '../utils/errors.js';
+import { shortenSlug } from '../utils/slug.js';
 
 /*
  * ============================================================
@@ -171,6 +173,38 @@ function normalizeProductInput(
         );
     }
 
+    // Optional Arabic version; empty or missing means "none" (NULL), the storefront then shows the French text.
+    const titleAr =
+        (merged.nameAr ?? merged.titleAr)?.toString().trim() || null;
+
+    const descriptionAr =
+        merged.descriptionAr?.toString().trim() || null;
+
+    if (titleAr && titleAr.length > 255) {
+        throw new AppError(
+            'Le nom arabe ne peut pas dépasser 255 caractères.',
+            400
+        );
+    }
+
+    // Optional custom alt text of the product's photos (one text for all of them); empty means "none" (NULL), the storefront
+    // then builds the alt from the name, colour and photo position.
+    const imageAlt =
+        merged.imageAlt?.toString().trim() || null;
+
+    const imageAltAr =
+        merged.imageAltAr?.toString().trim() || null;
+
+    if (
+        (imageAlt && imageAlt.length > 255) ||
+        (imageAltAr && imageAltAr.length > 255)
+    ) {
+        throw new AppError(
+            'Le texte alternatif des photos ne peut pas dépasser 255 caractères.',
+            400
+        );
+    }
+
     const price = Number(merged.price);
     if (
         merged.price === undefined ||
@@ -215,7 +249,7 @@ function normalizeProductInput(
      */
     const slug =
         (merged.slug ?? existingProduct?.slug)?.toString().trim() ||
-        slugify(title);
+        shortenSlug(slugify(title));
 
     if (!slug) {
         throw new AppError(
@@ -357,9 +391,19 @@ function normalizeProductInput(
 
         const images = [thumbnail, ...gallery].filter(Boolean);
 
+        // Optional Arabic color name; empty or missing means "none" (NULL).
+        const nameAr = (color.nameAr ?? '').toString().trim() || null;
+        if (nameAr && nameAr.length > 64) {
+            throw new AppError(
+                `Le nom arabe de la couleur "${name}" ne peut pas dépasser 64 caractères.`,
+                400
+            );
+        }
+
         colors.push({
             id,
             name,
+            nameAr,
             image: thumbnail,
             thumbnail,
             gallery,
@@ -419,6 +463,7 @@ function normalizeProductInput(
                     size: vSize,
                     colorSlug: vColorSlug,
                     colorName: vColorName,
+                    colorNameAr: (v.colorNameAr ?? '').toString().trim() || null,
                     colorImageUrl: vColorImageUrl,
                     stockQuantity: vStockQuantity,
                     sku: vSku,
@@ -446,6 +491,8 @@ function normalizeProductInput(
                             color.id,
                         colorName:
                             color.name,
+                        colorNameAr:
+                            color.nameAr,
                         colorImageUrl:
                             color.thumbnail ||
                             color.image ||
@@ -520,6 +567,14 @@ function normalizeProductInput(
 
         description,
 
+        titleAr,
+
+        descriptionAr,
+
+        imageAlt,
+
+        imageAltAr,
+
         price,
 
         discountAmount,
@@ -591,7 +646,7 @@ async function resolveCategoryId(
  */
 
 export async function getAllProducts({
-    includeHidden = true
+    includeHidden = false
 } = {}) {
     return productRepository.findAll({
         includeHidden
@@ -716,6 +771,18 @@ export async function createProduct(
                         description:
                             input.description,
 
+                        titleAr:
+                            input.titleAr,
+
+                        descriptionAr:
+                            input.descriptionAr,
+
+                        imageAlt:
+                            input.imageAlt,
+
+                        imageAltAr:
+                            input.imageAltAr,
+
                         price:
                             input.price,
 
@@ -796,7 +863,11 @@ export async function updateProduct(
         );
     }
 
-    return db.transaction(
+    const photosBefore = productPhotoUrls(
+        await productRepository.findProductImagesAndVariants(id)
+    );
+
+    const updated = await db.transaction(
         async (tx) => {
             const categoryId =
                 await resolveCategoryId(
@@ -836,6 +907,18 @@ export async function updateProduct(
                 description:
                     input.description,
 
+                titleAr:
+                    input.titleAr,
+
+                descriptionAr:
+                    input.descriptionAr,
+
+                imageAlt:
+                    input.imageAlt,
+
+                imageAltAr:
+                    input.imageAltAr,
+
                 price:
                     input.price,
 
@@ -870,6 +953,10 @@ export async function updateProduct(
                 );
         }
     );
+
+    await removePhotosDroppedByEdit(id, photosBefore);
+
+    return updated;
 }
 
 /*
@@ -920,26 +1007,52 @@ export async function deleteProduct(
 
         // Clean up orphan physical files from /server/uploads
         for (const imgUrl of candidateImageUrls) {
-            if (typeof imgUrl !== 'string') continue;
-            const trimmed = imgUrl.trim();
-            if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
-                const isStillReferenced =
-                    await productRepository.isImageReferencedElsewhere(trimmed, null, tx);
-
-                if (!isStillReferenced) {
-                    const filename = path.basename(trimmed);
-                    const filePath = path.join(UPLOADS_DIR, filename);
-                    try {
-                        await fs.promises.unlink(filePath);
-                    } catch {
-                        // File may already have been removed or not exist on disk
-                    }
-                }
-            }
+            await removeUploadIfUnused(imgUrl, tx);
         }
 
         return deleted;
     });
+}
+
+/**
+ * Deletes an uploaded file (and its resized copies) unless something still uses it: another product, an order,
+ * an exchange, a refund, a draft order, the review gallery or the home hero. Anything that is not an /uploads
+ * file is ignored.
+ */
+async function removeUploadIfUnused(imgUrl, tx) {
+    if (typeof imgUrl !== 'string') return;
+    const trimmed = imgUrl.trim();
+    if (!(trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/'))) return;
+
+    const isStillReferenced = await productRepository.isImageReferencedElsewhere(trimmed, null, tx);
+    if (isStillReferenced) return;
+
+    const filePath = path.join(UPLOADS_DIR, path.basename(trimmed));
+    try {
+        await fs.promises.unlink(filePath);
+    } catch {
+        // File may already have been removed or not exist on disk
+    }
+    // Its resized copies (if any) go with it.
+    await removeImageVariants(filePath);
+}
+
+const productPhotoUrls = ({ collectionImageUrl, images, variants }) =>
+    new Set([collectionImageUrl, ...images, ...variants].filter(Boolean));
+
+/**
+ * After a product edit has been saved: removes the photos the product no longer uses. Runs after the save is
+ * committed, so a failed save never loses a file, and never fails the edit itself.
+ */
+async function removePhotosDroppedByEdit(productId, photosBefore) {
+    try {
+        const photosAfter = productPhotoUrls(await productRepository.findProductImagesAndVariants(productId));
+        for (const url of photosBefore) {
+            if (!photosAfter.has(url)) await removeUploadIfUnused(url);
+        }
+    } catch (err) {
+        console.error('[products] could not clean up replaced photos:', String(err?.message ?? err).slice(0, 160));
+    }
 }
 
 /*

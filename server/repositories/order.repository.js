@@ -172,16 +172,74 @@ function formatOrder(order, items = [], exchanges = [], refunds = [], gov = null
   };
 }
 
+// Ids are sent to the database in slices, so a very large list never exceeds the number of parameters one query accepts.
+const ID_SLICE = 5000;
+async function selectForIds(ids, load) {
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ID_SLICE) {
+    rows.push(...(await load(ids.slice(i, i + ID_SLICE))));
+  }
+  return rows;
+}
+
+const groupBy = (list, key) => {
+  const map = new Map();
+  for (const item of list) {
+    if (!map.has(item[key])) map.set(item[key], []);
+    map.get(item[key]).push(item);
+  }
+  return map;
+};
+
+/**
+ * Same result as calling findById for each order row, but the items, exchanges, refunds and governorates of all the
+ * orders are read with a handful of queries instead of several per order.
+ */
+async function loadFullOrders(orderRows, tx) {
+  if (!orderRows.length) return [];
+  const orderIds = orderRows.map((o) => o.id);
+  const governorateIds = [...new Set(orderRows.map((o) => o.governorateId).filter(Boolean))];
+
+  const [govRows, itemRows, exchangeRows, refundRows] = await Promise.all([
+    selectForIds(governorateIds, (ids) => tx.select().from(governorates).where(inArray(governorates.id, ids))),
+    selectForIds(orderIds, (ids) => tx.select().from(orderItems).where(inArray(orderItems.orderId, ids))),
+    selectForIds(orderIds, (ids) => tx.select().from(orderExchanges).where(inArray(orderExchanges.orderId, ids)).orderBy(desc(orderExchanges.createdAt))),
+    selectForIds(orderIds, (ids) => tx.select().from(orderRefunds).where(inArray(orderRefunds.orderId, ids)).orderBy(desc(orderRefunds.createdAt))),
+  ]);
+
+  const [exchangeItemRows, refundItemRows] = await Promise.all([
+    selectForIds(exchangeRows.map((e) => e.id), (ids) => tx.select().from(exchangeItems).where(inArray(exchangeItems.exchangeId, ids))),
+    selectForIds(refundRows.map((r) => r.id), (ids) => tx.select().from(refundItems).where(inArray(refundItems.refundId, ids))),
+  ]);
+
+  const govById = new Map(govRows.map((g) => [g.id, g]));
+  const itemsByOrder = groupBy(itemRows, 'orderId');
+  const exchangeItemsBy = groupBy(exchangeItemRows, 'exchangeId');
+  const refundItemsBy = groupBy(refundItemRows, 'refundId');
+  const exchangesByOrder = groupBy(
+    exchangeRows.map((ex) => ({ ...ex, items: exchangeItemsBy.get(ex.id) || [] })),
+    'orderId',
+  );
+  const refundsByOrder = groupBy(
+    refundRows.map((ref) => ({ ...ref, items: refundItemsBy.get(ref.id) || [] })),
+    'orderId',
+  );
+
+  return orderRows.map((order) =>
+    formatOrder(
+      order,
+      itemsByOrder.get(order.id) || [],
+      exchangesByOrder.get(order.id) || [],
+      refundsByOrder.get(order.id) || [],
+      order.governorateId ? govById.get(order.governorateId) || null : null,
+    ),
+  );
+}
+
 export const orderRepository = {
   async findAll(options = {}, tx = db) {
     const orderRows = await tx.select().from(orders).orderBy(desc(orders.createdAt));
-
-    const result = [];
-    for (const o of orderRows) {
-      const full = await this.findById(o.id, tx);
-      if (full) result.push(full);
-    }
-    return result;
+    return loadFullOrders(orderRows, tx);
   },
 
   async findByUserId(userId, tx = db) {

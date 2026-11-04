@@ -17,7 +17,7 @@ export async function addItem(req, res) {
 
   if (!variantId && (!productId || !colorId || !size)) {
     return res.status(400).json({
-      error: 'Provide variantId or productId, colorId, and size',
+      error: 'Veuillez sélectionner une couleur et une taille.',
     });
   }
 

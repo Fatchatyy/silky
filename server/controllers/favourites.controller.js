@@ -19,7 +19,7 @@ export async function toggle(req, res) {
 
   const { productId, variantId, favoriteId } = req.body || {};
   if (!productId && !variantId && !favoriteId) {
-    return res.status(400).json({ error: 'productId, variantId, or favoriteId is required' });
+    return res.status(400).json({ error: 'Identifiant du produit requis.' });
   }
 
   try {

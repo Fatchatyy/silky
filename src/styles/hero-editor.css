@@ -829,3 +829,107 @@
   right: 16px;
 }
 
+/* ==========================================================================
+   Responsive: narrow screens (phones, small tablets)
+   The preview is the real hero drawn at the width of the screen, so with Option 1 each image slot is only
+   half of a narrow screen; the controls inside the slots and the footer buttons must fit and wrap.
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Above the floating notification bell (z-index 9999), which would cover the footer buttons. */
+  .hero_editor_modal_overlay {
+    z-index: 10000;
+    padding: 12px;
+  }
+
+  .hero_editor_header {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .hero_editor_body {
+    padding: 14px;
+  }
+
+  /* Supprimer / Modifier / Remplacer: stay inside the slot and wrap instead of overflowing it. */
+  .hero_image_hover_overlay {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .hero_overlay_action_btn {
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+
+  .hero_image_direct_edit_banner {
+    top: 8px;
+    max-width: calc(100% - 16px);
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 10px;
+    border-radius: 14px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* Button edit popover: 280px wide and centred on its button, it left the screen (and was cut by the
+     half-width slot of Option 1). Inside the scaled preview a fixed box is positioned against the preview
+     itself, so it spans the preview width at its bottom edge and no slot clips it. */
+  .hero_button_popover {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    transform: none;
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+  }
+
+  /* The button of the other half of Option 1 painted over the open popover. */
+  .hero_button_interactive_wrapper:has(.hero_button_popover) {
+    z-index: 60 !important;
+  }
+
+  /* Footer: the buttons wrap onto several lines instead of leaving the screen. */
+  .hero_editor_footer {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .hero_editor_footer_left,
+  .hero_editor_footer_right,
+  .hero_editor_slide_controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .hero_editor_footer_left,
+  .hero_editor_footer_right {
+    width: 100%;
+  }
+
+  .hero_editor_footer_left .admin-btn,
+  .hero_editor_slide_controls .admin-btn {
+    flex: 1 1 auto;
+    max-width: 100%;
+    height: auto;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .hero_editor_footer_right .admin-btn {
+    flex: 1 1 0;
+  }
+
+  .hero_editor_slide_controls {
+    width: 100%;
+  }
+}

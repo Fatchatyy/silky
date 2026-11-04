@@ -90,7 +90,7 @@ export default function BuyNowModal({ isOpen, onClose, buyNowItem }) {
   if (!isOpen || !buyNowItem) return null;
 
   const liveProduct = getProduct(buyNowItem.productId);
-  const buyNowName = liveProduct ? productName(liveProduct, locale) : buyNowItem.name;
+  const buyNowName = productName({ name: buyNowItem.name, nameAr: buyNowItem.nameAr ?? liveProduct?.nameAr }, locale);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

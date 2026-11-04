@@ -20,10 +20,10 @@ async function resolveCanonicalVariant(productId, variantId, colorId, size, tx) 
   if (variantId) {
     const variant = await productRepository.findVariantById(variantId, tx);
     if (!variant) {
-      throw new AppError('Variant not found', 404);
+      throw new AppError("Cette variante n'est plus disponible.", 404);
     }
     if (productId && variant.productId !== productId) {
-      throw new AppError('Variant does not belong to the specified product', 400);
+      throw new AppError('La variante ne correspond pas au produit spécifié', 400);
     }
     return variant;
   }
@@ -32,7 +32,7 @@ async function resolveCanonicalVariant(productId, variantId, colorId, size, tx) 
   if (productId && colorId && size) {
     const variant = await productRepository.findVariantForOrderItem(productId, colorId, size, tx);
     if (!variant) {
-      throw new AppError('Variant not found for specified color and size', 404);
+      throw new AppError("Cette variante n'est plus disponible.", 404);
     }
     return variant;
   }
@@ -62,7 +62,7 @@ export async function toggleFavourite(shopper, payload) {
   let { productId, variantId, colorId, size, favoriteId } = data;
 
   if (!productId && !variantId && !favoriteId) {
-    throw new AppError('productId, variantId, or favoriteId is required', 400);
+    throw new AppError('Identifiant du produit requis.', 400);
   }
 
   return runInTransaction(async (tx) => {
@@ -78,7 +78,7 @@ export async function toggleFavourite(shopper, payload) {
     if (productId) {
       const product = await productRepository.findById(productId, tx);
       if (!product || !product.is_active) {
-        throw new AppError('Product not found or inactive', 404);
+        throw new AppError('Produit non trouvé', 404);
       }
     }
 

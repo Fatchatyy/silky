@@ -89,6 +89,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
+    // An admin's logout also ends the session on the server, so a copied token stops working. Sent before the
+    // token is cleared below; the page does not wait for the answer.
+    if (getStoredUser()?.role === 'admin') api.adminLogout().catch(() => {});
     setUserAuth(null);
     setUser(null);
   }, []);

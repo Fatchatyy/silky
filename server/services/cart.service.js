@@ -20,6 +20,7 @@ function serializeCartItem(row) {
     variantId: row.variantId,
     productId: row.productId,
     name: row.productTitle,
+    nameAr: row.productTitleAr || null,
     price,
     quantity,
     image: row.colorImageUrl || row.collectionImageUrl || '',
@@ -52,19 +53,19 @@ async function resolveVariantId(payload, tx) {
   if (payload.variantId) {
     const variant = await productRepository.findVariantById(payload.variantId, tx);
     if (!variant) {
-      throw new AppError('Variant not found', 404);
+      throw new AppError("Cette variante n'est plus disponible.", 404);
     }
     return variant.id;
   }
 
   const { productId, colorId, size } = payload;
   if (!productId || !colorId || !size) {
-    throw new AppError('variantId or productId, colorId, and size are required', 400);
+    throw new AppError('Veuillez sélectionner une couleur et une taille.', 400);
   }
 
   const variant = await productRepository.findVariantForOrderItem(productId, colorId, size, tx);
   if (!variant) {
-    throw new AppError('Variant not found', 404);
+    throw new AppError("Cette variante n'est plus disponible.", 404);
   }
   return variant.id;
 }
@@ -82,12 +83,12 @@ export async function addCartItem(shopper, payload) {
 
     const variant = await productRepository.findVariantById(variantId, tx);
     if (!variant) {
-      throw new AppError('Variant not found', 404);
+      throw new AppError("Cette variante n'est plus disponible.", 404);
     }
 
     const product = await productRepository.findById(variant.productId, tx);
     if (!product || !product.is_active) {
-      throw new AppError('Variant not found', 404);
+      throw new AppError("Cette variante n'est plus disponible.", 404);
     }
 
     const currentItems = await cartRepository.getCartItems(cart.id, tx);

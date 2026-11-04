@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate } from '../i18n/router';
 import { useAuth } from '../context/AuthContext';
 
 export default function CustomerRoute({ children }) {

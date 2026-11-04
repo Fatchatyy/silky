@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../i18n/router';
 import { api } from '../api/client';
 import InfiniteMarquee from './InfiniteMarquee';
 import { calculateRatingSummary } from '../utils/ratings';
 import '../styles/reviews.css';
+import { useT } from '../i18n/useT';
 
 export default function ReviewsSection({ ratingText, layout = 'default' }) {
+  const { t, known } = useT();
   const [gallery, setGallery] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [ratingSummary, setRatingSummary] = useState(null);
@@ -34,18 +36,18 @@ export default function ReviewsSection({ ratingText, layout = 'default' }) {
     if (!ratingSummary || ratingSummary.count === 0) {
       return (
         <>
-          Aucun avis publié pour le moment
+          {t('reviews.none')}
           <br />
-          Soyez le premier à donner votre avis
+          {t('reviews.beFirst')}
         </>
       );
     }
     const { average, label, count } = ratingSummary;
     return (
       <>
-        <strong>{average}/5 {label}</strong>
+        <strong>{average}/5 {known(label)}</strong>
         <br />
-        {count} avis
+        {t('reviews.count', { count })}
       </>
     );
   };
@@ -62,15 +64,15 @@ export default function ReviewsSection({ ratingText, layout = 'default' }) {
           <div className="rating_summary">{renderRatingSummary()}</div>
 
           <div className="reviews_title_container">
-            <h2 className="reviews_title">AVIS CLIENT</h2>
+            <h2 className="reviews_title">{t('reviews.heading')}</h2>
             <Link to="/leave-review" className="reviews_logo_link">
-              <img src="/pictures/avis.png" alt="Avis clients Silky" className="reviews_main_img" />
+              <img src="/pictures/avis.png" alt={t('reviews.logoAlt')} className="reviews_main_img" />
             </Link>
           </div>
 
           <div className="leave_review_container">
             <Link to="/leave-review" className="leave_review_link">
-              Donner votre avis et évaluez votre expérience Silky
+              {t('reviews.leave')}
             </Link>
           </div>
         </div>
@@ -82,7 +84,7 @@ export default function ReviewsSection({ ratingText, layout = 'default' }) {
             <InfiniteMarquee className="gallery_marquee" orientation="horizontal" speed={30} stepAmount={255}>
               {galleryItemsToRender.map((image, index) => (
                 <div key={image.id || image.src || index} className="gallery_image_item">
-                  <img src={image.src} alt={image.alt || `Avis client ${index + 1}`} className="review_gallery_img" draggable={false} />
+                  <img src={image.src} alt={image.alt || t('reviews.photoAlt', { n: index + 1 })} className="review_gallery_img" draggable={false} loading="lazy" decoding="async" />
                 </div>
               ))}
             </InfiniteMarquee>
