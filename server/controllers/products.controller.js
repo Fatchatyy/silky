@@ -33,22 +33,28 @@ export async function uploadImage(req, res) {
   res.json({ url: `/uploads/${req.file.filename}` });
 }
 
-export async function getById(req, res) {
-  try {
-    const product = await productService.getProductById(req.params.id);
-    // 404 (not 403) so a hidden product's existence is not confirmed to non-admins.
-    if (product.is_active === false && req.user?.role !== 'admin') {
-      throw new AppError('Produit non trouvé', 404);
+// 404 (not 403) so a hidden product's existence is not confirmed to non-admins.
+function serveVisibleProduct(load) {
+  return async (req, res) => {
+    try {
+      const product = await load(req);
+      if (product.is_active === false && req.user?.role !== 'admin') {
+        throw new AppError('Produit non trouvé', 404);
+      }
+      res.json(product);
+    } catch (err) {
+      sendError(res, err);
     }
-    res.json(product);
-  } catch (err) {
-    sendError(res, err);
-  }
+  };
 }
+
+export const getById = serveVisibleProduct((req) => productService.getProductById(req.params.id));
+export const getBySlug = serveVisibleProduct((req) => productService.getProductBySlug(req.params.slug));
 
 export async function create(req, res) {
   const { name, title } = req.body;
-  if (!name?.trim() && !title?.trim()) {
+  const hasText = (value) => typeof value === 'string' && value.trim() !== '';
+  if (!hasText(name) && !hasText(title)) {
     return res.status(400).json({ error: 'Product name is required' });
   }
 
@@ -95,15 +101,16 @@ export async function createReview(req, res) {
     return res.status(403).json({ error: 'Les administrateurs ne peuvent pas soumettre d\'avis.' });
   }
 
-  const { rating, comment, authorName, email } = req.body;
+  // The route requires a logged-in customer: the review belongs to the account, whose name is used (never typed).
+  const { rating, comment } = req.body;
 
   try {
     const result = await reviewService.createProductReview({
       productId: req.params.id,
-      userId: req.user?.id || null,
-      guestSessionId: req.user?.id ? null : (req.guestSessionId || null),
-      email: req.user?.id ? null : (email || null),
-      authorName: req.user?.full_name || req.user?.fullName || authorName,
+      userId: req.user.id,
+      guestSessionId: null,
+      email: null,
+      authorName: req.user.fullName,
       rating,
       comment,
     });

@@ -3,7 +3,9 @@ import * as productsController from '../controllers/products.controller.js';
 import * as videoController from '../controllers/video.controller.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import { adminMiddleware } from '../middleware/admin.js';
-import { upload, uploadVideo } from '../utils/upload.js';
+import { upload, uploadVideo, verifyImageUpload, verifyVideoUpload } from '../utils/upload.js';
+import { reviewLimiter } from '../middleware/rateLimiter.js';
+import { resizeUploadedImage } from '../utils/imageVariants.js';
 
 const router = Router();
 const admin = [authMiddleware, adminMiddleware];
@@ -19,9 +21,22 @@ function requireProductId(req, res, next) {
   next();
 }
 
+// Slugs are lowercase words joined by single hyphens (products.slug); anything else cannot match a row.
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function requireProductSlug(req, res, next) {
+  if (req.params.slug.length > 255 || !SLUG_PATTERN.test(req.params.slug)) {
+    return res.status(404).json({ error: 'Produit non trouvé' });
+  }
+  next();
+}
+
 // Public reads: optionalAuthMiddleware only identifies admins (who may see hidden products);
 // invalid or missing tokens are treated as a guest.
 router.get('/', optionalAuthMiddleware, productsController.list);
+
+// The address of a product page is its slug. Before every '/:id/...' route so no slug is read as an id.
+router.get('/by-slug/:slug', requireProductSlug, optionalAuthMiddleware, productsController.getBySlug);
 
 // Wrap upload route so Multer errors return clean JSON (e.g. FileTooLarge, wrong type)
 router.post('/upload', admin, (req, res, next) => {
@@ -36,7 +51,7 @@ router.post('/upload', admin, (req, res, next) => {
     }
     next();
   });
-}, productsController.uploadImage);
+}, verifyImageUpload, resizeUploadedImage, productsController.uploadImage);
 
 // Product Videos routes
 router.get('/:id/videos', requireProductId, optionalAuthMiddleware, videoController.listVideos);
@@ -52,11 +67,12 @@ router.post('/:id/videos', admin, (req, res, next) => {
     }
     next();
   });
-}, videoController.uploadVideo);
+}, verifyVideoUpload, videoController.uploadVideo);
 router.delete('/:id/videos/:videoId', admin, videoController.deleteVideo);
 
 router.get('/:id/reviews', requireProductId, productsController.listReviews);
-router.post('/:id/reviews', requireProductId, optionalAuthMiddleware, productsController.createReview);
+// Only a logged-in customer can review a product (guests get 401); a malformed id is still a 404 first.
+router.post('/:id/reviews', requireProductId, authMiddleware, reviewLimiter, productsController.createReview);
 router.get('/:id/admin-reviews', admin, productsController.listAdminProductReviews);
 router.patch('/reviews/:id', admin, productsController.updateProductReview);
 router.delete('/reviews/:id', admin, productsController.removeProductReview);
