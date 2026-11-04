@@ -4,8 +4,9 @@
 export const LOCALES = ['fr', 'ar'];
 export const DEFAULT_LOCALE = 'fr';
 
-// The Arabic storefront is not announced anywhere (no switcher, no hreflang, no sitemap entries) and /ar answers 404
-// while this is false. Set true once the owner has reviewed the Arabic text and the right-to-left layout.
+// LEGACY, read only by the old Vite app and the old SEO layer (src/, server/seo/), which Phase 3 step 2 deletes together
+// with this constant. The Astro storefront does not read it: Arabic is always on there (the /ar route files exist, the
+// switcher, hreflang and sitemap entries follow the real translations). Do not add a new use.
 export const ARABIC_ENABLED = true;
 
 const PREFIXED = /^\/ar(?=\/|\?|#|$)/;

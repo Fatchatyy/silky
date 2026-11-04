@@ -3,7 +3,7 @@
 // mode is not part of the storefront (products are edited in the admin app). It is rendered on the server with the
 // first colour and size selected, so the name, price, description and photos are in the HTML a crawler receives.
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
-import { productName, productDescription, productImageAlt } from '@shared/productText';
+import { productName, productDescription, productImageAlt, productCustomAlt } from '@shared/productText';
 import { mediaVariantUrl as imageVariantPath } from '@shared/media';
 import { getEffectivePrice } from '@shared/price';
 import { getAvailableStock, getStockStatus } from '@shared/stock';
@@ -87,6 +87,9 @@ function ProductMain({ product, breadcrumb = null }) {
   // Alt text of a gallery photo: product name, its colour and, when the colour has several photos, which one.
   const photoAlt = (thumb) => {
     const name = productName(product, locale);
+    // A custom alt written by the admin (one text for all the photos of the product) wins over the generated one.
+    const custom = productCustomAlt(product, locale);
+    if (custom) return custom;
     if (!thumb) return name;
     const sameColor = allThumbnails.filter((item) => item.colorId === thumb.colorId);
     return productImageAlt(name, {
@@ -334,7 +337,7 @@ function ProductMain({ product, breadcrumb = null }) {
               src={imageVariantPath(mainImage || product.mainImage, 'large')}
               srcSet={
                 imageVariantPath(mainImage || product.mainImage, 'large') !== imageVariantPath(mainImage || product.mainImage, 'card')
-                  ? `${imageVariantPath(mainImage || product.mainImage, 'card')} 600w, ${imageVariantPath(mainImage || product.mainImage, 'large')} 2400w`
+                  ? `${imageVariantPath(mainImage || product.mainImage, 'card')} 600w, ${imageVariantPath(mainImage || product.mainImage, 'share')} 1200w, ${imageVariantPath(mainImage || product.mainImage, 'large')} 2400w`
                   : undefined
               }
               sizes="(max-width: 768px) 100vw, 50vw"

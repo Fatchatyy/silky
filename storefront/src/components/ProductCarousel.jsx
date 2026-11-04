@@ -4,7 +4,7 @@ import { Link } from '../lib/router';
 import ProductBadges from './ProductBadges';
 import { mediaVariantUrl as imageVariantPath } from '@shared/media';
 import { useT } from '../i18n/useT';
-import { productName } from '@shared/productText';
+import { productCustomAlt, productName } from '@shared/productText';
 
 const SLIDE_COUNT = 5;
 const AUTO_DELAY = 4500;
@@ -274,7 +274,7 @@ export default function ProductCarousel({ products, showHidden = false }) {
                   <ProductBadges product={product} />
                   <img
                     src={imageVariantPath(product.collectionImage || product.mainImage, 'card')}
-                    alt={productName(product, locale)}
+                    alt={productCustomAlt(product, locale) || productName(product, locale)}
                     className="coverflow_card_img"
                     draggable={false}
                     decoding="async"

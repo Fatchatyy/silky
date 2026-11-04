@@ -3,7 +3,7 @@
 // description, photos, sizes and reviews are in the first HTML); the breadcrumb, the delivery/returns facts and the
 // recommendations are plain HTML.
 import { localizePath } from '../../../shared/locales.js';
-import { productName } from '../../../shared/productText.js';
+import { productCustomAlt, productName } from '../../../shared/productText.js';
 import { productPath, categoryPath } from '../../../shared/urls.js';
 import { getTextPage } from '../../../shared/textPages.js';
 import { translator } from '../lib/i18n.ts';
@@ -68,7 +68,7 @@ const breadcrumb = {
           <a href={localizePath(productPath(rec), locale)} class="product_card_link">
             <div class="product_card_img_wrapper">
               <ProductBadgesView product={rec} locale={locale} />
-              <img src={mediaVariant(rec.collectionImage || rec.mainImage, 'card')} alt={productName(rec, locale)} class="product_card_img" loading="lazy" decoding="async" />
+              <img src={mediaVariant(rec.collectionImage || rec.mainImage, 'card')} alt={productCustomAlt(rec, locale) || productName(rec, locale)} class="product_card_img" loading="lazy" decoding="async" />
             </div>
             <h3 class="product_card_title">{productName(rec, locale)}</h3>
             <p class="product_card_price"><ProductPriceView product={rec} locale={locale} size="small" /></p>

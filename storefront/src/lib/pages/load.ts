@@ -21,15 +21,27 @@ function failure(err: unknown): { kind: 'notfound' } | { kind: 'unavailable' } {
   return { kind: 'unavailable' };
 }
 
-/** All published products, normalized. Kept for 30 seconds per Worker instance (crawlers read many pages in a row). */
-export async function loadProducts(): Promise<any[]> {
-  const list = await getCached('products', 5_000, () => getJson<any[]>('/products'));
-  return (list || []).map(normalizeProduct).filter((p) => !p.isHidden);
+// The home, collection and product pages never load the full product list (every variant, colour and photo of every
+// product). They use the API's light summaries: exactly what a product card shows (name, price, discount, photos, alt
+// text, sold-out flag, category). The full product is loaded only for the product page itself.
+/** A summary as the cards expect a product: published, no colours or variants. */
+const fromSummary = (p: any) => ({ ...p, isHidden: false, is_active: true });
+
+/** The home page's published products (summaries), kept 5 seconds per Worker instance (a burst of crawler hits). */
+async function loadHomeProducts(): Promise<any[]> {
+  const data = await getCached('home', 5_000, () => getJson<{ products: any[] }>('/storefront/home'));
+  return (data?.products || []).map(fromSummary);
+}
+
+/** A collection: its name and published products (summaries). Same 5-second memory as the home list. */
+async function loadCollectionSummaries(slug: string): Promise<{ slug: string; name: string; products: any[] }> {
+  const data = await getCached(`collection:${slug}`, 5_000, () => getJson<any>(`/storefront/collections/${slug}`));
+  return { slug: data.slug, name: data.name, products: (data.products || []).map(fromSummary) };
 }
 
 export async function loadHome(): Promise<Loaded<{ products: any[]; theme: any }>> {
   try {
-    const [products, theme] = await Promise.all([loadProducts(), loadTheme()]);
+    const [products, theme] = await Promise.all([loadHomeProducts(), loadTheme()]);
     return { kind: 'ok', data: { products, theme } };
   } catch (err) {
     return failure(err);
@@ -39,8 +51,7 @@ export async function loadHome(): Promise<Loaded<{ products: any[]; theme: any }
 export async function loadCollection(slug: string): Promise<Loaded<{ slug: string; name: string; products: any[] }>> {
   if (!/^[a-z0-9-]+$/.test(slug)) return { kind: 'notfound' };
   try {
-    const [collection, products] = await Promise.all([getJson<any>(`/storefront/collections/${slug}`), loadProducts()]);
-    return { kind: 'ok', data: { slug: collection.slug, name: collection.name, products: products.filter((p) => p.category === collection.slug) } };
+    return { kind: 'ok', data: await loadCollectionSummaries(slug) };
   } catch (err) {
     return failure(err);
   }
@@ -67,11 +78,10 @@ export async function loadProductPage(rawKey: string, locale: Locale, pathname: 
   if (pathname.replace(/\/+$/, '') !== canonicalPath) return { kind: 'redirect', to: canonicalPath } as const;
 
   // Side data: a failure only removes the part it feeds (rating, delivery fee, collection name, other products).
-  const [reviews, settings, collection, products] = await Promise.all([
+  const [reviews, settings, collection] = await Promise.all([
     getJsonOrNull<any>(`/products/${product.id}/reviews`).catch(() => null),
     getJsonOrNull<any>('/storefront/settings').catch(() => null),
-    product.category ? getJsonOrNull<any>(`/storefront/collections/${product.category}`).catch(() => null) : null,
-    loadProducts().catch(() => []),
+    product.category ? loadCollectionSummaries(product.category).catch(() => null) : null,
   ]);
   return {
     kind: 'ok',
@@ -81,7 +91,8 @@ export async function loadProductPage(rawKey: string, locale: Locale, pathname: 
       rating: reviews?.summary ?? null,
       deliveryFee: typeof settings?.deliveryFee === 'number' ? settings.deliveryFee : null,
       collectionName: collection?.name ?? null,
-      recommendations: products.filter((p: any) => p.category === product.category && p.id !== product.id).slice(0, 4),
+      // The other products of the same collection (newest first), 4 at most.
+      recommendations: (collection?.products ?? []).filter((p: any) => p.id !== product.id).slice(0, 4),
     },
   } as const;
 }

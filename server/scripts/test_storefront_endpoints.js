@@ -27,7 +27,7 @@ const { env } = await import('../config/env.js');
 const { pool } = await import('../db/pool.js');
 const { db } = await import('../db/orm.js');
 const { eq, inArray } = await import('drizzle-orm');
-const { categories, products, siteSettings } = await import('../models/index.js');
+const { categories, products, productImages, productVariants, siteSettings } = await import('../models/index.js');
 const { default: jwt } = await import('jsonwebtoken');
 
 let passed = 0;
@@ -60,7 +60,8 @@ async function request(path, { token, headers = {}, method = 'GET' } = {}) {
 const get = (path, options) => request(path, options);
 
 const sameKeys = (object, keys) => JSON.stringify(Object.keys(object).sort()) === JSON.stringify([...keys].sort());
-const SUMMARY_KEYS = ['id', 'slug', 'name', 'nameAr', 'price', 'discount', 'category'];
+// What a product card needs (name, price, discount, photos, alt text, sold-out flag, category) and nothing else.
+const SUMMARY_KEYS = ['id', 'slug', 'name', 'nameAr', 'imageAlt', 'imageAltAr', 'price', 'discount', 'category', 'mainImage', 'collectionImage', 'soldOut'];
 const PRIVATE_WORDS = /email|password|token|secret|cost|supplier|userId|guest/i;
 
 async function runTests() {
@@ -86,6 +87,19 @@ async function runTests() {
     const plain = await insertProduct(`${marker}-plain`);
     const arabic = await insertProduct(`${marker}-arabe`, { titleAr: 'فستان', descriptionAr: 'وصف الفستان' });
     const halfArabic = await insertProduct(`${marker}-moitie`, { titleAr: 'فستان' });
+    // Card data: photos, alt text, stock.
+    const carded = await insertProduct(`${marker}-carte`, { collectionImageUrl: '/pictures/collection.jpg', imageAlt: 'Robe rouge', imageAltAr: 'فستان أحمر', discountAmount: '10.000' });
+    await db.insert(productImages).values([
+      { productId: carded.id, imageUrl: '/pictures/second.jpg', colorSlug: 'rouge', sortOrder: 0, isPrimary: false },
+      { productId: carded.id, imageUrl: '/pictures/primary.jpg', colorSlug: 'rouge', sortOrder: 5, isPrimary: true },
+    ]);
+    await db.insert(productVariants).values([
+      { productId: carded.id, size: 'S', colorSlug: 'rouge', colorName: 'Rouge', stockQuantity: 0, sku: `${marker}-S` },
+      { productId: carded.id, size: 'M', colorSlug: 'rouge', colorName: 'Rouge', stockQuantity: 0, sku: `${marker}-M` },
+    ]);
+    const soldOutCard = await insertProduct(`${marker}-epuise`);
+    await db.insert(productImages).values({ productId: soldOutCard.id, imageUrl: '/pictures/only.jpg', colorSlug: 'bleu', sortOrder: 3, isPrimary: false });
+    await db.insert(productVariants).values({ productId: soldOutCard.id, size: 'S', colorSlug: 'bleu', colorName: 'Bleu', stockQuantity: 2, sku: `${marker}-B` });
     const hidden = await insertProduct(`${marker}-secret`, { isActive: false, categoryId: hiddenOnlyCategory.id });
 
     const adminToken = jwt.sign({ sub: await createAccount(pool, 'admin', 'storefront'), email: 'admin@storefront.test', role: 'admin' }, env.jwtSecret, { expiresIn: 600 });
@@ -121,18 +135,26 @@ async function runTests() {
     const home = await get('/storefront/home');
     assert(home.status === 200 && Array.isArray(home.data.products), 'home answers 200 with a product list');
     const ours = home.data.products.filter((p) => p.slug.startsWith(marker));
-    assert(ours.length === 3 && ours.every((p) => sameKeys(p, SUMMARY_KEYS)), 'the three published fixtures are listed with exactly the summary fields');
+    assert(ours.length === 5 && ours.every((p) => sameKeys(p, SUMMARY_KEYS)), 'the five published fixtures are listed with exactly the card fields');
     assert(!home.data.products.some((p) => p.id === hidden.id || p.slug === hidden.slug), 'the hidden product is never listed');
     const row = ours.find((p) => p.id === arabic.id);
     assert(row && row.price === 49.9 && row.discount === 0 && row.nameAr === 'فستان' && row.category === marker, 'price and discount are numbers, Arabic name and category slug are included');
     assert(ours.find((p) => p.id === plain.id).nameAr === null, 'a product without Arabic text has nameAr null');
+    const card = ours.find((p) => p.id === carded.id);
+    assert(card.mainImage === '/pictures/primary.jpg' && card.collectionImage === '/pictures/collection.jpg', 'mainImage is the primary photo, collectionImage the one set by the admin');
+    assert(card.imageAlt === 'Robe rouge' && card.imageAltAr === 'فستان أحمر' && card.discount === 10, 'alt texts and discount are included');
+    assert(card.soldOut === true, 'a product whose every variant is out of stock is soldOut');
+    const inStock = ours.find((p) => p.id === soldOutCard.id);
+    assert(inStock.soldOut === false && inStock.mainImage === '/pictures/only.jpg' && inStock.collectionImage === '/pictures/only.jpg' && inStock.imageAlt === null, 'one variant in stock: not soldOut; without a primary flag the first photo is used for both images; no alt = null');
+    const plainRow = ours.find((p) => p.id === plain.id);
+    assert(plainRow.soldOut === false && plainRow.mainImage === '' && plainRow.collectionImage === '', 'a product with no variants and no photo is not soldOut and has empty images');
     assert(!PRIVATE_WORDS.test(home.text), 'nothing private-looking in the home body');
     assert(home.data.products.length <= 200, 'the list is bounded (200)');
 
     console.log('\n--- GET /api/storefront/collections/:slug ---');
     const collection = await get(`/storefront/collections/${marker}`);
     assert(collection.status === 200 && collection.data.slug === marker && collection.data.name === `Cat ${marker}`, 'a known category answers 200 with its slug and name');
-    assert(collection.data.products.length === 3 && collection.data.products.every((p) => p.category === marker && sameKeys(p, SUMMARY_KEYS)), 'it lists only its own published products, summary fields only');
+    assert(collection.data.products.length === 5 && collection.data.products.every((p) => p.category === marker && sameKeys(p, SUMMARY_KEYS)), 'it lists only its own published products, card fields only');
     assert(!collection.data.products.some((p) => p.id === hidden.id), 'a hidden product is not in its category');
     const empty = await get(`/storefront/collections/${marker}-vide`);
     assert(empty.status === 200 && empty.data.products.length === 0, 'a category with no products is an existing, empty collection (200)');

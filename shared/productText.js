@@ -22,6 +22,15 @@ export function productImageAlt(name, { colorName = '', positionText = '' } = {}
   return `${clean(name)}${color ? ` – ${color}` : ''}${position ? `, ${position}` : ''}`;
 }
 
+/**
+ * The custom alt text the admin wrote for the product's photos (`imageAlt`, `imageAltAr`): ONE text shared by every photo
+ * of the product. The Arabic page uses the Arabic text, then the French one; '' when the admin wrote none, and the caller
+ * keeps its generated alt (`productImageAlt`).
+ */
+export function productCustomAlt(product, locale = 'fr') {
+  return (locale === 'ar' && clean(product?.imageAltAr)) || clean(product?.imageAlt);
+}
+
 /** Both the Arabic name and description exist: only then is the Arabic page a real translation worth indexing. */
 export const hasArabicProduct = (product) => Boolean(clean(product?.nameAr) && clean(product?.descriptionAr));
 

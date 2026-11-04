@@ -5641,13 +5641,11 @@ body {
 }
 
 /* ===== base.css ===== */
-/* --- Brand theme (overridden by ThemeContext) --- */
+/* --- Brand theme ---
+   The colours (--color-primary, -hover, -rgb, --color-secondary, -muted) are NOT defined here: BaseLayout writes them into
+   the page head from the saved theme (lib/theme.ts, defaults included). A default here would come after that inline
+   style and override the admin's colours. */
 :root {
-  --color-primary: #8D191C;
-  --color-primary-hover: #751418;
-  --color-primary-rgb: 141, 25, 28;
-  --color-secondary: #F3EBEC;
-  --color-secondary-muted: #F3EBEC;
   --header-height: 125px;
 }
 

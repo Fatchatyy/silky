@@ -25,7 +25,7 @@ const ogLocale = (locale: Locale) => (locale === 'ar' ? 'ar_AR' : 'fr_FR');
 const homeName = (locale: Locale) => (locale === 'ar' ? 'الرئيسية' : 'Accueil');
 
 /** Fixed public page (home, about, contact, service-client, livraison-retours, faq). */
-export function textPageSeo(key: PageKey, locale: Locale, ctx: SeoContext): SeoProps {
+export function textPageSeo(key: PageKey, locale: Locale, ctx: SeoContext, imagePath?: string): SeoProps {
   const path = PAGE_PATHS[key];
   const text = PAGE_TEXT[locale][key];
   const indexable = INDEXABLE_PAGES.includes(key) && (locale === 'fr' || hasArabicPageText(key));
@@ -44,7 +44,7 @@ export function textPageSeo(key: PageKey, locale: Locale, ctx: SeoContext): SeoP
     canonical: pageUrl(ctx.siteUrl, path, locale),
     alternates: indexable && bothLanguages ? alternatesFor(ctx.siteUrl, path) : undefined,
     robots: indexable ? 'index,follow' : 'noindex,follow',
-    og: { type: 'website', locale: ogLocale(locale) },
+    og: { type: 'website', image: imagePath ? shareImageUrl(ctx, imagePath) : undefined, locale: ogLocale(locale) },
     jsonLd: jsonLd.filter((item) => item && Object.keys(item).length),
   };
 }
@@ -71,7 +71,7 @@ export function errorPageSeo(kind: 'not-found' | 'product-not-found' | 'unavaila
 }
 
 /** Collection (category) page. An Arabic collection is indexable only when it has an Arabic title (named collections). */
-export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, name?: string): SeoProps {
+export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, name?: string, imagePath?: string): SeoProps {
   const text = collectionText(slug, locale);
   const title = isNamedCollection(slug) ? text.title : cleanText(name) || text.title;
   const hasArabic = isNamedCollection(slug);
@@ -83,7 +83,7 @@ export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, nam
     canonical: pageUrl(ctx.siteUrl, path, locale),
     alternates: indexable && hasArabic ? alternatesFor(ctx.siteUrl, path) : undefined,
     robots: indexable ? 'index,follow' : 'noindex,follow',
-    og: { type: 'website', locale: ogLocale(locale) },
+    og: { type: 'website', image: imagePath ? shareImageUrl(ctx, imagePath) : undefined, locale: ogLocale(locale) },
     jsonLd: [
       breadcrumbJsonLd([
         { name: homeName(locale), url: pageUrl(ctx.siteUrl, '/', locale) },

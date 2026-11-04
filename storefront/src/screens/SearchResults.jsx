@@ -3,7 +3,7 @@ import { productPath } from '@shared/urls';
 import ProductCard from '../components/ProductCard';
 import { useProducts } from '../stores/products';
 import { useT } from '../i18n/useT';
-import { productName } from '@shared/productText';
+import { productCustomAlt, productName } from '@shared/productText';
 
 // Arabic counts 3 to 10 take the plural noun; French takes the plural from 2.
 const resultsKey = (locale, n) =>
@@ -55,6 +55,7 @@ export default function SearchResults() {
                 <ProductCard
                   key={product.id}
                   name={productName(product, locale)}
+                  alt={productCustomAlt(product, locale)}
                   product={product}
                   image={product.collectionImage || product.mainImage || '/pictures/femme_example.jpg'}
                   linkTo={productPath(product)}

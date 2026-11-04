@@ -16,14 +16,14 @@ import { useFavorites } from '../stores/favorites';
 import { useProducts } from '../stores/products';
 import { normalizeProduct as normalizeProductState } from '../lib/normalizeProduct';
 import { adminApi, purgeProductPages } from './adminApi';
-import { slugify, mapProductColorsToForm, normalizeProduct, uploadFile } from './productForm';
+import { colorIdOnRename, mapProductColorsToForm, normalizeProduct, uploadFile } from './productForm';
 import { getEffectivePrice } from '@shared/price';
 import { buildStockMatrix, getAvailableStock, getStockStatus } from '@shared/stock';
 import { formatPrice } from '@shared/formatPrice';
 import { mediaVariantUrl as imageVariantPath, mediaUrl } from '@shared/media';
 import { useLocale } from '../i18n/LocaleContext';
 import { useT } from '../i18n/useT';
-import { hasArabicProduct, productDescription, productImageAlt, productName } from '@shared/productText';
+import { hasArabicProduct, productCustomAlt, productDescription, productImageAlt, productName } from '@shared/productText';
 import './adminStyles';
 
 function formatVideoTime(seconds) {
@@ -312,6 +312,9 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
   // Alt text of a gallery photo: product name, its colour and, when the colour has several photos, which one.
   const photoAlt = (thumb) => {
     const name = productName(activeProduct, locale);
+    // A custom alt written by the admin (one text for all the photos of the product) wins over the generated one.
+    const custom = productCustomAlt(activeProduct, locale);
+    if (custom) return custom;
     if (!thumb) return name;
     const sameColor = allThumbnails.filter((item) => item.colorId === thumb.colorId);
     return productImageAlt(name, {
@@ -593,7 +596,7 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
         }
         const updated = { ...c, [key]: val };
         if (key === 'name') {
-          updated.id = slugify(val) || `color-${i}`;
+          updated.id = colorIdOnRename(c, val, i);
         }
         return updated;
       });
@@ -1382,6 +1385,24 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
                 placeholder="الوصف بالعربية (اختياري)"
                 onChange={(e) => updateDraftField('descriptionAr', e.target.value)}
               />
+              <input
+                type="text"
+                className="admin_inline_title"
+                value={draft.imageAlt || ''}
+                maxLength={255}
+                placeholder="Texte alternatif des photos (facultatif)"
+                onChange={(e) => updateDraftField('imageAlt', e.target.value)}
+              />
+              <input
+                type="text"
+                className="admin_inline_title"
+                dir="rtl"
+                lang="ar"
+                value={draft.imageAltAr || ''}
+                maxLength={255}
+                placeholder="النص البديل للصور بالعربية (اختياري)"
+                onChange={(e) => updateDraftField('imageAltAr', e.target.value)}
+              />
             </>
           )}
 
@@ -1405,7 +1426,7 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
                         (c, i) => c === selectedColor || c.id === selectedColor.id || `color-${i}` === selectedColor.id,
                       );
                       if (colorIdx !== -1) {
-                        const newId = slugify(val) || `color-${colorIdx}`;
+                        const newId = colorIdOnRename(draft.colors[colorIdx], val, colorIdx);
                         updateDraftColor(colorIdx, 'name', val);
                         setSelectedColor((prev) => ({
                           ...prev,

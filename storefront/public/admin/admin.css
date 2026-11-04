@@ -134,7 +134,12 @@
   color: #fff;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* Exactly the visible height (dvh follows a phone's moving address bar): the menu scrolls inside, so the last buttons
+     and the logout button stay reachable on a short screen. */
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   position: sticky;
   top: 0;
   align-self: flex-start;
@@ -143,6 +148,7 @@
 }
 
 .admin-sidebar-brand {
+  flex-shrink: 0;
   padding: 24px 16px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   display: flex;
@@ -219,6 +225,7 @@
   gap: 16px;
   padding: 16px 12px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -318,6 +325,7 @@
 }
 
 .admin-sidebar-logout {
+  flex-shrink: 0;
   margin: 12px;
   padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -1659,8 +1667,12 @@
     width: 260px;
     max-width: 85vw;
     z-index: 500;
-    min-height: 100vh;
-    overflow-y: auto;
+    /* The drawer is exactly as tall as the visible screen (dvh follows the phone's address bar); the menu scrolls inside
+       it. With an automatic height it grew to its content and the last items and the logout button were off screen. */
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: none;

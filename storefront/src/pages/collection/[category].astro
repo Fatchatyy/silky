@@ -5,7 +5,7 @@ import CollectionView from '../../views/CollectionView.astro';
 import NotFoundView from '../../views/NotFoundView.astro';
 import { loadCollection } from '../../lib/pages/load';
 import { collectionSeo, errorPageSeo } from '../../lib/seo/builders.ts';
-import { cacheablePage } from '../../lib/pages/respond';
+import { cacheablePage, shareImagePath } from '../../lib/pages/respond';
 const locale = 'fr';
 const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
 const category = Astro.params.category ?? '';
@@ -13,7 +13,7 @@ const result = await loadCollection(category);
 if (result.kind === 'notfound') Astro.response.status = 404;
 if (result.kind === 'unavailable') Astro.response.status = 503;
 cacheablePage(Astro.response, result.kind === 'ok');
-const seo = result.kind === 'ok' ? collectionSeo(result.data.slug, locale, ctx, result.data.name)
+const seo = result.kind === 'ok' ? collectionSeo(result.data.slug, locale, ctx, result.data.name, shareImagePath(result.data.products))
   : errorPageSeo(result.kind === 'unavailable' ? 'unavailable' : 'not-found', locale, ctx, Astro.url.pathname);
 ---
 <BaseLayout locale={locale} seo={seo}>

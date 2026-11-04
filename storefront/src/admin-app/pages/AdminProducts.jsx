@@ -6,13 +6,15 @@ import { buildStockMatrix } from '@shared/stock';
 import { formatPrice } from '@shared/formatPrice';
 import { getEffectivePrice, hasDiscount } from '@shared/price';
 import AdminProductReviewsSection from '../../admin/AdminProductReviewsSection';
-import { slugify, mapProductColorsToForm, normalizeProduct, uploadFile } from '../../admin/productForm';
+import { colorIdOnRename, mapProductColorsToForm, normalizeProduct, uploadFile } from '../../admin/productForm';
 
 const EMPTY_PRODUCT = {
   name: '',
   description: '',
   nameAr: '',
   descriptionAr: '',
+  imageAlt: '',
+  imageAltAr: '',
   price: 0,
   discount: 0,
   category: 'femme',
@@ -182,7 +184,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
         }
         const updated = { ...c, [key]: val };
         if (key === 'name') {
-          updated.id = slugify(val);
+          updated.id = colorIdOnRename(c, val, index);
         }
         return updated;
       });
@@ -808,6 +810,30 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
                     lang="ar"
                     value={form.descriptionAr || ''}
                     onChange={(e) => updateField('descriptionAr', e.target.value)}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="imageAlt">Texte alternatif des photos (facultatif)</label>
+                  <input
+                    id="imageAlt"
+                    maxLength={255}
+                    placeholder="Ex. : Robe satin noire à manches longues, portée de face"
+                    value={form.imageAlt || ''}
+                    onChange={(e) => updateField('imageAlt', e.target.value)}
+                  />
+                  <small>Décrit les photos pour Google et les lecteurs d'écran. Le même texte est utilisé pour toutes les photos du produit ; vide = nom + couleur.</small>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="imageAltAr">Texte alternatif des photos en arabe (facultatif)</label>
+                  <input
+                    id="imageAltAr"
+                    dir="rtl"
+                    lang="ar"
+                    maxLength={255}
+                    value={form.imageAltAr || ''}
+                    onChange={(e) => updateField('imageAltAr', e.target.value)}
                   />
                 </div>
 

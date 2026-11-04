@@ -21,6 +21,9 @@ export function getStockStatus(stock) {
 export function isProductOutOfStock(product) {
   if (!product) return false;
 
+  // A light product summary (storefront home/collection lists) carries the answer already.
+  if (typeof product.soldOut === 'boolean') return product.soldOut;
+
   if (product.stock && typeof product.stock === 'object') {
     const values = Object.values(product.stock);
     if (values.length > 0) {

@@ -1,6 +1,6 @@
 ---
 // Static header (links are real <a href>); only the search box, the cart and the account link are islands.
-import { localizePath, switchLocalePath, ARABIC_ENABLED } from '../../../../shared/locales.js';
+import { localizePath, switchLocalePath } from '../../../../shared/locales.js';
 import { translator } from '../../lib/i18n.ts';
 import type { Locale } from '../../lib/seo/types.ts';
 import HeaderSearch from './HeaderSearch.jsx';
@@ -37,11 +37,9 @@ const switchHref = switchLocalePath(Astro.url.pathname, Astro.url.search, otherL
     </div>
 
     <div class="user_actions">
-      {ARABIC_ENABLED && (
-        <a href={switchHref} class="action_item language_switch" lang={otherLocale} hreflang={otherLocale}>
-          <span>{otherLocale === 'ar' ? 'العربية' : 'Français'}</span>
-        </a>
-      )}
+      <a href={switchHref} class="action_item language_switch" lang={otherLocale} hreflang={otherLocale}>
+        <span>{otherLocale === 'ar' ? 'العربية' : 'Français'}</span>
+      </a>
       <a href={href('/leave-review')} class="action_item reviews_item" title={t('header.reviewsTitle')}>
         <img src="/pictures/avis.png" alt={t('header.reviewsAlt')} class="reviews_icon_img" />
       </a>

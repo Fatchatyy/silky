@@ -2,7 +2,7 @@
 // "Masqué" badge), exactly as the old storefront showed them. The server HTML never contains a hidden product; this
 // component replaces the static list in the admin's browser only.
 import { useEffect } from 'react';
-import { productName } from '@shared/productText';
+import { productCustomAlt, productName } from '@shared/productText';
 import { productPath } from '@shared/urls';
 import { mediaVariantUrl as imageVariantPath } from '@shared/media';
 import ProductCard from '../components/ProductCard';
@@ -53,6 +53,7 @@ export default function AdminListing({ kind, category, limit, exclude, hideWhenR
     <ProductCard
       key={product.id}
       name={productName(product, locale)}
+      alt={productCustomAlt(product, locale)}
       product={product}
       image={product.collectionImage || product.mainImage || FALLBACK[category] || FALLBACK.femme}
       linkTo={productPath(product)}
