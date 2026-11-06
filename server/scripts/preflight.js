@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(here, '../..');
+const root = path.resolve(here, '..'); // the server folder
 
 const results = [];
 const add = (level, area, text) => {
@@ -43,15 +43,17 @@ const urlCheck = (name, value, { required = true } = {}) => {
   if (!/^https:\/\//i.test(value)) return add('warn', 'configuration', `${name} is not https`);
   add('ok', 'configuration', `${name} is ${value}`);
 };
-urlCheck('SITE_URL', env.seo.siteUrl);
 urlCheck('APP_URL', process.env.APP_URL);
 const origins = env.corsAllowedOrigins;
 const badOrigin = origins.filter((o) => looksLocal(o) || !/^https:\/\//i.test(o));
 add(badOrigin.length ? 'warn' : 'ok', 'configuration', badOrigin.length ? `CORS_ALLOWED_ORIGINS has local or non-https entries: ${badOrigin.join(', ')}` : `CORS_ALLOWED_ORIGINS: ${origins.join(', ')}`);
 add(env.trustProxy ? 'ok' : 'warn', 'configuration', env.trustProxy ? `TRUST_PROXY=${env.trustProxy}` : 'TRUST_PROXY is not set: behind a reverse proxy every visitor would share one address for the rate limiters');
-add(env.seo.htmlEnabled ? 'ok' : 'warn', 'configuration', env.seo.htmlEnabled ? 'SEO_HTML=on' : 'SEO_HTML is not "on": page titles, canonical links, robots.txt and sitemap.xml are not written for search engines');
 add(env.cspMode === 'enforce' ? 'ok' : 'info', 'configuration', `CSP_MODE=${env.cspMode}${env.cspMode === 'report-only' ? ' (blocks nothing; switch to enforce after browsing the live site with no report)' : ''}`);
-add(env.smtpUser && env.smtpPass ? 'ok' : 'fail', 'e-mail', env.smtpUser && env.smtpPass ? `SMTP credentials set (host ${env.smtpHost}:${env.smtpPort})` : 'SMTP_USER / SMTP_PASS missing: no order confirmation, password reset, welcome or contact reply e-mail would be sent');
+if (env.resendApiKey) {
+  add('ok', 'e-mail', `RESEND_API_KEY set: e-mail is sent over HTTPS through ${env.resendApiUrl} (works on hosts that block the SMTP ports)${env.smtpUser ? '; the SMTP settings are ignored' : ''}`);
+} else {
+  add(env.smtpUser && env.smtpPass ? 'ok' : 'fail', 'e-mail', env.smtpUser && env.smtpPass ? `SMTP credentials set (host ${env.smtpHost}:${env.smtpPort}); Render's free plan blocks the SMTP ports, use RESEND_API_KEY there` : 'RESEND_API_KEY (or SMTP_USER / SMTP_PASS) missing: no order confirmation, password reset, welcome or contact reply e-mail would be sent');
+}
 add(/yourdomain|silky\.tn|@/.test(env.emailFrom) && !/yourdomain/.test(env.emailFrom) ? 'ok' : 'warn', 'e-mail', /yourdomain/.test(env.emailFrom) ? 'EMAIL_FROM still has the placeholder domain' : 'EMAIL_FROM is set');
 const g = env.goodex;
 const goodexMissing = [!g.apiToken && 'GOODEX_API_TOKEN', !g.userId && 'GOODEX_USER_ID', !g.webhookSecret && 'GOODEX_WEBHOOK_SECRET'].filter(Boolean);
@@ -61,18 +63,24 @@ add(g.enableLive ? 'ok' : (isProd ? 'warn' : 'info'), 'GOODEX', g.enableLive ? '
 add(g.poll.intervalMinutes > 0 ? 'ok' : 'info', 'background jobs', g.poll.intervalMinutes > 0 ? `GOODEX status reconciliation every ${g.poll.intervalMinutes} min (run it on ONE instance only)` : 'GOODEX status reconciliation is off (GOODEX_POLL_INTERVAL_MINUTES unset): statuses change only by webhook or manual refresh');
 
 // ---------- files ----------
-const dist = env.seo.distDir;
-add(fs.existsSync(path.join(dist, 'index.html')) ? 'ok' : 'fail', 'frontend', fs.existsSync(path.join(dist, 'index.html')) ? `built storefront found (${path.relative(root, dist) || dist})` : `no built storefront at ${dist}: run npm run build`);
 const uploads = env.uploadsDir;
 const insideApp = path.resolve(uploads).startsWith(root + path.sep);
-try {
-  fs.mkdirSync(uploads, { recursive: true });
-  fs.accessSync(uploads, fs.constants.W_OK);
-  add(insideApp && isProd ? 'warn' : 'ok', 'uploads', insideApp && isProd
-    ? `${uploads} is inside the app folder: most hosts wipe it on every deploy. Set UPLOADS_DIR to a persistent disk`
-    : `${uploads} is writable`);
-} catch (err) {
-  add('fail', 'uploads', `${uploads} is not writable (${err.code || err.message})`);
+if (env.storage.driver === 'r2') {
+  add('ok', 'uploads', `STORAGE_DRIVER=r2: photos and videos go to the R2 bucket "${env.storage.r2.bucket}" (the local uploads folder is not used)`);
+  const media = env.storage.mediaPublicUrl;
+  if (!media) add('warn', 'uploads', 'MEDIA_PUBLIC_URL is not set: set it to the public address of the bucket (for example https://media.silky.tn)');
+  else if (isProd && !/^https:\/\//i.test(media)) add('warn', 'uploads', `MEDIA_PUBLIC_URL (${media}) is not https`);
+  else add('ok', 'uploads', `MEDIA_PUBLIC_URL is ${media}`);
+} else {
+  try {
+    fs.mkdirSync(uploads, { recursive: true });
+    fs.accessSync(uploads, fs.constants.W_OK);
+    add(insideApp && isProd ? 'warn' : 'ok', 'uploads', insideApp && isProd
+      ? `${uploads} is inside the app folder: most hosts wipe it on every deploy. Set UPLOADS_DIR to a persistent disk, or STORAGE_DRIVER=r2`
+      : `${uploads} is writable`);
+  } catch (err) {
+    add('fail', 'uploads', `${uploads} is not writable (${err.code || err.message})`);
+  }
 }
 
 // ---------- database ----------
@@ -87,7 +95,7 @@ try {
   add('info', 'database', `pool: ${env.dbPoolMax} connections max, ${env.dbConnectionTimeoutMs} ms wait${env.dbStatementTimeoutMs ? `, ${env.dbStatementTimeoutMs} ms per query` : ''}: keep it below your database plan's connection limit`);
 
   // all tables of schema.sql exist
-  const schemaSql = fs.readFileSync(path.join(root, 'server/db/schema.sql'), 'utf8');
+  const schemaSql = fs.readFileSync(path.join(root, 'db/schema.sql'), 'utf8');
   const expected = [...schemaSql.matchAll(/^CREATE TABLE public\.(\w+)/gm)].map((m) => m[1]);
   const { rows: tableRows } = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
   const have = new Set(tableRows.map((r) => r.table_name));
@@ -128,23 +136,18 @@ try {
     const demoOrders = await one("SELECT count(*)::int AS n FROM orders WHERE customer_name ~* '(test|demo|sample)'");
     add(demoOrders.n ? 'warn' : 'ok', 'sample data', demoOrders.n ? `${demoOrders.n} order(s) look like test orders` : 'no order looks like a test order');
 
-    // files the database points at
-    const { rows: refs } = await pool.query(`
-      SELECT DISTINCT url FROM (
-        SELECT image_url AS url FROM product_images
-        UNION ALL SELECT color_image_url FROM product_variants
-        UNION ALL SELECT collection_image_url FROM products
-        UNION ALL SELECT video_url FROM product_videos
-        UNION ALL SELECT hero_left_image FROM site_settings
-        UNION ALL SELECT hero_right_image FROM site_settings
-      ) u WHERE url LIKE '/uploads/%' OR url LIKE '/pictures/%'`);
-    const absent = refs.map((r) => r.url).filter((url) => {
-      const file = url.startsWith('/uploads/') ? path.join(uploads, url.slice('/uploads/'.length)) : path.join(root, 'public', url.slice(1));
-      return !fs.existsSync(file);
-    });
+    // files the database points at (local folder, or the R2 bucket when STORAGE_DRIVER=r2)
+    const { listReferencedUploadUrls } = await import('../utils/uploadReferences.js');
+    const { storage, uploadKey } = await import('../services/storage.service.js');
+    const urls = await listReferencedUploadUrls(pool); // /pictures/... files belong to the storefront (not checked here)
+    const absent = [];
+    for (const url of urls) {
+      if (!(await storage.objectExists(uploadKey(url)))) absent.push(url);
+    }
+    const where = storage.driver === 'r2' ? 'in the R2 bucket' : 'on disk';
     add(absent.length ? 'warn' : 'ok', 'files', absent.length
-      ? `${absent.length} image/video file(s) referenced by the database are missing on disk, for example ${absent.slice(0, 3).join(', ')}`
-      : `all ${refs.length} image/video files referenced by the database exist`);
+      ? `${absent.length} image/video file(s) referenced by the database are missing ${where}, for example ${absent.slice(0, 3).join(', ')}`
+      : `all ${urls.length} image/video files referenced by the database exist ${where}`);
   }
 } catch (err) {
   add('fail', 'database', `cannot query the database: ${err.message}`);

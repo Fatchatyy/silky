@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import fs from "node:fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { env } from "../config/env.js";
@@ -13,24 +14,79 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Absolute path to the Silky logo used as an inline CID attachment in all
  * branded emails. Resolved relative to this file so it works from any cwd.
  */
-const LOGO_PATH = path.resolve(__dirname, '../../public/pictures/logo.png');
+const LOGO_PATH = path.resolve(__dirname, '../assets/logo.png');
 
 let _transporter = null;
 
 /**
  * How e-mail is sent:
+ * - 'resend': RESEND_API_KEY is set (real delivery over HTTPS; wins over SMTP when both are set). Needed on hosts that
+ *   block the SMTP ports, such as Render's free plan.
  * - 'smtp': SMTP credentials are set (real delivery).
  * - 'ethereal': no credentials, development only (a fake inbox, nothing reaches a customer).
  * - 'off': no credentials in production. Ethereal is a public test service, so customer e-mails (name, address,
  *   phone) must never be sent to it from the live shop; sending fails instead and the callers log it.
  */
-export function resolveMailMode({ smtpUser, smtpPass, isProduction }) {
+export function resolveMailMode({ smtpUser, smtpPass, resendApiKey, isProduction }) {
+  if (resendApiKey) return 'resend';
   if (smtpUser && smtpPass) return 'smtp';
   return isProduction ? 'off' : 'ethereal';
 }
 
+const RESEND_TIMEOUT_MS = 15000;
+
 /**
- * Build (and cache) a nodemailer transporter.
+ * A transporter with the one method this module uses (sendMail) that sends through Resend's HTTPS API. It takes the
+ * nodemailer-style options built in sendEmail and answers { messageId } like nodemailer does. The API key is only ever
+ * sent in the Authorization header and is never logged; errors carry Resend's own message (it holds no customer data).
+ */
+export function createResendTransport({ apiKey, apiUrl, fetchImpl = fetch }) {
+  return {
+    async sendMail(options) {
+      const body = {
+        from: options.from,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      };
+      if (options.replyTo) body.reply_to = options.replyTo;
+      if (options.attachments?.length) {
+        body.attachments = await Promise.all(
+          options.attachments.map(async (file) => ({
+            filename: file.filename,
+            content: (file.content ? Buffer.from(file.content) : await fs.readFile(file.path)).toString('base64'),
+            ...(file.contentType ? { content_type: file.contentType } : {}),
+            ...(file.cid ? { content_id: file.cid } : {}),
+          })),
+        );
+      }
+
+      let res;
+      try {
+        res = await fetchImpl(`${apiUrl}/emails`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
+        });
+      } catch (err) {
+        throw new Error(`Resend est injoignable (${err?.name === 'TimeoutError' ? 'délai dépassé' : String(err?.message ?? err).slice(0, 120)}).`);
+      }
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = String(payload?.message || payload?.error || res.statusText || 'erreur').slice(0, 200);
+        throw new Error(`Resend a refusé l'e-mail (HTTP ${res.status}): ${detail}`);
+      }
+      return { messageId: payload.id };
+    },
+  };
+}
+
+/**
+ * Build (and cache) the mail transporter.
+ * - RESEND_API_KEY set: Resend over HTTPS.
  * - When SMTP credentials are set: uses real SMTP.
  * - Without credentials outside production: falls back to Ethereal (fake SMTP) and logs a preview URL.
  * - Without credentials in production: throws (see resolveMailMode).
@@ -40,10 +96,12 @@ export async function getTransporter() {
 
   const mode = resolveMailMode(env);
   if (mode === 'off') {
-    throw new Error("L'envoi d'e-mails n'est pas configuré (SMTP_USER et SMTP_PASS sont manquants).");
+    throw new Error("L'envoi d'e-mails n'est pas configuré (RESEND_API_KEY, ou SMTP_USER et SMTP_PASS, sont manquants).");
   }
 
-  if (mode === 'smtp') {
+  if (mode === 'resend') {
+    _transporter = createResendTransport({ apiKey: env.resendApiKey, apiUrl: env.resendApiUrl });
+  } else if (mode === 'smtp') {
     _transporter = nodemailer.createTransport({
       host: env.smtpHost,
       port: env.smtpPort,

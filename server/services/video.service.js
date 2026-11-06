@@ -1,7 +1,6 @@
-import fs from 'fs';
 import path from 'path';
 import { productRepository } from '../repositories/product.repository.js';
-import { UPLOADS_DIR } from '../utils/upload.js';
+import { storage, uploadKey } from './storage.service.js';
 import { AppError } from '../utils/errors.js';
 
 export async function getProductVideos(productId) {
@@ -49,18 +48,16 @@ export async function deleteProductVideo({ productId, videoId }) {
 
   const deleted = await productRepository.deleteProductVideo(videoId);
 
-  // Clean up physical file from /server/uploads if not referenced elsewhere
+  // Clean up the stored file (local disk or R2) if not referenced elsewhere
   if (video.videoUrl) {
     const trimmed = video.videoUrl.trim();
     if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
       const isStillReferenced = await productRepository.isImageReferencedElsewhere(trimmed);
       if (!isStillReferenced) {
-        const filename = path.basename(trimmed);
-        const filePath = path.join(UPLOADS_DIR, filename);
         try {
-          await fs.promises.unlink(filePath);
+          await storage.deleteObject(uploadKey(path.basename(trimmed)));
         } catch {
-          // File may already have been deleted or not exist on disk
+          // File may already have been deleted, or the storage may be unreachable: never fail for it
         }
       }
     }

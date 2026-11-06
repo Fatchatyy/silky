@@ -1,16 +1,17 @@
-// Makes the resized copies of a freshly uploaded photo (names and sizes: shared/imageVariants.js).
-// The original is never modified. Nothing here throws: a photo that cannot be resized is simply kept as it is.
-import fs from 'node:fs/promises';
-import path from 'node:path';
+// Makes the resized copies of a freshly uploaded photo (names and sizes: shared/imageVariants.js) and hands the original
+// and its copies to the storage service (local disk or R2). The original is never modified. A photo that cannot be
+// resized is simply kept as it is.
 import sharp from 'sharp';
-import { IMAGE_VARIANTS, RESIZED_MARKER } from '../../shared/imageVariants.js';
+import { IMAGE_VARIANTS, RESIZED_MARKER } from '../shared/imageVariants.js';
+import { storage as defaultStorage, uploadKey } from '../services/storage.service.js';
 
 // Only these formats are resized. GIF (may be animated), AVIF and anything else are kept as uploaded.
 export const RESIZABLE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const MAX_INPUT_PIXELS = 120_000_000;
 
-const variantFile = (filePath, name) => `${filePath.replace(/\.[^./\\]+$/, '')}.${name}.webp`;
+/** File name of a copy: '123-ab12cd34-r.jpg' + 'card' -> '123-ab12cd34-r.card.webp'. */
+export const variantFilename = (filename, name) => `${String(filename).replace(/\.[^./\\]+$/, '')}.${name}.webp`;
 
 /** File name for an upload: images that will be resized carry the marker, everything else keeps the plain name. */
 export function uploadFilename(mimetype, ext, now = Date.now(), random = '') {
@@ -18,53 +19,68 @@ export function uploadFilename(mimetype, ext, now = Date.now(), random = '') {
   return `${now}-${random}${marker}${ext}`;
 }
 
-export async function removeImageVariants(filePath) {
+/** Deletes the resized copies of a stored photo (by the photo's file name). Never throws. */
+export async function removeImageVariants(filename, store = defaultStorage) {
   await Promise.all(
-    Object.keys(IMAGE_VARIANTS).map((name) => fs.unlink(variantFile(filePath, name)).catch(() => {})),
+    Object.keys(IMAGE_VARIANTS).map((name) => store.deleteObject(uploadKey(variantFilename(filename, name))).catch(() => {})),
   );
 }
 
-/** Writes the copies next to the original. Returns true only when every copy exists afterwards. */
-export async function createImageVariants(filePath) {
+/** The three WebP copies of an image as buffers ({ card, share, large }), or null when the image cannot be resized. */
+export async function createImageVariants(input) {
   try {
-    // sharp gets the bytes, not the path: on Windows it would otherwise keep the file open and block a rename or delete.
-    const input = await fs.readFile(filePath);
-    await Promise.all(
-      Object.entries(IMAGE_VARIANTS).map(([name, { width, quality }]) =>
-        sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
+    const copies = await Promise.all(
+      Object.entries(IMAGE_VARIANTS).map(async ([name, { width, quality }]) => [
+        name,
+        await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
           .rotate() // apply the camera's EXIF orientation: the copies carry no metadata
           .resize({ width, withoutEnlargement: true })
           .webp({ quality })
-          .toFile(variantFile(filePath, name)),
-      ),
+          .toBuffer(),
+      ]),
     );
-    return true;
+    return Object.fromEntries(copies);
   } catch (err) {
     console.error('[images] could not resize an upload, keeping the original only:', String(err?.message ?? err).slice(0, 160));
-    await removeImageVariants(filePath);
-    return false;
+    return null;
   }
 }
 
 /**
- * Express middleware, placed after multer on the image upload routes. When the copies cannot be made, the file is
- * renamed without the marker so the storefront keeps using the original (a marked name always has its copies).
+ * Express middleware factory for the image upload routes, placed after multer and verifyImageUpload (which give the
+ * upload its buffer and its stored name). It makes the copies and stores them first, the original last, so a name with
+ * the marker never exists without its copies. When the copies cannot be made, the original is stored under the name
+ * without the marker, so the storefront keeps using the original. A storage failure removes what was already stored
+ * and passes the error on.
  */
-export async function resizeUploadedImage(req, _res, next) {
-  const file = req.file;
-  if (file && file.filename.includes(RESIZED_MARKER + '.') && RESIZABLE_MIME_TYPES.includes(file.mimetype)) {
-    const ok = await createImageVariants(file.path);
-    if (!ok) {
-      const plainName = file.filename.replace(RESIZED_MARKER + '.', '.');
-      const plainPath = path.join(path.dirname(file.path), plainName);
-      try {
-        await fs.rename(file.path, plainPath);
-        file.filename = plainName;
-        file.path = plainPath;
-      } catch (err) {
-        console.error('[images] could not rename an unresized upload:', String(err?.message ?? err).slice(0, 160));
+export function createResizeMiddleware(store) {
+  return async function resizeUploadedImage(req, _res, next) {
+    const file = req.file;
+    if (!file) return next();
+    const written = [];
+    try {
+      if (file.filename.includes(RESIZED_MARKER + '.') && RESIZABLE_MIME_TYPES.includes(file.mimetype)) {
+        const copies = await createImageVariants(file.buffer);
+        if (copies) {
+          for (const [name, buffer] of Object.entries(copies)) {
+            const key = uploadKey(variantFilename(file.filename, name));
+            written.push(key);
+            await store.putObject(key, buffer, 'image/webp');
+          }
+        } else {
+          file.filename = file.filename.replace(RESIZED_MARKER + '.', '.');
+        }
       }
+      const key = uploadKey(file.filename);
+      written.push(key);
+      await store.putObject(key, file.buffer, file.mimetype);
+    } catch (err) {
+      await Promise.all(written.map((key) => store.deleteObject(key).catch(() => {})));
+      console.error('[images] could not store an upload:', String(err?.message ?? err).slice(0, 160));
+      return next(err);
     }
-  }
-  next();
+    next();
+  };
 }
+
+export const resizeUploadedImage = createResizeMiddleware(defaultStorage);

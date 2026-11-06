@@ -16,14 +16,14 @@ Everything below was tried on a scratch database. The commands that touch a data
 | Backups | The provider's automatic daily backup **plus** a copy kept somewhere else (another provider or account). | A backup stored only next to the server does not survive losing the server or the account. |
 | Node version | 20 or newer (24 locally). | `nodemailer` 10 needs it. |
 
-Build command on the host: `npm ci --include=dev && npm run build` (the build needs the dev dependencies).
+Build command on the API host (root directory `server/`): `npm ci` (the API serves no pages since Phase 3 step 2; the storefront and admin panel are built from `storefront/` with `npm run build` and deployed on Cloudflare, see `MIGRATION_PLAN_ASTRO.md` phases 6 and 7).
 Start command: `npm start`. Health check path (if the host asks): `/health`.
 
 ## 2. Environment variables
 
 Set them in the host's settings, never in a committed file. Production values must differ from local ones (own
 database and password, own `JWT_SECRET`, own admin password, own SMTP and GOODEX credentials).
-`.env.example` documents every variable.
+`server/.env.example` documents every variable. Every `npm run ...` command in this file is run inside `server/`.
 
 **The server refuses to start in production without these**
 
@@ -40,11 +40,10 @@ database and password, own `JWT_SECRET`, own admin password, own SMTP and GOODEX
 | Variable | Notes |
 |---|---|
 | `ADMIN_EMAIL` | the admin account e-mail (default `admin@silky.tn`) |
-| `SITE_URL` | `https://your-domain`, no trailing slash: canonical links, `robots.txt`, `sitemap.xml` |
-| `SEO_HTML=on` | writes titles, descriptions and structured data into every page |
 | `APP_URL` | `https://your-domain`: used in password-reset e-mails |
 | `TRUST_PROXY` | `1` behind one reverse proxy (most hosts). Without it every visitor looks like one address to the rate limiters |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | without SMTP credentials no e-mail is sent in production |
+| `RESEND_API_KEY`, `EMAIL_FROM` (and optional `EMAIL_REPLY_TO`) | e-mail over HTTPS through Resend: required on Render's free plan, which blocks the SMTP ports. `EMAIL_FROM` must be an address on a domain verified in Resend (add the DNS records it shows; until then it only sends from `onboarding@resend.dev` to your own address). Free plan: 3000 e-mails a month, 100 a day |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | SMTP alternative, used only when `RESEND_API_KEY` is not set. Without either, no e-mail is sent in production |
 | `UPLOADS_DIR` | path of the persistent disk |
 | `GOODEX_API_TOKEN`, `GOODEX_USER_ID`, `GOODEX_WEBHOOK_SECRET`, `GOODEX_ENABLE_LIVE=true` | parcels and tracking; the webhook secret must differ from the API token |
 
@@ -65,6 +64,21 @@ database and password, own `JWT_SECRET`, own admin password, own SMTP and GOODEX
 Do it once, in this order. Use a staging copy first if you can (a second database and a second service).
 
 1. **Create the database** (empty) at the provider and copy its connection URL into `DATABASE_URL`.
+   - **Neon (the chosen provider)**: project `silky`, PostgreSQL 17, region AWS Europe Central 1 (Frankfurt), database
+     `neondb`. Use the **direct** connection string (no `-pooler` in the host): the API keeps its own connection pool and
+     sends `statement_timeout`, which the pooled (PgBouncer) string does not accept. End the URL with `?sslmode=verify-full`
+     (`sslmode=require` works too but prints a `pg` security warning, because `require` is treated as `verify-full`; never
+     disable certificate checks).
+   - **Free plan limits** (checked 2026-11-06 on neon.com/pricing): 1 GB storage and 100 compute-unit hours a month per
+     project. The database suspends itself after about 5 minutes without queries and wakes on the next one (the first
+     request after a sleep is a fraction of a second slower). Do not keep it awake: point an uptime monitor at a path that
+     does not query the database (`GET /health` does query it), or ping `/health` rarely, and keep the GOODEX background
+     poll (`GOODEX_POLL_INTERVAL_MINUTES`) off or at a long interval. Check the numbers again before going live.
+   - **How the data got there** (Phase 5, 2026-11-06): the schema and the 24 governorates, 2 categories, site settings and
+     the admin row were restored from a cleaned local copy (`pg_dump --format=custom --no-owner --no-acl`, then
+     `pg_restore --no-owner --no-acl --dbname <direct url>`). Row counts of all 31 tables, indexes, constraints and columns
+     matched; `npm run preflight` against Neon had no FAIL; the API started against it and the admin login worked.
+     Products, orders and customers are created fresh on the live shop.
 2. **Set all environment variables** (section 2) on the host.
 3. **Build and start once** with the commands in section 1 so the code is on the host.
 4. **Create the tables** (only ever on an empty database; it refuses otherwise):
@@ -95,6 +109,9 @@ Do it once, in this order. Use a staging copy first if you can (a second databas
   `pg_dump --format=custom --no-owner --file=silky-$(date +%F).dump "$DATABASE_URL"`
 - **Uploads**: back up the `UPLOADS_DIR` folder the same way (copy to object storage or another machine). A restored
   database whose photos are gone shows broken images.
+- **Neon**: the plan's point-in-time restore is the daily safety net (check how far back the plan in use goes; the free
+  plan's window is short). Use a `pg_dump` of version 17 or newer for the weekly copy (an older `pg_dump` refuses a newer
+  server). Run it against the **direct** URL.
 - **Keep** at least 7 daily and 4 weekly copies.
 - **Test a restore before launch, then every few months**:
   1. create a throwaway database: `createdb silky_restore_check`
@@ -163,7 +180,7 @@ Do it once, in this order. Use a staging copy first if you can (a second databas
 
 | Command | What it does | Touches data? |
 |---|---|---|
-| `npm run build` | builds the storefront into `dist/` | no |
+| `npm run build` | builds the Astro storefront and admin panel (`storefront/`) | no |
 | `npm start` | starts the server (runs start-up migrations) | adds missing columns/tables only |
 | `npm run preflight` | checks configuration, files and database; prints OK / WARN / FAIL | reads only |
 | `npm run db:init` | creates all tables in a new empty database | refuses a non-empty database |

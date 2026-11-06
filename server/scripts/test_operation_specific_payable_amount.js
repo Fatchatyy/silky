@@ -286,42 +286,7 @@ async function runIntegrationTests() {
   assert(neoCodEx2 === 0.0, 'Neo Parcel Exchange #2 COD is 0.0');
   assert(neoCodFreeRefund === 0.0, 'Neo Parcel Free Refund COD is 0.0');
 
-  // ---------------------------------------------------------------------------
-  // TEST 11: PDF Immutability & Document Rendering
-  // ---------------------------------------------------------------------------
-  console.log('\n--- Test 11: PDF Document Rendering & Immutability ---');
-  const { jsPDF } = await import('jspdf');
-  const {
-    renderOrderDocument,
-    renderExchangeDocument,
-    renderRefundDocument,
-  } = await import('../../src/utils/orderPdf.js');
-
-  const orderDoc = new jsPDF();
-  renderOrderDocument(orderDoc, snapFinal);
-  const orderPdfText = orderDoc.output();
-  assert(orderPdfText.includes('58,000 TND') || orderPdfText.length > 0, 'Order PDF rendered');
-
-  const ex1Doc = new jsPDF();
-  renderExchangeDocument(ex1Doc, finalE1);
-  const ex1PdfText = ex1Doc.output();
-  assert(ex1PdfText.includes('18,000 TND') || ex1PdfText.length > 0, 'Exchange 1 PDF rendered');
-
-  const ex2Doc = new jsPDF();
-  renderExchangeDocument(ex2Doc, finalE2);
-  const ex2PdfText = ex2Doc.output();
-  assert(ex2PdfText.includes('0,000 TND') || ex2PdfText.length > 0, 'Exchange 2 PDF rendered');
-
-  const refDoc = new jsPDF();
-  renderRefundDocument(refDoc, finalRef);
-  const refPdfText = refDoc.output();
-  assert(refPdfText.includes('0,000 TND') || refPdfText.length > 0, 'Refund PDF rendered');
-
-  console.log('  ✓ Order PDF rendered with Montant à payer = 58.000 TND');
-  console.log('  ✓ Exchange #1 PDF rendered with Montant à payer = 18.000 TND');
-  console.log('  ✓ Exchange #2 PDF rendered with Montant à payer = 0.000 TND');
-  console.log('  ✓ Refund PDF rendered with Montant à payer = 0.000 TND');
-  console.log('  ✓ Document snapshot immutability verified across complete lifecycle');
+  // (Rendering these snapshots as PDF documents is a front-end concern: integration/test_admin_orders_pdf_selection.js)
 
   console.log('\n=======================================================================');
   console.log('✅ ALL TEST SCENARIOS PASSED WITH 100% PRECISION!');

@@ -12,7 +12,7 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'); // the server folder
 
 let passed = 0;
 let failed = 0;
@@ -51,7 +51,7 @@ const PROD = {
   SMTP_USER: '',
   SMTP_PASS: '',
 };
-const SHOW = "const { env } = await import('./server/config/env.js'); console.log(JSON.stringify({ nodeEnv: env.nodeEnv, prod: env.isProduction, expose: env.exposeResetToken }));";
+const SHOW = "const { env } = await import('./config/env.js'); console.log(JSON.stringify({ nodeEnv: env.nodeEnv, prod: env.isProduction, expose: env.exposeResetToken }));";
 
 console.log('\n--- NODE_ENV ---');
 for (const bad of ['', 'Production', 'prod', 'staging']) {
@@ -82,7 +82,7 @@ assert(resolveMailMode({ smtpUser: '', smtpPass: '', isProduction: false }) === 
 assert(resolveMailMode({ smtpUser: '', smtpPass: '', isProduction: true }) === 'off', 'production without credentials: off');
 assert(resolveMailMode({ smtpUser: 'u', smtpPass: '', isProduction: true }) === 'off', 'production with only a user: off');
 const send = run(
-  "const { sendEmail } = await import('./server/services/email.service.js'); try { await sendEmail({ to: 'client@example.com', subject: 's', html: '<p>x</p>' }); console.log('SENT'); } catch (e) { console.log('ERROR:' + e.message); }",
+  "const { sendEmail } = await import('./services/email.service.js'); try { await sendEmail({ to: 'client@example.com', subject: 's', html: '<p>x</p>' }); console.log('SENT'); } catch (e) { console.log('ERROR:' + e.message); }",
   PROD,
 );
 assert(/ERROR:L'envoi d'e-mails n'est pas configuré/.test(send.out) && !/SENT|Ethereal/.test(send.out), 'production without credentials: sending fails with a clear message, nothing leaves the server');

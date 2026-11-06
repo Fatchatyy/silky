@@ -16,7 +16,7 @@ import { useFavorites } from '../stores/favorites';
 import { useProducts } from '../stores/products';
 import { normalizeProduct as normalizeProductState } from '../lib/normalizeProduct';
 import { adminApi, purgeProductPages } from './adminApi';
-import { colorIdOnRename, mapProductColorsToForm, normalizeProduct, uploadFile } from './productForm';
+import { colorIdOnRename, discardSessionUploads, mapProductColorsToForm, normalizeProduct, uploadFile } from './productForm';
 import { getEffectivePrice } from '@shared/price';
 import { buildStockMatrix, getAvailableStock, getStockStatus } from '@shared/stock';
 import { formatPrice } from '@shared/formatPrice';
@@ -573,6 +573,7 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
   };
 
   const exitEditMode = () => {
+    discardSessionUploads(); // photos uploaded in this editing session and never saved
     setIsEditing(false);
     setDraft(null);
     setAdminMessage({ type: '', text: '' });
@@ -899,6 +900,7 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
     try {
       const normalized = normalizeProduct(draft);
       await updateProduct(product.id, normalized);
+      await discardSessionUploads(); // photos added and removed again before saving
       setIsEditing(false);
       setDraft(null);
       setAdminMessage({ type: 'success', text: 'Modifications enregistrées avec succès.' });

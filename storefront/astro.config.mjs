@@ -24,8 +24,8 @@ export default defineConfig({
     routing: { prefixDefaultLocale: false },
   },
   vite: {
-    // The storefront imports the pure modules in ../shared (@shared).
-    resolve: { alias: { '@shared': fileURLToPath(new URL('../shared', import.meta.url)) } },
+    // The storefront imports the pure modules in ./shared (@shared).
+    resolve: { alias: { '@shared': fileURLToPath(new URL('./shared', import.meta.url)) } },
     server: { fs: { allow: ['..'] } },
   },
 });

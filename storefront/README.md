@@ -6,24 +6,16 @@ Plan and decisions: `../MIGRATION_PLAN_ASTRO.md`.
 
 ## Run everything locally
 
-From the repository root, one command starts the API, this project and (for now) the old app:
+Two terminals. The API (its own project in `../server`):
 
 ```bash
-npm run dev               # api (3001), shop (4321: storefront + admin), old (5173), output prefixed with these labels
+cd server && npm run dev   # API on http://localhost:3001 (needs the local Postgres)
 ```
 
-or each one alone:
+This project:
 
 ```bash
-npm run dev:server        # API on http://localhost:3001 (needs the local Postgres)
-```
-
-```bash
-npm run dev:storefront    # storefront on http://localhost:4321 and the admin on http://localhost:4321/admin
-```
-
-```bash
-npm run dev:client        # the old Vite app on http://localhost:5173 (removed at the end of Phase 3)
+cd storefront && npm run dev   # storefront on http://localhost:4321 and the admin on http://localhost:4321/admin
 ```
 
 First time only:
@@ -32,10 +24,10 @@ First time only:
 cd storefront && npm install && cp .env.example .env
 ```
 
-Then add the storefront to the API's allowed origins, in the root `.env`:
+Then add the storefront to the API's allowed origins, in `server/.env`:
 
 ```
-CORS_ALLOWED_ORIGINS=http://localhost:4321,http://localhost:5173
+CORS_ALLOWED_ORIGINS=http://localhost:4321
 ```
 
 and restart the API. Without it the browser blocks the cart, login, checkout and admin calls (the pages themselves still load).
@@ -78,13 +70,22 @@ one. After changing a `PUBLIC_` value, rebuild.
 ```bash
 cd storefront
 node scripts/test_seo_builders.mjs                 # pure tests of the SEO builders, no server needed
-node scripts/test_rendered_pages.mjs               # needs DATABASE_URL pointing at silky_test; builds, runs wrangler dev
+node scripts/test_order_search.mjs                 # admin orders search, pure
+node scripts/test_admin_orders_table_safeguards.mjs   # admin orders table and PDF selection, pure
+node scripts/test_governorate_lists.mjs            # checkout governorate lists, pure
 ```
 
-`node scripts/serve_fixtures.mjs` starts an API on `silky_test` (port 3101) with test products, for browsing the
+The tests that need the API as well live outside both apps, in `integration/` (run from the repository root):
+
+```bash
+node integration/test_rendered_pages.mjs           # needs DATABASE_URL pointing at silky_test; builds, runs wrangler dev
+node integration/test_admin_orders_pdf_selection.js   # real orders from silky_test rendered as PDFs
+```
+
+`node integration/serve_fixtures.mjs` (from the repository root) starts an API on `silky_test` (port 3101) with test products, for browsing the
 storefront without touching your own database (set `API_URL` / `PUBLIC_API_URL` / `PUBLIC_MEDIA_URL` to that port).
 
-`node scripts/serve_admin_session.mjs [apiPort] [sessionFile] [storefrontOrigin]` does the same for the admin panel: API on
+`node integration/serve_admin_session.mjs [apiPort] [sessionFile] [storefrontOrigin]` does the same for the admin panel: API on
 `silky_test`, a stand-in for GOODEX, a throw-away uploads folder, test products and pending orders, and a throw-away admin
 account whose generated password is written to the session file (nothing of your own data is read or written; Ctrl+C removes
 what it created).

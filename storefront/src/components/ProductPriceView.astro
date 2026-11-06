@@ -1,7 +1,7 @@
 ---
 // Server-rendered twin of ProductPrice.jsx (same markup and classes).
-import { formatPrice } from '../../../shared/formatPrice.js';
-import { getEffectivePrice, hasDiscount } from '../../../shared/price.js';
+import { formatPrice } from '../../shared/formatPrice.js';
+import { getEffectivePrice, hasDiscount } from '../../shared/price.js';
 import type { Locale } from '../lib/seo/types.ts';
 
 const { product, locale, size = 'default', className = '' } = Astro.props as {

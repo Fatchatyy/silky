@@ -1,8 +1,14 @@
 // The product form logic shared by the two product editors: the admin panel's Products tab (admin-app/pages/AdminProducts.jsx)
 // and the inline editor on the product page (ProductPageAdmin.jsx). The pure part lives in shared/productFormLogic.js.
 import { adminApi } from './adminApi';
+import { createUploadSession } from './uploadSession';
 
 export { slugify, colorIdOnRename, mapProductColorsToForm, normalizeProduct } from '@shared/productFormLogic';
+
+// The photos uploaded while a product is edited (see uploadSession.js): the ones the admin removes, replaces or abandons
+// before saving are deleted when the editor ends. Call discardSessionUploads() after a save and when the editor is closed.
+const productUploads = createUploadSession();
+export const discardSessionUploads = () => productUploads.discard();
 
 /** Uploads one product photo; resolves to its `/uploads/...` path (or, if the API is unreachable, a data URL). */
 export async function uploadFile(file, onRejected) {
@@ -12,7 +18,7 @@ export async function uploadFile(file, onRejected) {
 
   try {
     const res = await adminApi.uploadProductImage(formData);
-    if (res?.url) return res.url;
+    if (res?.url) return productUploads.track(res.url);
   } catch (err) {
     // The server refused the file itself (wrong content, too large...): tell the admin instead of embedding it as a data URL.
     if (err?.status >= 400 && err?.status < 500) {

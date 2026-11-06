@@ -12,14 +12,11 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { pool } from './db/pool.js';
 import { UPLOADS_DIR } from './utils/upload.js';
 import { env } from './config/env.js';
-import { createSeoRouter } from './seo/pageHandler.js';
-import { databaseLoaders } from './seo/loaders.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.resolve(__dirname, '../public');
 
 const app = express();
 
@@ -47,19 +44,21 @@ app.use(cookieParser());
 // Photos uploaded with resized copies (see utils/imageVariants.js) have a unique, never reused name, so browsers may
 // keep them for a year. Older uploads and videos keep the default caching.
 const RESIZED_UPLOAD_FILE = /^\d+-[0-9a-f]{8}-r(\.(card|share|large))?\.(jpe?g|png|webp)$/i;
-app.use(
-  '/uploads',
-  express.static(UPLOADS_DIR, {
-    setHeaders(res, filePath) {
-      // Uploads are files to display, never pages: if one is opened directly, nothing in it may run.
-      res.setHeader('Content-Security-Policy', 'sandbox');
-      if (RESIZED_UPLOAD_FILE.test(path.basename(filePath))) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-    },
-  }),
-);
-app.use(express.static(PUBLIC_DIR));
+// Only with STORAGE_DRIVER=disk: with r2 the files are served by the media domain (MEDIA_PUBLIC_URL), not by the API.
+if (env.storage.driver === 'disk') {
+  app.use(
+    '/uploads',
+    express.static(UPLOADS_DIR, {
+      setHeaders(res, filePath) {
+        // Uploads are files to display, never pages: if one is opened directly, nothing in it may run.
+        res.setHeader('Content-Security-Policy', 'sandbox');
+        if (RESIZED_UPLOAD_FILE.test(path.basename(filePath))) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    }),
+  );
+}
 
 // Liveness/readiness probe for the host and uptime monitors: 200 only when the database answers within 3 seconds.
 // Outside /api on purpose (no guest cookie, no rate limit) and it reveals nothing but the word ok.
@@ -85,8 +84,8 @@ app.get('/health', async (_req, res) => {
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api', guestSessionMiddleware, apiRoutes);
 
-// Built storefront, robots.txt and sitemap.xml (see server/seo/pageHandler.js). Outside /api, so no guest cookie.
-app.use(createSeoRouter({ ...env.seo, loaders: databaseLoaders }));
+// The API serves no pages: the storefront and the admin panel are the Astro project in storefront/.
+app.get('/', (_req, res) => res.json({ ok: true }));
 
 // Global middleware error handler (handles body parser errors like 413 Payload Too Large)
 app.use((err, _req, res, _next) => {
@@ -101,7 +100,7 @@ app.use((err, _req, res, _next) => {
 });
 
 export async function ensureUploadsDir() {
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  if (env.storage.driver === 'disk') await fs.mkdir(UPLOADS_DIR, { recursive: true });
 }
 
 export { app, env };

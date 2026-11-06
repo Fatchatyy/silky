@@ -1,5 +1,5 @@
 // Server-side image URLs for .astro files (the React components use @shared/media with the base set in lib/island.jsx).
-import { mediaUrl as toMedia, mediaVariantUrl as toVariant } from '../../../shared/media.js';
+import { mediaUrl as toMedia, mediaVariantUrl as toVariant } from '../../shared/media.js';
 import { mediaBase } from './config';
 
 export const media = (url: string | null | undefined) => toMedia(url as string, mediaBase()) as string;

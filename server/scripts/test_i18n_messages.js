@@ -5,10 +5,9 @@
  *
  * Usage: node server/scripts/test_i18n_messages.js
  */
-import fs from 'node:fs';
 import { CANONICAL_GOVERNORATES } from '../config/governorates.js';
-import { colorNameAr, detailsAr } from '../../shared/colors.js';
-import { AR_BY_FRENCH, GOVERNORATES_AR, MESSAGES, governorateLabel, translate, translateKnown } from '../../shared/messages.js';
+import { colorNameAr, detailsAr } from '../shared/colors.js';
+import { AR_BY_FRENCH, GOVERNORATES_AR, MESSAGES, governorateLabel, translate, translateKnown } from '../shared/messages.js';
 
 let passed = 0;
 let failed = 0;
@@ -63,11 +62,7 @@ assert(translateKnown('ar', 'Texte tapé par un administrateur') === 'Texte tap�
 const canonical = CANONICAL_GOVERNORATES.map((g) => g.name).sort();
 assert(JSON.stringify(Object.keys(GOVERNORATES_AR).sort()) === JSON.stringify(canonical), 'Arabic governorate labels match the 24 canonical names');
 assert(governorateLabel('fr', 'Sfax') === 'Sfax' && governorateLabel('ar', 'Sfax') === 'صفاقس', 'governorate label follows the language, value stays Latin');
-for (const file of ['src/pages/Checkout.jsx', 'src/components/BuyNowModal.jsx']) {
-  const text = fs.readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8');
-  const listed = [...text.match(/TUNISIAN_GOVERNORATES = \[([\s\S]*?)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-  assert(JSON.stringify(listed) === JSON.stringify(canonical), `${file}: governorate list is the canonical one`);
-}
+// (the checkout lists in the storefront are checked against these labels in storefront/scripts/test_governorate_lists.mjs)
 
 // Server messages shown to customers
 const stockAr = translateKnown('ar', 'Robe: stock insuffisant (2 disponible(s))');

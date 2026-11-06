@@ -16,7 +16,7 @@ import pg from 'pg';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(here, '../../.env') });
+dotenv.config({ path: path.join(here, '../.env') });
 
 const url = process.env.DATABASE_URL;
 if (!url) {

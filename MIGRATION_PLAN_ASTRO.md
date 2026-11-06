@@ -3,13 +3,15 @@
 Implementation plan for the engineer (Sonnet) who will carry it out. Read all of it before starting.
 Each step says **what** to do, **how** to do it well (hints), and **done when** (how to prove it works).
 
+**Status (updated):** Phases 1, 2, 3 and 4 are **done** (Phase 3 step 2, the removal of the old Vite app and of the API's page serving, included; the repository was then split into two independent apps, see 0.5). Phase 4 was tested against a real R2 bucket (`r2.dev` address); two things were left on purpose: the custom domain `media.silky.tn` (Phase 7) and copying the 51 old local test photos (the database references none of them; copy the real photos with `copy_uploads_to_r2.js` when the real data moves, then run `--verify`). Phase 5 (Neon) was done on 2026-11-06 with a cleaned copy of the dev database (only governorates, categories, site settings and the admin row; see `DEPLOYMENT.md` section 3, step 1). **Next: Phase 6** (the API on Render). The text of Phases 1 to 3 below records how they were built, with the paths of that time; where a path differs today, 0.5 and the notes in each phase say so.
+
 **Order of work:** Phases 1 to 3 are done and tested **entirely on the local machine** (no cloud account needed): the owner sees and tests the new Astro storefront and the admin locally first. Phases 4 to 7 move things to the cloud. Nothing customers see changes before Phase 7.
 
 ---
 
 ## 0. Read first
 
-### 0.1 What exists today
+### 0.1 What existed when this plan was written (historical; today's layout is in 0.5)
 - One repo, one Node process: Express API in `server/` (routes -> controllers -> services -> repositories -> `server/models`, Drizzle + `pg`) and a React + Vite app in `src/` that holds BOTH the storefront and the admin panel (`/admin`, `/admin/login`). Locally the API listens on `http://localhost:3001` and the Vite dev server proxies `/api` to it (`vite.config.js`).
 - `CLAUDE.md` at the repo root documents every business rule (orders, GOODEX delivery, stock, variants, auth, uploads). Read it fully. Nothing in this migration may change order, stock, delivery or auth behaviour.
 - The storefront is French (no prefix) and Arabic (`/ar/...`, right-to-left). Product URLs are `/product/<slug>`.
@@ -37,10 +39,29 @@ Each step says **what** to do, **how** to do it well (hints), and **done when** 
 - Work on a new branch `astro-migration`. Commit at the end of each phase, staging files **by explicit path** (the tree may contain unrelated changes). Never force-push, never rewrite history.
 - Stop at the end of every phase and report to the owner (what changed, what was run to verify it and its real output, what is not done). Start the next phase only after the owner says so.
 - Never write to the dev database `silky` and never change `server/uploads/` (the copy script of Phase 4 only READS it). Local manual testing goes through the API the way the owner runs it; automated tests run on `silky_test` (see `CLAUDE.md`, "Tests").
-- No test framework: tests are standalone scripts `node server/scripts/test_*.js` that exit non-zero on failure. Follow that style; for the storefront add scripts under `storefront/scripts/`.
-- Every new environment variable goes in `.env.example` (API) or `storefront/.env.example` (storefront), with a one-line comment.
+- No test framework: tests are standalone scripts `node server/scripts/test_*.js` that exit non-zero on failure. Follow that style; for the storefront add scripts under `storefront/scripts/`; a test that needs both apps together goes in `integration/`.
+- Every new environment variable goes in `server/.env.example` (API) or `storefront/.env.example` (storefront), with a one-line comment.
+- **Neither app may import a file of the other** (`node integration/check_independence.mjs` fails if one does), and `server/shared` and `storefront/shared` must stay identical (`node integration/check_shared_in_sync.mjs`). Run both before ending a phase.
 - Keep the visible design identical: same CSS, same markup structure, same class names. This is a technology migration, not a redesign.
 - When a step says "verify", do it for real (run the script, open the page, read the response) and write down the result in the phase's commit message.
+
+
+### 0.5 Repository layout today (supersedes 0.1 and "Repo layout after the migration")
+```
+silky-app/
+├── server/        the API: its own package.json, lockfile, node_modules, .env / .env.example, drizzle.config.js,
+│                  assets/ (e-mail logo), uploads/ (until Phase 4), shared/ (copy), db/, routes/, services/, scripts/ (tests)
+├── storefront/    Astro: the shop (French + /ar) and the admin panel at /admin; own package.json, .env, shared/ (copy), wrangler.jsonc
+├── integration/   checks and test helpers that need both apps; never deployed, never imported by an app
+├── docs/          archive of old project notes
+└── (root files)   README.md, CLAUDE.md, DEPLOYMENT.md, PRE_PRODUCTION.md, this plan, PARITY_OLD_STOREFRONT.md
+```
+- **No root `package.json`, no root `node_modules`, no root `.env`.** Run each app from its own folder: `cd server && npm run dev` (API, port 3001) and `cd storefront && npm run dev` (storefront and admin, port 4321). Every `npm run ...` command in this plan that is about the API (`preflight`, `db:init`, `admin:create`, `start`) is run inside `server/`; `node server/scripts/test_*.js` also works from the repository root.
+- The two apps are deployed separately (Render builds `server/`, Cloudflare builds `storefront/`) and talk over HTTP only. The storefront reaches the API with `API_URL` / `PUBLIC_API_URL`; the API knows nothing about the storefront except the CORS origin and `APP_URL`.
+- `shared/` exists **twice** (`server/shared`, `storefront/shared`), identical. Where this plan says `shared/`, change both copies and run `node integration/check_shared_in_sync.mjs`.
+- The API has no `SITE_URL`, `SEO_HTML` or `FRONTEND_DIST_DIR` any more (they only served the old page layer). The storefront's address is `PUBLIC_SITE_URL`; `APP_URL` (API side) is the shop address used in e-mails.
+- `src/`, `index.html`, `vite.config.js`, `dist/`, the root `public/` and the root `scripts/` are gone. The e-mail logo the API embeds is `server/assets/logo.png`; the storefront serves `/pictures/...` itself.
+- Tests: `server/scripts/test_*.js` (API), `storefront/scripts/*.mjs` (pure storefront tests), `integration/` (needs both: `test_rendered_pages.mjs`, `test_admin_orders_pdf_selection.js`, fixtures and browsing helpers, plus the two `check_*.mjs` guards).
 
 ---
 
@@ -62,7 +83,7 @@ Each step says **what** to do, **how** to do it well (hints), and **done when** 
                                                                      |
                                                           Neon Postgres (Frankfurt)
 ```
-Locally: storefront **and admin** `http://localhost:4321` (Astro dev; the admin is `http://localhost:4321/admin`), API and images `http://localhost:3001`, local Postgres. Ports used only for testing: `4399` (`wrangler dev` of the storefront test scripts), `3101` (a throw-away API on `silky_test` for browser tests). The old Vite dev server `http://localhost:5173` still runs after Phase 3 step 1 (`npm run dev` starts it as `old`); it is removed in Phase 3 step 2, when the Vite app and its `dev:client` script are deleted.
+Locally: storefront **and admin** `http://localhost:4321` (Astro dev; the admin is `http://localhost:4321/admin`), API and images `http://localhost:3001`, local Postgres. Ports used only for testing: `4399` (`wrangler dev` of the storefront test scripts), `3101` (a throw-away API on `silky_test` for browser tests). The old Vite dev server (`http://localhost:5173`) no longer exists (removed in Phase 3 step 2).
 
 Principles:
 - **The API stays the only thing that talks to the database.** Astro never connects to Postgres; it calls the API. One place for business rules.
@@ -71,19 +92,12 @@ Principles:
 - **Image URLs in the database do not change.** They stay `/uploads/<file>`. Front ends turn them into a full URL with one helper (`http://localhost:3001/uploads/<file>` locally, `https://media.silky.tn/uploads/<file>` in production). No data migration of URLs.
 
 ### Repo layout after the migration
-```
-server/        Express API (existing)
-storefront/    NEW Astro project (own package.json)
-shared/        NEW pure modules used by the API and the front end (no React, no DOM, no Node APIs)
-src/           existing Vite app: still the live site until Phase 7, then (Phase 3) its admin code moves into
-               storefront/src/admin-app/ and src/ and the Vite config are deleted
-```
-After Phase 3 the only front-end project is `storefront/` (storefront pages + the `/admin` route).
+See **0.5** (two independent apps, `server/` and `storefront/`, plus `integration/`). The only front-end project is `storefront/` (shop pages + the `/admin` route).
 Hint: `shared/` holds data and pure functions only (texts, translations, formatting, URL helpers). If a file imports React or touches `window`, it does not belong there.
 
 ---
 
-## Phase 1: API endpoints for the storefront (local)
+## Phase 1: API endpoints for the storefront (local) (DONE)
 
 **1.1 Public endpoint for product pages.** Add `GET /api/products/by-slug/:slug` (public, `optionalAuthMiddleware` like `GET /:id`). Same response shape as `GET /api/products/:id`. Hidden products answer 404 to non-admins (same rule as today). Unknown slug -> 404 `{ error }`. Add it to the router **before** `/:id`.
 - Hint: reuse the repository's `findById` logic through a `findBySlug`; do not write a second product serializer.
@@ -92,7 +106,7 @@ Hint: `shared/` holds data and pure functions only (texts, translations, formatt
 - Hint: one endpoint per page type is fine. Keep queries bounded (limit), and never return hidden products.
 
 **1.3 Cross-origin setup.**
-- `CORS_ALLOWED_ORIGINS`: locally `http://localhost:4321` (storefront and admin share this origin after Phase 3; `http://localhost:5173` is only needed while the old Vite app still runs); in production (Phase 6) only `https://silky.tn`.
+- `CORS_ALLOWED_ORIGINS`: locally `http://localhost:4321` (the storefront and the admin share this origin); in production (Phase 6) only `https://silky.tn`.
 - In `server/app.js` `cors({...})`, add `exposedHeaders: ['X-Guest-Session-ID']`. Today the client reads that header (`src/api/client.js`); cross-origin, the browser hides it unless exposed.
 - Guest cookie (`server/middleware/guestSession.js`): `silky.tn` and `api.silky.tn` are the same site (and so are two `localhost` ports), so `sameSite: 'lax'` keeps working. Leave the cookie host-only.
 
@@ -104,7 +118,9 @@ Hint: `shared/` holds data and pure functions only (texts, translations, formatt
 
 ---
 
-## Phase 2: The Astro storefront (local)
+## Phase 2: The Astro storefront (local) (DONE)
+
+*Done and tested. Paths below are as they were then; today `shared/` is `storefront/shared` (alias `@shared`, no `../shared`), the start command is `cd storefront && npm run dev`, and tests that start the API live in `integration/`.*
 
 This is the main phase. **The storefront must not import anything from `src/seo/`, `server/seo/`, `SeoManager`, `useSeo` or `applyHead`.** All SEO and GEO output is produced by Astro itself (2.5 to 2.10). The old implementation may be read as a **specification** of required behaviour (the list in 2.12 comes from it), never imported.
 
@@ -120,13 +136,13 @@ This is the main phase. **The storefront must not import anything from `src/seo/
   build: { format: 'file' },
   i18n: { locales: ['fr', 'ar'], defaultLocale: 'fr', routing: { prefixDefaultLocale: false } },
   ```
-- Allow importing `../shared` (Vite `server.fs.allow: ['..']`).
+- Allow importing `../shared` (Vite `server.fs.allow: ['..']`). *(Today: the storefront has its own `./shared` folder and no longer reaches outside its folder.)*
 - Env (`storefront/.env.example`): `API_URL` (server side; locally `http://localhost:3001`), `PUBLIC_API_URL` (browser side, same value), `PUBLIC_MEDIA_URL` (locally `http://localhost:3001`), `PUBLIC_SITE_URL` (locally `http://localhost:4321`). Hint: only variables prefixed `PUBLIC_` reach the browser; never put a secret in one.
-- Add `"dev:storefront"` to the root `package.json` scripts (runs `astro dev` in `storefront/`) so the owner can start API + storefront + admin with the commands they already know. Write the exact local start-up steps in `storefront/README.md`.
+- Add a start command for the storefront. *(Today there is no root `package.json`: `cd storefront && npm run dev`.)* Write the exact local start-up steps in `storefront/README.md`.
 - Hint: `astro dev` runs on Node, but production runs on Cloudflare Workers, which lacks most Node APIs (`fs`, `path`, `Buffer` helpers...). Before declaring the phase done, also run `astro build` and `npx wrangler dev` and click through the site there; that catches Workers-incompatible code early.
 - Hint: Astro's built-in `<Image>` optimizer needs sharp, which does not run on Cloudflare Workers. Use plain `<img>` with our pre-made WebP copies (2.7).
 
-### 2.2 Move shared code to `shared/`
+### 2.2 Move shared code to `shared/` (done; today a copy in each app, see 0.5)
 Move (and update the existing app's imports): `src/i18n/messages.js`, `src/i18n/locales.js`, `src/i18n/colors.js`, `src/i18n/productText.js`, `src/content/textPages.js`, `src/config/contact.js`, `src/config/delivery.js`, `src/utils/formatPrice.js`, `src/utils/price.js`, the governorate list, and the pure URL builder for product paths. Check each file has no React/DOM import first; split a file if it mixes both.
 - Hint: move with `git mv` so history follows. Run the existing pure tests afterwards (`test_i18n_messages.js` etc.) and fix their import paths. The old Vite storefront must still build and run after the move (it stays the live site until Phase 7).
 
@@ -208,17 +224,17 @@ AI crawlers do not run JavaScript, so everything below must be in the server HTM
 In `src/middleware.ts` set what `server/middleware/securityHeaders.js` sets today for pages (`X-Content-Type-Options`, `Referrer-Policy`, frame protection, `Permissions-Policy`, `Strict-Transport-Security` in production only) and the Content-Security-Policy in **report-only** mode first. Allow the API and media origins (from env), Google Fonts (Arabic) and nothing else. Astro adds inline hydration scripts: use Astro's built-in CSP support if the installed version has it (it hashes those scripts); otherwise keep report-only and note it in `PRE_PRODUCTION.md`.
 
 ### 2.12 Behaviour that must be preserved (checklist, taken from the old implementation)
-- [ ] `/product/<slug>`; id/uppercase/trailing-slash variants 301 to it once; `/ar` keeps its prefix.
-- [ ] `/index.html` -> 301 `/`. (`www.silky.tn` -> `silky.tn` is a Cloudflare redirect rule, Phase 7.)
-- [ ] Unknown pages and unknown collections answer a real 404 status with the 404 page. `/ar/admin` is 404.
-- [ ] Hidden products are 404 for visitors.
-- [ ] Arabic pages: `lang="ar" dir="rtl"`, Cairo font, `og:locale ar_AR`, Arabic titles/descriptions, Arabic product name/description when present, French fallback otherwise + noindex rule (2.6).
-- [ ] Colour names in Arabic: product's own Arabic colour name, then the built-in list (`shared/colors.js`), then the name as typed.
-- [ ] Prices show "د.ت" in Arabic; governorate labels Arabic in forms but the saved value stays the Latin canonical name.
-- [ ] Every page has exactly one canonical, unique title and description.
-- [ ] Review forms only for logged-in customers (login prompt for guests).
-- [ ] Contact form open to guests.
-- [ ] A full order works from the new storefront (guest and logged in, cart and buy-now) and appears in the admin exactly like an order from the old site.
+- [x] `/product/<slug>`; id/uppercase/trailing-slash variants 301 to it once; `/ar` keeps its prefix.
+- [x] `/index.html` -> 301 `/`. (`www.silky.tn` -> `silky.tn` is a Cloudflare redirect rule, Phase 7.)
+- [x] Unknown pages and unknown collections answer a real 404 status with the 404 page. `/ar/admin` is 404.
+- [x] Hidden products are 404 for visitors.
+- [x] Arabic pages: `lang="ar" dir="rtl"`, Cairo font, `og:locale ar_AR`, Arabic titles/descriptions, Arabic product name/description when present, French fallback otherwise + noindex rule (2.6).
+- [x] Colour names in Arabic: product's own Arabic colour name, then the built-in list (`shared/colors.js`), then the name as typed.
+- [x] Prices show "د.ت" in Arabic; governorate labels Arabic in forms but the saved value stays the Latin canonical name.
+- [x] Every page has exactly one canonical, unique title and description.
+- [x] Review forms only for logged-in customers (login prompt for guests).
+- [x] Contact form open to guests.
+- [x] A full order works from the new storefront (guest and logged in, cart and buy-now) and appears in the admin exactly like an order from the old site.
 
 ### 2.13 Client-side state (islands)
 - React Context does not cross islands (each island is a separate React tree). Replace `CartContext`, `FavoritesContext` and `AuthContext` with **nanostores** in `src/stores/` (`cart.ts`, `favorites.ts`, `auth.ts`) using `persistentAtom` for what lives in localStorage today (same keys as `src/api/client.js`, so existing customers keep their cart and login). Islands read them with `useStore()`.
@@ -235,7 +251,9 @@ Scripts in `storefront/scripts/`, run with `node`, exit non-zero on failure:
 
 ---
 
-## Phase 3: The admin panel inside the Astro project (local)
+## Phase 3: The admin panel inside the Astro project (local) (DONE)
+
+*Done: step 1 (built, owner-tested) and step 2 (old Vite app removed). The text below records how it was built, with the paths of that time.*
 
 Decision (owner): there is **no separate Vite admin app**. The existing admin moves into `storefront/` as it is and is served by Astro at `/admin`. Do not rewrite any admin screen.
 
@@ -272,19 +290,13 @@ Decision (owner): there is **no separate Vite admin app**. The existing admin mo
 
 **Step 1 done when:** every admin tab works from `http://localhost:4321/admin` (login, products with photo and video upload, orders and bulk actions, exchanges and refunds, GOODEX actions on the mock, claims, drafts, messages, reviews, inventory, analytics, theme and hero editor, notifications, PDF export), the shared login works in both directions, the shared code exists once, `npm run dev` starts api + shop + old, and the old app still runs on 5173. **Stop and wait for the owner.**
 
-### Step 2: remove the old Vite app (only on the owner's "ok, delete the old frontend")
-
-**3.4 First list, then delete.** Before touching anything, send the owner the exact list of what will be deleted or changed and wait for a "yes" to that list. It will contain at least:
-- Delete `vite.config.js`, `index.html`, `src/` (nothing of the old storefront is needed: `PARITY_OLD_STOREFRONT.md` lists where each file went; the admin files were copied in step 1), the `dev:client` and `preview` scripts, and the client half of `dev` (`npm run dev` then starts `api` and `shop` only, `--names api,shop`). Update `scripts/build.mjs` (it builds the Vite app) so `npm run build` builds the storefront. Remove the Vite-only dependencies (`vite`, `@vitejs/plugin-react`, and the front-end packages nothing in `server/` uses) from the root `package.json`.
-- **Remove the old SEO layer from the API in this same step** (moved here from 7.4; owner decision): the `createSeoRouter` mount in `server/app.js` (old `robots.txt`, `sitemap.xml` and page handler, and the frontend static serving), `server/seo/` (with `renderBody.js`), `src/seo/`, their tests (`test_seo_builders.js`, `test_seo_pages.js`, `test_seo_html.js`; before deleting `test_seo_builders.js`, move its assertions on `shared/` modules (`productText`, `locales`, ...) into a new `test_shared_modules.js`), the `SEO_HTML` / `FRONTEND_DIST_DIR` env vars (`server/config/env.js`, `.env.example`) and their preflight / `test_deploy_readiness.js` / `test_compression.js` / `test_security_audit.js` checks. The API root `/` answers `{ ok: true }`. **Done when** `GET /robots.txt` and `GET /sitemap.xml` on the API answer 404, `grep -rn "server/seo|src/seo" server storefront shared` finds nothing, and the whole test list gives the same results as before.
-- Delete `ARABIC_ENABLED` from `shared/locales.js` (and make `splitLocale` always read the `/ar` prefix): its only readers are the old Vite app and `server/seo/`; the Astro storefront no longer reads it (decision: Arabic is always on in Astro, a flag would need four separate guards that nothing tests).
-- Before deleting `src/`, run `grep -rn "src/" server` and fix what imports from it. Since `server/seo/` goes in the same step, nothing needs to be moved next to it. Tests that import admin files (`test_admin_orders_pdf_selection.js`, `test_admin_orders_table_safeguards.js`, `test_goodex_delivery.js`, `test_operation_specific_payable_amount.js`, `test_seo_builders.js`): update their import paths to `storefront/src/admin-app/`.
-- Remove `http://localhost:5173` from `CORS_ALLOWED_ORIGINS` in `.env`, `.env.example`, `storefront/README.md` and the test scripts that set it (`serve_fixtures.mjs`, `test_rendered_pages.mjs`, `test_storefront_endpoints.js`).
-- Then delete the leftover copies the old app forced us to keep: none are expected, but `grep` for `AdminProductReviewsSection` and `adminApi` must show exactly one definition each.
-- Update `CLAUDE.md` (admin location, ports, scripts, the `src/` references) and `PARITY_OLD_STOREFRONT.md`.
-- The live production site (if any) is untouched until Phase 7.
-
-**Step 2 done when:** the Vite app, its config and the `dev:client` script are gone, `grep -rn "src/" server` finds nothing, the old test list gives the same results as before (compare with the known pre-existing failures in `CLAUDE.md`), and every admin tab still works from `http://localhost:4321/admin`.
+### Step 2: remove the old Vite app (DONE)
+Done after the owner's "ok, delete the old frontend" and an approved list. What was removed or changed:
+- Deleted the old Vite app (`src/`, `index.html`, `vite.config.js`), the `dev:client` and `preview` scripts, the Vite-only dependencies, and the old SEO layer of the API (`server/seo/`, the `createSeoRouter` mount, the three `test_seo_*.js` tests, `SEO_HTML`, `FRONTEND_DIST_DIR`, and `SITE_URL`, which only fed it). The API root `/` answers `{ ok: true }`; `GET /robots.txt` and `/sitemap.xml` on the API answer 404. The assertions on `shared/` modules moved into `server/scripts/test_shared_modules.js`.
+- `ARABIC_ENABLED` removed from `shared/locales.js` (`splitLocale` always reads the `/ar` prefix). `http://localhost:5173` removed from CORS settings and test scripts; the dev default origin and the `APP_URL` default are now `http://localhost:4321`.
+- Tests that imported admin files from `src/` were repointed or split (see 0.5 for where they live now). `AdminProductReviewsSection` and `adminApi` each have exactly one definition.
+- Result: the API test list gives the same results as before (the known pre-existing failures in `CLAUDE.md` fail the same way), the rendered-pages test passes (288 checks), and every admin tab works from `http://localhost:4321/admin` (owner-tested).
+- **After step 2 the repository was also split into two independent apps** (`server/`, `storefront/`, a `shared/` copy in each, `integration/`): see 0.5.
 
 ---
 
@@ -305,7 +317,8 @@ and two implementations chosen by env `STORAGE_DRIVER=disk|r2`:
 - `r2`: uses `@aws-sdk/client-s3` (R2 speaks the S3 API) with `endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com`, `region: 'auto'`, credentials from env.
 - Hint: this is the "adapter" pattern: callers never know where files go. Do not sprinkle `if (driver === 'r2')` across controllers.
 - Hint: set `CacheControl: 'public, max-age=31536000, immutable'` on every `-r` file and its copies (they are never overwritten, the name changes on every upload); `public, max-age=3600` on others.
-- New env vars (document in `.env.example`): `STORAGE_DRIVER`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `MEDIA_PUBLIC_URL` (e.g. `https://media.silky.tn`). Production start-up must refuse `STORAGE_DRIVER=r2` with a missing R2 variable (follow the existing checks in `server/config/env.js`).
+- Install the SDK in the API only (`cd server && npm install @aws-sdk/client-s3`); the storefront gets no R2 code, it only needs `PUBLIC_MEDIA_URL`. This module lives in `server/` and must not import anything from `storefront/`.
+- New env vars (document in `server/.env.example`): `STORAGE_DRIVER`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `MEDIA_PUBLIC_URL` (e.g. `https://media.silky.tn`). Production start-up must refuse `STORAGE_DRIVER=r2` with a missing R2 variable (follow the existing checks in `server/config/env.js`).
 
 **4.3 Switch the upload pipeline to it.**
 - Today: multer `diskStorage` (`server/utils/upload.js`) -> `verifyImageUpload` / `verifyVideoUpload` (file signature check) -> sharp resize middleware writes the three WebP copies -> controller answers `{ url: '/uploads/<file>' }`.
@@ -337,7 +350,7 @@ and two implementations chosen by env `STORAGE_DRIVER=disk|r2`:
 - Hint: `--no-owner --no-acl` avoids errors about roles that exist locally but not on Neon.
 
 **5.3 Verify.**
-- Run `npm run preflight` with `DATABASE_URL` pointing at Neon: schema, admin row and configuration checks must pass.
+- Run `npm run preflight` (inside `server/`) with `DATABASE_URL` pointing at Neon: schema, admin row and configuration checks must pass.
 - Compare row counts of `products`, `product_variants`, `orders`, `users`, `order_deliveries`, `governorates` between source and Neon with one SQL query each.
 - Start the API locally against Neon and open a product and an order in the admin and on the local storefront. Startup migrations must report nothing to do.
 
@@ -347,13 +360,13 @@ and two implementations chosen by env `STORAGE_DRIVER=disk|r2`:
 
 ## Phase 6: Deploy the API to Render
 
-- Web service, region Frankfurt, free plan (0.3), Node 24, build `npm ci`, start `node server/index.js`. Health check path `/health` (already answers 200 only while the DB answers).
-- Env vars: everything production needs per `CLAUDE.md` and `.env.example` (`NODE_ENV=production`, `DATABASE_URL` = Neon direct, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS=https://silky.tn` (only: the admin is served from `https://silky.tn/admin`, same origin), `ADMIN_PASSWORD`, `TRUST_PROXY=1`, SMTP, GOODEX, `GOODEX_WEBHOOK_SECRET`, `STORAGE_DRIVER=r2` + R2 vars, `MEDIA_PUBLIC_URL`). Never commit secrets; use Render's environment settings.
+- Web service, region Frankfurt, free plan (0.3), Node 24, **Root Directory `server`** (the API is a self-contained project; nothing outside `server/` is needed to build or run it), build `npm ci`, start `npm start` (= `node index.js`). Health check path `/health` (already answers 200 only while the DB answers).
+- Env vars: everything production needs per `CLAUDE.md` and `server/.env.example` (`NODE_ENV=production`, `DATABASE_URL` = Neon direct, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS=https://silky.tn` (only: the admin is served from `https://silky.tn/admin`, same origin), `ADMIN_PASSWORD`, `TRUST_PROXY=1`, SMTP, GOODEX, `GOODEX_WEBHOOK_SECRET`, `STORAGE_DRIVER=r2` + R2 vars, `MEDIA_PUBLIC_URL`). Never commit secrets; use Render's environment settings.
 - Custom domain `api.silky.tn` (CNAME in Cloudflare DNS to the Render host). In Cloudflare set this record to **DNS only** (grey cloud) at first; Render issues its own certificate.
 - Keep `GOODEX_POLL_INTERVAL_MINUTES` as the owner wants (off by default). On a free instance it only runs while awake.
-- Free plan keep-awake (0.3): add `GET /ping` in `server/app.js` (before the guest-session middleware, no DB, no cookie, excluded from the request log like `/health`), and a tiny separate Worker `keepalive/` with a Cron Trigger `*/10 * * * *` that fetches `https://api.silky.tn/ping`. Hint: a scheduled Worker uses the `scheduled(event, env, ctx)` handler and `ctx.waitUntil(fetch(...))`.
+- Free plan keep-awake (0.3): add `GET /ping` in `server/app.js` (before the guest-session middleware, no DB, no cookie, excluded from the request log like `/health`), and a tiny separate Worker project `keepalive/` (a third top-level folder with its own `package.json`, importing nothing from the two apps) with a Cron Trigger `*/10 * * * *` that fetches `https://api.silky.tn/ping`. Hint: a scheduled Worker uses the `scheduled(event, env, ctx)` handler and `ctx.waitUntil(fetch(...))`.
 
-**Done when:** `https://api.silky.tn/health` answers 200; logging in to the local admin (`http://localhost:4321/admin`) pointed at it works; `npm run preflight` run against the production env vars is clean; the ping Worker's logs show it calling `/ping` every 10 minutes.
+**Done when:** `https://api.silky.tn/health` answers 200; logging in to the local admin (`http://localhost:4321/admin`) pointed at it works; `npm run preflight` (inside `server/`) run against the production env vars is clean; the ping Worker's logs show it calling `/ping` every 10 minutes.
 
 ---
 
@@ -362,13 +375,13 @@ and two implementations chosen by env `STORAGE_DRIVER=disk|r2`:
 **7.1 Domain on Cloudflare.** Change the nameservers at the `.tn` registrar to the two Cloudflare gives. (This can be done earlier, e.g. before Phase 4, without changing the live site, as long as the existing records are copied over first.)
 
 **7.2 Deploy the front ends.**
-- Storefront: `astro build` + `wrangler deploy` with production env (`API_URL=https://api.silky.tn`, `PUBLIC_MEDIA_URL=https://media.silky.tn`, `PUBLIC_SITE_URL=https://silky.tn`), custom domain `silky.tn`.
+- Storefront (inside `storefront/`, which is self-contained: Cloudflare's root directory is `storefront`): `astro build` + `wrangler deploy` with production env (`API_URL=https://api.silky.tn`, `PUBLIC_MEDIA_URL=https://media.silky.tn`, `PUBLIC_SITE_URL=https://silky.tn`), custom domain `silky.tn`.
 - Admin: nothing to deploy separately. It is the `/admin` route of the same Worker (Phase 3), so `silky.tn/admin` goes live with the storefront. There is no `admin.silky.tn` record and no second Worker or Vite build. Check on the live domain: `/admin` answers with `X-Robots-Tag: noindex`, is not in `sitemap.xml`, is `Disallow`ed in `robots.txt` and has no `x-silky-cache` header.
 - Page-cache purge across data centers: set the Worker secrets `CF_ZONE_ID` and `CF_API_TOKEN` (token limited to "Cache Purge" on the `silky.tn` zone). `POST /internal/purge` (called by the admin after a product change) deletes the page from the data center that runs the request and, with these secrets, asks Cloudflare to purge the same URLs everywhere. Without them other data centers keep the old page for up to 5 minutes. Test it on the real domain: edit a product, check `x-silky-cache: MISS` right after.
 - `www` -> redirect rule to `https://silky.tn` (301, keep path and query).
 
 **7.3 Switch the services.**
-- Update `SITE_URL`/`APP_URL` on Render (used in e-mails and password-reset links) to `https://silky.tn`, and check that reset links point to the storefront's `/password-reset/<token>`.
+- Update `APP_URL` on Render (the API has no `SITE_URL` any more; `APP_URL` is used in e-mails and password-reset links) to `https://silky.tn`, and check that reset links point to the storefront's `/password-reset/<token>`.
 - GOODEX: change the webhook URL in the GOODEX customer area to `https://api.silky.tn/api/webhooks/goodex` and press "Envoyer un appel de test".
 
 **7.4 (moved to Phase 3 step 2, done there)** Remove the old SEO and page serving from the API. Remove from `server/app.js` the old page handler, `/robots.txt`, `/sitemap.xml` and the frontend static serving; the API root `/` answers `{ ok: true }`. Delete `server/seo/` (with the `src/seo/` modules Phase 3 moved next to it) and `renderBody.js` and their tests (`test_seo_builders.js`, `test_seo_pages.js`, `test_seo_html.js`), and the `SEO_HTML` / `FRONTEND_DIST_DIR` env vars and preflight check. Run the whole test list afterwards.

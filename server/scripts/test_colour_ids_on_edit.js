@@ -29,7 +29,7 @@ const { eq, inArray } = await import('drizzle-orm');
 const { categories, products, productVariants, orders, orderItems, governorates } = await import('../models/index.js');
 const productService = await import('../services/product.service.js');
 const { productRepository } = await import('../repositories/product.repository.js');
-const { colorIdOnRename, mapProductColorsToForm, normalizeProduct, slugify } = await import('../../shared/productFormLogic.js');
+const { colorIdOnRename, mapProductColorsToForm, normalizeProduct, slugify } = await import('../shared/productFormLogic.js');
 
 let passed = 0;
 let failed = 0;

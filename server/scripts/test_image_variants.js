@@ -14,8 +14,7 @@ import http from 'node:http';
 import express from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
-import { IMAGE_VARIANTS, hasImageVariants, imageVariantPath } from '../../shared/imageVariants.js';
-import { createImageVariants, removeImageVariants, resizeUploadedImage, uploadFilename } from '../utils/imageVariants.js';
+import { IMAGE_VARIANTS, hasImageVariants, imageVariantPath } from '../shared/imageVariants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,11 +31,24 @@ function assert(condition, message) {
 }
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silky-img-'));
+// Set before the app modules load (they read the environment once): the caching section below serves this folder.
+process.env.UPLOADS_DIR = path.join(dir, 'served');
+process.env.DATABASE_URL = 'postgres://x:x@127.0.0.1:1/none'; // never connected: only static files are requested
+const { createImageVariants: makeVariantBuffers, createResizeMiddleware, removeImageVariants, uploadFilename } = await import('../utils/imageVariants.js');
+const { verifyImageUpload } = await import('../utils/upload.js');
+const { createStorage } = await import('../services/storage.service.js');
 const sha = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const names = Object.keys(IMAGE_VARIANTS);
 // Read through a buffer so the test itself holds no file open (Windows cannot delete an open file).
 const meta = (file) => sharp(fs.readFileSync(file)).metadata();
 const variantsOf = (file) => names.map((n) => file.replace(/\.[^.]+$/, `.${n}.webp`));
+// The copies as the production code makes them (buffers), written next to the original so the checks below can read them.
+async function createImageVariants(file) {
+  const copies = await makeVariantBuffers(fs.readFileSync(file));
+  if (!copies) return false;
+  for (const [name, buffer] of Object.entries(copies)) fs.writeFileSync(file.replace(/\.[^.]+$/, `.${name}.webp`), buffer);
+  return true;
+}
 const noise = (width, height, channels = 3) => ({ create: { width, height, channels, background: { r: 120, g: 90, b: 70 }, noise: { type: 'gaussian', mean: 128, sigma: 40 } } });
 
 try {
@@ -94,36 +106,41 @@ try {
   assert(variantsOf(broken).every((f) => !fs.existsSync(f)), 'no partial copies are left behind');
 
   console.log('\n--- Upload middleware ---');
+  const mwDir = path.join(dir, 'middleware');
+  fs.mkdirSync(mwDir);
+  const diskStore = createStorage({ driver: 'disk', uploadsDir: mwDir });
+  const resizeUploadedImage = createResizeMiddleware(diskStore);
   const run = async (file) => {
     const req = { file };
     let nextCalled = false;
     await resizeUploadedImage(req, {}, () => { nextCalled = true; });
     return { req, nextCalled };
   };
-  const goodPath = path.join(dir, '6-ffffffff-r.jpg');
-  await sharp(noise(1500, 1000)).jpeg().toFile(goodPath);
-  let out = await run({ filename: '6-ffffffff-r.jpg', path: goodPath, mimetype: 'image/jpeg' });
+  const goodPath = path.join(mwDir, '6-ffffffff-r.jpg');
+  const goodBuffer = await sharp(noise(1500, 1000)).jpeg().toBuffer();
+  let out = await run({ filename: '6-ffffffff-r.jpg', buffer: goodBuffer, mimetype: 'image/jpeg' });
   assert(out.nextCalled && out.req.file.filename === '6-ffffffff-r.jpg' && variantsOf(goodPath).every((f) => fs.existsSync(f)), 'valid photo: copies made, name kept');
-  const badPath = path.join(dir, '7-99999999-r.jpg');
-  fs.writeFileSync(badPath, 'broken');
-  out = await run({ filename: '7-99999999-r.jpg', path: badPath, mimetype: 'image/jpeg' });
-  assert(out.nextCalled && out.req.file.filename === '7-99999999.jpg' && fs.existsSync(path.join(dir, '7-99999999.jpg')) && !fs.existsSync(badPath), 'unreadable photo: renamed without the marker, so the original is used');
-  const gifPath = path.join(dir, '8-12345678.gif');
-  fs.writeFileSync(gifPath, 'GIF89a');
-  out = await run({ filename: '8-12345678.gif', path: gifPath, mimetype: 'image/gif' });
-  assert(out.nextCalled && out.req.file.filename === '8-12345678.gif' && fs.readdirSync(dir).every((f) => !f.startsWith('8-12345678.') || f === '8-12345678.gif'), 'GIF: untouched');
+  out = await run({ filename: '7-99999999-r.jpg', buffer: Buffer.from('broken'), mimetype: 'image/jpeg' });
+  assert(out.nextCalled && out.req.file.filename === '7-99999999.jpg' && fs.existsSync(path.join(mwDir, '7-99999999.jpg')) && fs.readdirSync(mwDir).every((f) => !f.startsWith('7-99999999-r')), 'unreadable photo: stored without the marker (and without copies), so the original is used');
+  out = await run({ filename: '8-12345678.gif', buffer: Buffer.from('GIF89a'), mimetype: 'image/gif' });
+  assert(out.nextCalled && out.req.file.filename === '8-12345678.gif' && fs.readdirSync(mwDir).filter((f) => f.startsWith('8-12345678.')).join() === '8-12345678.gif', 'GIF: stored untouched, no copies');
+  const fakeWritten = [];
+  const failingStore = {
+    putObject: async (key) => { if (/large/.test(key)) throw new Error('storage down'); fakeWritten.push(key); },
+    deleteObject: async (key) => { const i = fakeWritten.indexOf(key); if (i >= 0) fakeWritten.splice(i, 1); },
+  };
+  let failArg;
+  await createResizeMiddleware(failingStore)({ file: { filename: '9-77777777-r.jpg', buffer: goodBuffer, mimetype: 'image/jpeg' } }, {}, (arg) => { failArg = arg; });
+  assert(failArg instanceof Error && fakeWritten.length === 0, 'storage failure: the error is passed on and nothing is left behind (no original without its copies)');
   out = await run(undefined);
   assert(out.nextCalled, 'no file (a url was sent instead): passes through');
 
   console.log('\n--- Real multipart upload (temp folder) ---');
   const uploadDir = path.join(dir, 'uploads');
   fs.mkdirSync(uploadDir);
-  const storage = multer.diskStorage({
-    destination: uploadDir,
-    filename: (_req, file, cb) => cb(null, uploadFilename(file.mimetype, path.extname(file.originalname) || '.jpg', Date.now(), crypto.randomBytes(4).toString('hex'))),
-  });
+  const uploadStore = createStorage({ driver: 'disk', uploadsDir: uploadDir });
   const app = express();
-  app.post('/upload', multer({ storage }).single('image'), resizeUploadedImage, (req, res) => res.json({ url: `/uploads/${req.file.filename}` }));
+  app.post('/upload', multer({ storage: multer.memoryStorage() }).single('image'), verifyImageUpload, createResizeMiddleware(uploadStore), (req, res) => res.json({ url: `/uploads/${req.file.filename}` }));
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -142,8 +159,6 @@ try {
   }
 
   console.log('\n--- Browser caching of /uploads ---');
-  process.env.UPLOADS_DIR = path.join(dir, 'served');
-  process.env.DATABASE_URL = 'postgres://x:x@127.0.0.1:1/none'; // never connected: only static files are requested
   fs.mkdirSync(process.env.UPLOADS_DIR);
   for (const f of ['1786391497273-243dfd2a-r.jpg', '1786391497273-243dfd2a-r.card.webp', '1786391497273-243dfd2a-r.large.webp', '1786391497273-243dfd2a.jpg']) {
     fs.writeFileSync(path.join(process.env.UPLOADS_DIR, f), 'x');
@@ -162,9 +177,9 @@ try {
   }
 
   console.log('\n--- Deleting a photo removes its copies ---');
-  await removeImageVariants(big);
+  await removeImageVariants(path.basename(big), createStorage({ driver: 'disk', uploadsDir: dir }));
   assert(variantsOf(big).every((f) => !fs.existsSync(f)) && fs.existsSync(big), 'copies removed, original left to the caller');
-  await removeImageVariants(path.join(dir, 'never-existed.jpg'));
+  await removeImageVariants('never-existed.jpg', createStorage({ driver: 'disk', uploadsDir: dir }));
   assert(true, 'removing copies of a file without any does not throw');
 
   console.log('\n--- Wiring ---');
@@ -173,7 +188,8 @@ try {
     assert(/upload[\s\S]{0,200}resizeUploadedImage/.test(read(`../routes/${route}`)), `${route}: image uploads pass through resizeUploadedImage`);
   }
   assert(!/resizeUploadedImage/.test(read('../routes/products.routes.js').split('uploadVideo.single')[1] || ''), 'video uploads are not resized');
-  assert(/removeImageVariants\(filePath\)/.test(read('../services/product.service.js')), 'deleting a product also removes the copies of its files');
+  assert(/removeImageVariants\(filename\)/.test(read('../services/product.service.js')), 'deleting a product also removes the copies of its files');
+  assert(/verifyVideoUpload,\s*storeUploadedVideo/.test(read('../routes/products.routes.js')), 'video uploads are stored through storeUploadedVideo after the content check');
 } finally {
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

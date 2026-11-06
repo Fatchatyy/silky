@@ -1,8 +1,8 @@
 // Absolute URLs for canonical, hreflang, Open Graph and structured data. Pure.
-import { absoluteUrl, categoryPath, productPath } from '../../../../shared/urls.js';
-import { localizePath } from '../../../../shared/locales.js';
-import { mediaUrl } from '../../../../shared/media.js';
-import { imageVariantPath } from '../../../../shared/imageVariants.js';
+import { absoluteUrl, categoryPath, productPath } from '../../../shared/urls.js';
+import { localizePath } from '../../../shared/locales.js';
+import { mediaUrl } from '../../../shared/media.js';
+import { imageVariantPath } from '../../../shared/imageVariants.js';
 import type { Locale, SeoContext } from './types.ts';
 
 export { categoryPath, productPath };

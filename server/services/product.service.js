@@ -1,4 +1,3 @@
-import fs from 'fs';
 import path from 'path';
 import { db } from '../db/orm.js';
 
@@ -7,7 +6,7 @@ import {
     getStockKey,
 } from '../repositories/product.repository.js';
 
-import { UPLOADS_DIR } from '../utils/upload.js';
+import { storage, uploadKey } from './storage.service.js';
 import { removeImageVariants } from '../utils/imageVariants.js';
 import { AppError } from '../utils/errors.js';
 import { shortenSlug } from '../utils/slug.js';
@@ -1005,7 +1004,7 @@ export async function deleteProduct(
             tx
         );
 
-        // Clean up orphan physical files from /server/uploads
+        // Clean up orphan uploaded files (local disk or R2, see storage.service.js)
         for (const imgUrl of candidateImageUrls) {
             await removeUploadIfUnused(imgUrl, tx);
         }
@@ -1019,7 +1018,7 @@ export async function deleteProduct(
  * an exchange, a refund, a draft order, the review gallery or the home hero. Anything that is not an /uploads
  * file is ignored.
  */
-async function removeUploadIfUnused(imgUrl, tx) {
+export async function removeUploadIfUnused(imgUrl, tx) {
     if (typeof imgUrl !== 'string') return;
     const trimmed = imgUrl.trim();
     if (!(trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/'))) return;
@@ -1027,14 +1026,79 @@ async function removeUploadIfUnused(imgUrl, tx) {
     const isStillReferenced = await productRepository.isImageReferencedElsewhere(trimmed, null, tx);
     if (isStillReferenced) return;
 
-    const filePath = path.join(UPLOADS_DIR, path.basename(trimmed));
+    const filename = path.basename(trimmed);
     try {
-        await fs.promises.unlink(filePath);
+        await storage.deleteObject(uploadKey(filename));
     } catch {
-        // File may already have been removed or not exist on disk
+        // File may already have been removed, or the storage may be unreachable: never fail the edit for it
     }
     // Its resized copies (if any) go with it.
-    await removeImageVariants(filePath);
+    await removeImageVariants(filename);
+}
+
+/**
+ * Photos are uploaded the moment the admin picks them, before the product is saved. One that is then removed, replaced or
+ * abandoned (editor closed) before saving was never written to the database, so no save or delete cleans it up. The
+ * editors send the files they uploaded in this session; every one that nothing uses is deleted with its copies, the
+ * ones the saved product (or an order, hero...) uses are kept. Returns how many files were removed.
+ */
+export async function discardUnusedUploads(urls) {
+    if (!Array.isArray(urls)) throw new AppError('Liste de fichiers invalide', 400);
+    let removed = 0;
+    for (const url of [...new Set(urls)].slice(0, 200)) {
+        if (typeof url !== 'string') continue;
+        const trimmed = url.trim();
+        if (!/^\/uploads\/[^/\\]+$/.test(trimmed)) continue;
+        if (await productRepository.isImageReferencedElsewhere(trimmed, null)) continue;
+        await removeUploadIfUnused(trimmed);
+        removed++;
+    }
+    return { removed };
+}
+
+/**
+ * Safety net for photos that were uploaded and never used (an editor closed by a crash, a lost connection...). Looks at
+ * every stored upload and returns the ones nothing uses (product, colour, collection image, video, order, exchange,
+ * refund, draft, review gallery, home hero), grouped as one entry per photo with its resized copies. Only files older
+ * than `minAgeHours` are returned, so a photo being added right now is never touched. Read-only.
+ */
+export async function findOrphanUploads({ minAgeHours = 24, now = Date.now() } = {}) {
+    const COPY = /^(.+)\.(?:card|share|large)\.webp$/;
+    const groups = new Map(); // photo id (file name without extension and copy suffix) -> { original, keys, bytes, newest }
+    for (const object of await storage.listObjects()) {
+        const name = path.basename(object.key);
+        if (!/^\d+-/.test(name)) continue; // not something this app uploaded
+        const copy = COPY.exec(name);
+        const id = copy ? copy[1] : name.replace(/\.[^.]+$/, '');
+        const group = groups.get(id) || { id, original: null, keys: [], bytes: 0, newest: 0 };
+        if (!copy) group.original = name;
+        group.keys.push(object.key);
+        group.bytes += object.size;
+        group.newest = Math.max(group.newest, object.lastModified);
+        groups.set(id, group);
+    }
+
+    const cutoff = now - minAgeHours * 3_600_000;
+    const orphans = [];
+    for (const group of groups.values()) {
+        if (group.newest > cutoff) continue;
+        // copies without their original cannot be shown by the storefront: they are leftovers too
+        if (group.original && (await productRepository.isImageReferencedElsewhere(`/uploads/${group.original}`, null))) continue;
+        orphans.push({ id: group.id, original: group.original, keys: group.keys, bytes: group.bytes });
+    }
+    return orphans;
+}
+
+/** Deletes what findOrphanUploads returned (every file of each photo). Returns how many files were removed. */
+export async function deleteOrphanUploads(orphans) {
+    let removed = 0;
+    for (const orphan of orphans) {
+        for (const key of orphan.keys) {
+            await storage.deleteObject(key);
+            removed++;
+        }
+    }
+    return removed;
 }
 
 const productPhotoUrls = ({ collectionImageUrl, images, variants }) =>

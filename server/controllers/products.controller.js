@@ -33,6 +33,15 @@ export async function uploadImage(req, res) {
   res.json({ url: `/uploads/${req.file.filename}` });
 }
 
+// The editors report the photos they uploaded in this session; the ones nothing uses are deleted (never a used one).
+export async function discardUploads(req, res) {
+  try {
+    res.json(await productService.discardUnusedUploads(req.body?.urls));
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
 // 404 (not 403) so a hidden product's existence is not confirmed to non-admins.
 function serveVisibleProduct(load) {
   return async (req, res) => {

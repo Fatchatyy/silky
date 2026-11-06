@@ -159,8 +159,8 @@ export async function requestPasswordReset(email) {
 
   // Only expose the raw token in the response in development, when EXPOSE_RESET_TOKEN=true asks for it (never in
   // production, see env.exposeResetToken) and there are no real SMTP credentials (Ethereal / no-email dev mode).
-  // Once SMTP_USER is set the email is actually delivered, so the token must never appear in the API response.
-  if (env.exposeResetToken && !env.smtpUser) {
+  // Once SMTP_USER or RESEND_API_KEY is set the email is actually delivered, so the token must never appear in the API response.
+  if (env.exposeResetToken && !env.smtpUser && !env.resendApiKey) {
     payload.resetToken = rawToken;
     payload.expiresAt = expiresAt.toISOString();
   }

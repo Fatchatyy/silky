@@ -3,7 +3,7 @@ import * as productsController from '../controllers/products.controller.js';
 import * as videoController from '../controllers/video.controller.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import { adminMiddleware } from '../middleware/admin.js';
-import { upload, uploadVideo, verifyImageUpload, verifyVideoUpload } from '../utils/upload.js';
+import { upload, uploadVideo, verifyImageUpload, verifyVideoUpload, storeUploadedVideo } from '../utils/upload.js';
 import { reviewLimiter } from '../middleware/rateLimiter.js';
 import { resizeUploadedImage } from '../utils/imageVariants.js';
 
@@ -53,6 +53,9 @@ router.post('/upload', admin, (req, res, next) => {
   });
 }, verifyImageUpload, resizeUploadedImage, productsController.uploadImage);
 
+// Deletes uploaded photos that no product (or order, hero...) uses: the ones added and then removed before saving.
+router.post('/uploads/discard', admin, productsController.discardUploads);
+
 // Product Videos routes
 router.get('/:id/videos', requireProductId, optionalAuthMiddleware, videoController.listVideos);
 router.post('/:id/videos', admin, (req, res, next) => {
@@ -67,7 +70,7 @@ router.post('/:id/videos', admin, (req, res, next) => {
     }
     next();
   });
-}, verifyVideoUpload, videoController.uploadVideo);
+}, verifyVideoUpload, storeUploadedVideo, videoController.uploadVideo);
 router.delete('/:id/videos/:videoId', admin, videoController.deleteVideo);
 
 router.get('/:id/reviews', requireProductId, productsController.listReviews);

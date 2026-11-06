@@ -1,9 +1,9 @@
 // schema.org structured data built only from data the page shows. Pure.
-import { getEffectivePrice } from '../../../../shared/price.js';
-import { isProductOutOfStock } from '../../../../shared/stock.js';
-import { colorNameAr } from '../../../../shared/colors.js';
-import { CONTACT } from '../../../../shared/contact.js';
-import { DELIVERY_FEE_TND } from '../../../../shared/delivery.js';
+import { getEffectivePrice } from '../../../shared/price.js';
+import { isProductOutOfStock } from '../../../shared/stock.js';
+import { colorNameAr } from '../../../shared/colors.js';
+import { CONTACT } from '../../../shared/contact.js';
+import { DELIVERY_FEE_TND } from '../../../shared/delivery.js';
 import { cleanText, SITE_NAME } from './text.ts';
 import { assetUrl, pageUrl, productPath, shareImageUrl } from './urls.ts';
 import type { Locale, SeoContext } from './types.ts';

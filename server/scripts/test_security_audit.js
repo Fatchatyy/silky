@@ -381,12 +381,12 @@ try {
   const usersStill = (await pool.query('select count(*)::int n from users')).rows[0].n;
   check('H2', 'sqli', 'users table still exists after DROP TABLE payload', usersStill > 0, `${usersStill} users`);
 
-  // SEO server-rendered HTML with hostile product name
+  // The API no longer renders pages (the Astro storefront does, with its own tests): a hostile product name must not come back as HTML from it
   const evilName = `Evil </title><script>window.__pwn=1</script><img src=x onerror=alert(1)> ${stamp}`;
   const E = await mkProduct(evilName, 10, 1, { description: `</script><script>alert(3)</script>` });
   const slug = (await pool.query('select slug from products where id=$1', [E.product.id])).rows[0].slug;
   const page = await rawGet(`/product/${slug}`);
-  info('G6', 'xss', 'server-rendered product page (only when SEO_HTML=on / production)', `status ${page.status}, ${page.text.length} bytes, contains raw <script>window.__pwn: ${page.text.includes('<script>window.__pwn')}`);
+  info('G6', 'xss', 'the API serves no product page (pages are the Astro storefront job)', `status ${page.status}, ${page.text.length} bytes, contains raw <script>window.__pwn: ${page.text.includes('<script>window.__pwn')}`);
 
   // ---------- 8. AUTH / SESSION ----------
   // logout is server-side no-op

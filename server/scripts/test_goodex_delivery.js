@@ -27,7 +27,6 @@ import {
   GOODEX_STATUSES,
   formatCod,
 } from '../config/goodex.js';
-import { orderMatchesSearch } from '../../src/utils/orderSearch.js';
 import { CANONICAL_GOVERNORATES } from '../config/governorates.js';
 import { deliveryRepository } from '../repositories/delivery.repository.js';
 import { parseHasMotif } from '../services/goodex.client.js';
@@ -879,19 +878,7 @@ async function run() {
     const noParcel = await refresh(oPend.id, { onlyIfStale: true });
     assert(noParcel.status === 404, 'refresh on an order without a parcel -> 404');
 
-    // ---- EAN search (the exact function the admin page uses)
-    const oSearch = listed;
-    const ean = oSearch.delivery.ean;
-    assert(orderMatchesSearch(oSearch, ean), 'search: full EAN matches');
-    assert(orderMatchesSearch(oSearch, ean.slice(2, 8)) && orderMatchesSearch(oSearch, ean.slice(-4)), 'search: partial EAN (middle, suffix) matches');
-    assert(orderMatchesSearch(oSearch, ean.toUpperCase()) && orderMatchesSearch(oSearch, `  ${ean.toLowerCase()}  `), 'search: EAN is case-insensitive and trimmed');
-    assert(orderMatchesSearch(oSearch, oSearch.orderNumber.slice(-5)) && orderMatchesSearch(oSearch, oSearch.customer.phone)
-      && orderMatchesSearch(oSearch, 'test cli') && orderMatchesSearch(oSearch, oSearch.id.slice(0, 8)), 'search: order number, phone, name and id still work');
-    assert(!orderMatchesSearch(oSearch, 'zzz-no-match') && orderMatchesSearch(oSearch, '') && orderMatchesSearch(oSearch, '   '), 'search: no false positive; empty query matches all');
-    const pendingListed = listRes.data.find((o) => o.id === oPend.id);
-    assert(pendingListed.delivery === null && !orderMatchesSearch(pendingListed, ean) && orderMatchesSearch(pendingListed, pendingListed.orderNumber), 'search: orders without a parcel do not break and do not match an EAN');
-    const otherListed = listRes.data.find((o) => o.delivery?.ean && o.id !== oS.id);
-    assert(otherListed && !orderMatchesSearch(otherListed, ean), 'search: another order does not match this EAN');
+    // (EAN search over the orders list is a front-end function: storefront/scripts/test_order_search.mjs)
 
     // ---- creation states stay distinguishable through the API
     const oNoRow = await makeOrder(1);

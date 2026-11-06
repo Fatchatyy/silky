@@ -63,7 +63,7 @@ async function start() {
   await runUsersTokensValidAfterMigration(pool);
 
   if (resolveMailMode(env) === 'off') {
-    console.warn('[email] SMTP_USER / SMTP_PASS are not set in production: no e-mail (order confirmation, password reset, welcome, contact reply) will be sent until they are.');
+    console.warn('[email] RESEND_API_KEY (or SMTP_USER / SMTP_PASS) is not set in production: no e-mail (order confirmation, password reset, welcome, contact reply) will be sent until they are.');
   }
 
   const missingGoodex = [...missingApiConfig(), ...missingWebhookConfig()];

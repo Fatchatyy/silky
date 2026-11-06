@@ -19,7 +19,7 @@ const targetUrl = assertSilkyTestUrl();
 
 // Read by server/config/env.js when it loads; dotenv never overrides a variable that is already set.
 const STOREFRONT_ORIGIN = 'http://localhost:4321';
-process.env.CORS_ALLOWED_ORIGINS = `${STOREFRONT_ORIGIN},http://localhost:5173`;
+process.env.CORS_ALLOWED_ORIGINS = STOREFRONT_ORIGIN; // the admin panel is served from the same origin (/admin)
 process.env.GOODEX_ENABLE_LIVE = 'false';
 
 const { app } = await import('../app.js');
@@ -198,8 +198,8 @@ async function runTests() {
     });
     const allowedHeaders = (preflight.headers.get('access-control-allow-headers') || '').toLowerCase();
     assert(preflight.status === 204 && allowedHeaders.includes('authorization') && allowedHeaders.includes('x-guest-session-id'), 'the preflight accepts Authorization and X-Guest-Session-ID');
-    const adminOrigin = await get('/storefront/home', { headers: { Origin: 'http://localhost:5173' } });
-    assert(adminOrigin.headers.get('access-control-allow-origin') === 'http://localhost:5173', 'the admin origin is allowed too');
+    const otherOrigin = await get('/storefront/home', { headers: { Origin: 'http://localhost:5173' } });
+    assert(otherOrigin.headers.get('access-control-allow-origin') === null, 'an origin that is not listed (the old Vite port) is refused');
     const cookie = allowed.headers.get('set-cookie') || '';
     assert(/SameSite=Lax/i.test(cookie) && !/Domain=/i.test(cookie), 'the guest cookie stays host-only and SameSite=Lax');
   } finally {

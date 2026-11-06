@@ -1,6 +1,6 @@
 // Which cached pages show a given product, and the key they are stored under (shared by the cache in
 // src/middleware.ts and the purge endpoint, so the two always agree).
-import { productPath } from '../../../../shared/urls.js';
+import { productPath } from '../../../shared/urls.js';
 
 export const cacheKeyFor = (origin: string, pathname: string) => new Request(`${origin}${pathname}`, { method: 'GET' });
 

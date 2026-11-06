@@ -14,7 +14,7 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": [
-        "../shared/*"
+        "./shared/*"
       ]
     }
   }

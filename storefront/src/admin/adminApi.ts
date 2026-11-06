@@ -51,6 +51,8 @@ export const adminApi = {
   updateProduct: (id: string, product: any) => request(`/products/${id}`, { method: 'PUT', body: product }),
   deleteProduct: (id: string) => request(`/products/${id}`, { method: 'DELETE' }),
   uploadProductImage: (formData: FormData) => request('/products/upload', { method: 'POST', body: formData }),
+  discardUploads: (urls: string[], options: Record<string, unknown> = {}) =>
+    request('/products/uploads/discard', { method: 'POST', body: { urls }, ...options }),
   getProductVideos: (productId: string) => request(`/products/${productId}/videos`),
   uploadProductVideo: (productId: string, formData: FormData) => request(`/products/${productId}/videos`, { method: 'POST', body: formData }),
   deleteProductVideo: (productId: string, videoId: string) => request(`/products/${productId}/videos/${videoId}`, { method: 'DELETE' }),

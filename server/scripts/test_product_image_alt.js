@@ -27,7 +27,7 @@ const { eq, inArray } = await import('drizzle-orm');
 const { categories, products } = await import('../models/index.js');
 const { runProductImageAltMigration } = await import('../db/migrations/add_product_image_alt.js');
 const productService = await import('../services/product.service.js');
-const { productCustomAlt } = await import('../../shared/productText.js');
+const { productCustomAlt } = await import('../shared/productText.js');
 
 let passed = 0;
 let failed = 0;

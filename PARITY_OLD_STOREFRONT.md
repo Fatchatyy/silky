@@ -2,8 +2,8 @@
 
 Every file of the old Vite app under `src/`, what it did, and where it lives now. Status:
 **moved** (same behaviour, new place), **rebuilt** (same result, different mechanism), **admin -> Phase 3**
-(copied into `storefront/src/admin-app/` in Phase 3 step 1; the old file stays in `src/` until step 2 deletes the old app), **not needed** (with the reason).
-Written at the end of the Phase 2 follow-up; updated at the end of Phase 3 step 1 (admin rows). The old Vite app is still in `src/` and still builds.
+(copied into `storefront/src/admin-app/` in Phase 3 step 1; the old file was deleted with the old app in step 2), **not needed** (with the reason).
+Written at the end of the Phase 2 follow-up; updated at the end of Phase 3 step 1 (admin rows). **Phase 3 step 2 deleted the old Vite app (`src/`): the old paths in this file are historical, recoverable from git history.**
 
 ## Pages (`src/pages/*.jsx`, customer side)
 

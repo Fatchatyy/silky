@@ -1,11 +1,10 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { parseSiteUrl } from '../seo/siteUrl.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // NODE_ENV decides secure cookies, the JWT secret check, CORS defaults and serving the built shop. A host that forgets
 // it (or mistypes "Production") must not silently run with development settings, so anything else stops the server.
@@ -58,7 +57,7 @@ export function validateJwtSecret(rawSecret, isProd = isProduction) {
  * Parses and validates CORS allowed origins.
  * Trims whitespace, ignores empty entries, compares origins exactly.
  * In production, fails fast if CORS_ALLOWED_ORIGINS is missing or empty.
- * In development, defaults to Vite development server origins.
+ * In development, defaults to the Astro dev server origins (storefront and admin, port 4321).
  */
 export function parseCorsOrigins(
   rawEnv,
@@ -82,7 +81,7 @@ export function parseCorsOrigins(
     );
   }
 
-  const devOrigins = new Set(['http://localhost:5173', 'http://127.0.0.1:5173']);
+  const devOrigins = new Set(['http://localhost:4321', 'http://127.0.0.1:4321']);
   if (appUrl) {
     try {
       const parsed = new URL(appUrl);
@@ -136,17 +135,32 @@ export function parseTrustProxy(raw = process.env.TRUST_PROXY) {
   return value;
 }
 
+/**
+ * Where uploaded photos and videos are stored: STORAGE_DRIVER=disk (default, UPLOADS_DIR) or r2 (Cloudflare R2).
+ * Choosing r2 without its credentials stops the server at start: uploads would fail on the first photo.
+ */
+export function parseStorageConfig(source = process.env) {
+  const driver = String(source.STORAGE_DRIVER || 'disk').trim().toLowerCase();
+  if (!['disk', 'r2'].includes(driver)) {
+    throw new Error(`[FATAL] STORAGE_DRIVER must be "disk" or "r2" (got ${JSON.stringify(source.STORAGE_DRIVER)}).`);
+  }
+  const r2 = {
+    accountId: String(source.R2_ACCOUNT_ID || '').trim(),
+    accessKeyId: String(source.R2_ACCESS_KEY_ID || '').trim(),
+    secretAccessKey: String(source.R2_SECRET_ACCESS_KEY || '').trim(),
+    bucket: String(source.R2_BUCKET || '').trim(),
+  };
+  if (driver === 'r2') {
+    const names = { accountId: 'R2_ACCOUNT_ID', accessKeyId: 'R2_ACCESS_KEY_ID', secretAccessKey: 'R2_SECRET_ACCESS_KEY', bucket: 'R2_BUCKET' };
+    const missing = Object.entries(names).filter(([key]) => !r2[key]).map(([, name]) => name);
+    if (missing.length) throw new Error(`[FATAL] STORAGE_DRIVER=r2 needs ${missing.join(', ')}.`);
+  }
+  return { driver, r2, mediaPublicUrl: String(source.MEDIA_PUBLIC_URL || '').trim().replace(/\/+$/, '') };
+}
+
 export function parseCspMode(raw = process.env.CSP_MODE) {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   return ['off', 'report-only', 'enforce'].includes(value) ? value : 'report-only';
-}
-
-/** A bad SITE_URL must never stop the shop from starting: it is logged and treated as unset (SEO URLs off). */
-function siteUrlFromEnv() {
-  const siteUrl = parseSiteUrl(process.env.SITE_URL);
-  if (siteUrl !== null) return siteUrl;
-  console.error('[seo] SITE_URL is invalid (expected an origin such as https://example.tn, no path or trailing slash); ignoring it.');
-  return '';
 }
 
 export const env = {
@@ -182,24 +196,18 @@ export const env = {
   smtpSecure: process.env.SMTP_SECURE === 'true',
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
+  // Resend (HTTPS API): used instead of SMTP when RESEND_API_KEY is set. Render's free plan blocks the SMTP ports.
+  resendApiKey: (process.env.RESEND_API_KEY || '').trim(),
+  resendApiUrl: (process.env.RESEND_API_URL || 'https://api.resend.com').trim().replace(/\/+$/, ''),
   emailFrom: process.env.EMAIL_FROM || (process.env.SMTP_USER ? `Silky <${process.env.SMTP_USER}>` : 'Silky <no-reply@silky.tn>'),
   emailReplyTo: process.env.EMAIL_REPLY_TO || undefined,
-  appUrl: process.env.APP_URL || 'http://localhost:5173',
+  appUrl: process.env.APP_URL || 'http://localhost:4321',
 
   // Where uploaded photos and videos are stored and served from (/uploads). Default: server/uploads.
   uploadsDir: path.resolve(process.env.UPLOADS_DIR || path.join(__dirname, '../uploads')),
 
-  // Server-written page head (see server/seo). Off unless SEO_HTML=on; the built frontend is served only in
-  // production, with SEO_HTML=on, or when FRONTEND_DIST_DIR is set explicitly.
-  seo: {
-    siteUrl: siteUrlFromEnv(),
-    htmlEnabled: String(process.env.SEO_HTML || '').trim().toLowerCase() === 'on',
-    distDir: path.resolve(process.env.FRONTEND_DIST_DIR || path.join(__dirname, '../../dist')),
-    serveFrontend:
-      isProduction ||
-      String(process.env.SEO_HTML || '').trim().toLowerCase() === 'on' ||
-      Boolean(process.env.FRONTEND_DIST_DIR),
-  },
+  // Storage driver of uploads: 'disk' (UPLOADS_DIR) or 'r2' (Cloudflare R2). See services/storage.service.js.
+  storage: parseStorageConfig(),
 
   // GOODEX delivery. The API token and the webhook secret are distinct credentials.
   goodex: {

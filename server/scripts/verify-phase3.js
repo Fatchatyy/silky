@@ -79,10 +79,10 @@ test('Production: accepts valid strong secret (>= 16 chars)', () => {
 
 console.log('\n--- 2. CORS ALLOWLIST PARSING ---');
 
-test('Development: defaults to localhost:5173 when CORS_ALLOWED_ORIGINS is unset', () => {
-  const origins = parseCorsOrigins(undefined, false, 'http://localhost:5173');
-  assert.ok(origins.includes('http://localhost:5173'));
-  assert.ok(origins.includes('http://127.0.0.1:5173'));
+test('Development: defaults to localhost:4321 when CORS_ALLOWED_ORIGINS is unset', () => {
+  const origins = parseCorsOrigins(undefined, false, 'http://localhost:4321');
+  assert.ok(origins.includes('http://localhost:4321'));
+  assert.ok(origins.includes('http://127.0.0.1:4321'));
 });
 
 test('Development/Staging: parses comma-separated origins, trims whitespace, filters empty', () => {
@@ -137,9 +137,9 @@ async function runHttpTests() {
     const res = await makeRequest({
       method: 'GET',
       path: '/api/theme',
-      headers: { Origin: 'http://localhost:5173' },
+      headers: { Origin: 'http://localhost:4321' },
     });
-    assert.strictEqual(res.headers['access-control-allow-origin'], 'http://localhost:5173');
+    assert.strictEqual(res.headers['access-control-allow-origin'], 'http://localhost:4321');
     assert.strictEqual(res.headers['access-control-allow-credentials'], 'true');
   });
 
@@ -157,13 +157,13 @@ async function runHttpTests() {
       method: 'OPTIONS',
       path: '/api/orders',
       headers: {
-        Origin: 'http://localhost:5173',
+        Origin: 'http://localhost:4321',
         'Access-Control-Request-Method': 'POST',
         'Access-Control-Request-Headers': 'Content-Type, Idempotency-Key',
       },
     });
     assert.strictEqual(res.status, 204);
-    assert.strictEqual(res.headers['access-control-allow-origin'], 'http://localhost:5173');
+    assert.strictEqual(res.headers['access-control-allow-origin'], 'http://localhost:4321');
     assert.strictEqual(res.headers['access-control-allow-credentials'], 'true');
   });
 

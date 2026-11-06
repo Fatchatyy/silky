@@ -6,7 +6,7 @@ import { buildStockMatrix } from '@shared/stock';
 import { formatPrice } from '@shared/formatPrice';
 import { getEffectivePrice, hasDiscount } from '@shared/price';
 import AdminProductReviewsSection from '../../admin/AdminProductReviewsSection';
-import { colorIdOnRename, mapProductColorsToForm, normalizeProduct, uploadFile } from '../../admin/productForm';
+import { colorIdOnRename, discardSessionUploads, mapProductColorsToForm, normalizeProduct, uploadFile } from '../../admin/productForm';
 
 const EMPTY_PRODUCT = {
   name: '',
@@ -427,6 +427,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
         });
         setMessage('Produit ajouté avec succès.');
         setModalOpen(false);
+        await discardSessionUploads();
       } else {
         const saved = await updateProduct(selectedId, normalized);
         const finalObj = saved || { ...form, ...normalized };
@@ -437,6 +438,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
         });
         setMessage('Produit mis à jour avec succès.');
         setModalOpen(false);
+        await discardSessionUploads();
       }
     } catch (err) {
       setMessage(err.message || 'Erreur lors de la sauvegarde.');
@@ -467,6 +469,7 @@ export default function AdminProducts({ highlightProductId = null, highlightRevi
   const closeModal = () => {
     setModalOpen(false);
     setMessage('');
+    discardSessionUploads(); // photos uploaded in this editor and never saved
   };
 
   const stockMatrix = form ? buildStockMatrix(form) : [];

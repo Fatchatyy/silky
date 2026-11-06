@@ -2,8 +2,8 @@
 // Indexing rules (plan 2.6): home, collections, products, FAQ, delivery, customer service, about and contact are
 // indexable; search, cart, checkout, account ... are noindex; an Arabic page is indexable only with a real Arabic
 // translation; hreflang links only join pages that are both indexable.
-import { hasArabicProduct, localizedProductView } from '../../../../shared/productText.js';
-import { faqEntries, partsToText } from '../../../../shared/textPages.js';
+import { hasArabicProduct, localizedProductView } from '../../../shared/productText.js';
+import { faqEntries, partsToText } from '../../../shared/textPages.js';
 import { breadcrumbJsonLd, faqJsonLd, organizationJsonLd, productJsonLd } from './jsonld.ts';
 import {
   INDEXABLE_PAGES,

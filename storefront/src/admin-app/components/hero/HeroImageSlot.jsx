@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mediaUrl } from '@shared/media';
 import { adminApi as api } from '../../../admin/adminApi';
+import { heroUploads } from './heroUploads';
 import '../../styles/hero-editor.css';
 
 export default function HeroImageSlot({
@@ -32,7 +33,7 @@ export default function HeroImageSlot({
       formData.append('image', file);
       const res = await api.uploadThemeImage(formData);
       if (res?.url) {
-        onImageChange(res.url);
+        onImageChange(heroUploads.track(res.url));
       }
     } catch (err) {
       console.error('Failed to upload hero image:', err);

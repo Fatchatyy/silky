@@ -14,6 +14,7 @@ import AdminClaims from './AdminClaims';
 
 import HeroTemplateSelector from '../components/hero/HeroTemplateSelector';
 import HeroEditorModal from '../components/hero/HeroEditorModal';
+import { heroUploads } from '../components/hero/heroUploads';
 import { useNotifications } from '../hooks/useNotifications';
 import NotificationBell from '../components/NotificationBell';
 import NotificationPanel from '../components/NotificationPanel';
@@ -245,6 +246,7 @@ export default function AdminDashboard() {
         announcementsHidden,
         heroConfig: savedHeroConfig,
       });
+      await heroUploads.discard(); // images added in the editor and not kept (the hero's own images stay)
       setMessage('Bannière hero mise à jour avec succès.');
     } catch (err) {
       setMessage(err.message);
@@ -511,7 +513,10 @@ export default function AdminDashboard() {
                 <HeroEditorModal
                   heroConfig={heroConfig}
                   onSave={handleSaveHeroConfig}
-                  onCancel={() => setHeroEditorOpen(false)}
+                  onCancel={() => {
+                    setHeroEditorOpen(false);
+                    heroUploads.discard(); // images uploaded in the editor and never saved
+                  }}
                 />
               )}
 

@@ -5,7 +5,7 @@
  * Usage: node server/scripts/test_media_url.js
  */
 import assert from 'node:assert/strict';
-import { getMediaBase, mediaUrl, mediaVariantUrl, setMediaBase } from '../../shared/media.js';
+import { getMediaBase, mediaUrl, mediaVariantUrl, setMediaBase } from '../shared/media.js';
 
 const BASE = 'http://localhost:3001';
 const photo = '/uploads/1786391497273-243dfd2a-r.jpg';

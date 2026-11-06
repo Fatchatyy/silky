@@ -1,7 +1,7 @@
 # Silky
 
 Online clothes shop for Tunisia: an Express + Postgres API (`server/`), an Astro storefront with the admin panel
-(`storefront/`), and, until the migration ends, the old React + Vite app (`src/`).
+(`storefront/`). The old React + Vite app was removed at the end of Phase 3.
 The migration plan and its status are in `MIGRATION_PLAN_ASTRO.md`; the business rules are in `CLAUDE.md`.
 
 ## Prerequisites
@@ -10,29 +10,34 @@ The migration plan and its status are in `MIGRATION_PLAN_ASTRO.md`; the business
 
 ## Setup (first time)
 
+The two apps are independent projects, each with its own `package.json`, `node_modules` and `.env`:
+
 ```bash
-npm install
+cd server && npm install && cp .env.example .env && cd ..
 cd storefront && npm install && cp .env.example .env && cd ..
 ```
 
-Copy `.env.example` to `.env` (API settings, database). `CORS_ALLOWED_ORIGINS` must list the places the browser calls the
-API from: `http://localhost:4321` (storefront and admin) and, while the old app still runs, `http://localhost:5173`.
+Fill in `server/.env` (API settings, database). `CORS_ALLOWED_ORIGINS` must list the places the browser calls the
+API from: `http://localhost:4321` (storefront and admin).
 
 ## Start everything
 
+Two terminals, one per app:
+
 ```bash
-npm run dev
+cd server && npm run dev
 ```
 
-It starts three processes with `concurrently`, each with its own colour and label in the terminal:
+```bash
+cd storefront && npm run dev
+```
 
-| Label | What | Address |
+| App | What | Address |
 |---|---|---|
-| `api` | Express API (`server/`) | http://localhost:3001 |
-| `shop` | Astro storefront **and admin panel** (`storefront/`) | http://localhost:4321 (admin: http://localhost:4321/admin) |
-| `old` | the old React + Vite app (`src/`), kept only until the migration step that removes it | http://localhost:5173 |
+| `server/` | Express API | http://localhost:3001 |
+| `storefront/` | Astro storefront **and admin panel** | http://localhost:4321 (admin: http://localhost:4321/admin) |
 
-You can also start them one by one: `npm run dev:server`, `npm run dev:storefront`, `npm run dev:client`.
+The apps only talk over HTTP (the storefront calls the API at `API_URL` / `PUBLIC_API_URL`); neither imports the other's files.
 
 ## The admin panel
 
@@ -50,21 +55,29 @@ More details (configuration, tests, test data): `storefront/README.md`.
 ## Build
 
 ```bash
-npm run build
+cd storefront && npm run build
 ```
 
-builds the old Vite app (the storefront is built with `npm run build` inside `storefront/`).
+builds the storefront and the admin panel. The API has no build step.
 
 ## Project structure
 
 ```
 silky-app/
-├── server/        Express API (routes -> controllers -> services -> repositories -> models), scripts, migrations
-├── shared/        pure modules used by the API and every front end (texts, prices, URLs, media helper)
-├── storefront/    Astro project: the shop (French + /ar) and the admin panel at /admin
-│   └── src/
-│       ├── pages/ views/ components/ islands/   the shop
-│       ├── admin/        admin tools shared by the shop pages and the panel (API wrapper, product editor, review moderation)
-│       └── admin-app/    the admin panel (dashboard, orders, products, claims ...)
-└── src/           the old Vite app (to be removed at the end of Phase 3, see the plan)
+├── server/        Express API: its own package.json, node_modules, .env, drizzle config, assets (e-mail logo), uploads
+│   ├── (routes -> controllers -> services -> repositories -> models), db/ migrations, scripts/ (tests, preflight)
+│   └── shared/    pure modules (copy; see below)
+├── storefront/    Astro project: the shop (French + /ar) and the admin panel at /admin, its own package.json and .env
+│   ├── src/
+│   │   ├── pages/ views/ components/ islands/   the shop
+│   │   ├── admin/        admin tools shared by the shop pages and the panel (API wrapper, product editor, review moderation)
+│   │   └── admin-app/    the admin panel (dashboard, orders, products, claims ...)
+│   └── shared/    pure modules (copy; see below)
+├── integration/   checks and test helpers that need both apps (neither app imports from here)
+└── docs/          archive of old project notes
+```
+
+`shared/` (prices, delivery fee, locales, texts, URLs, stock rules) exists **twice**, once per app, so each deploys on its own.
+The copies must stay identical: `node integration/check_shared_in_sync.mjs`. That no app uses the other's files:
+`node integration/check_independence.mjs`.
 ```

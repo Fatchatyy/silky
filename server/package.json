@@ -1,0 +1,40 @@
+{
+  "name": "silky-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node index.js",
+    "start": "node index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:check": "drizzle-kit check",
+    "db:schema": "node db/init-db.js",
+    "db:init": "node db/init-db.js",
+    "db:export-schema": "node db/export-schema.js",
+    "admin:create": "node db/create-admin.js",
+    "preflight": "node scripts/preflight.js",
+    "uploads:copy-to-r2": "node scripts/copy_uploads_to_r2.js",
+    "db:seed": "node db/seed.js",
+    "test": "node scripts/verify-phase3.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1162.0",
+    "bcrypt": "^6.0.0",
+    "compression": "^1.8.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.3.1",
+    "pg": "^8.23.0",
+    "sharp": "^0.35.5"
+  }
+}

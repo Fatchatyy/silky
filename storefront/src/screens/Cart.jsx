@@ -81,9 +81,9 @@ export default function Cart() {
                       </div>
                     </div>
 
-                    <div className="price">{formatPrice(item.price)}</div>
+                    <div className="price" data-label={t('product.price')}>{formatPrice(item.price)}</div>
 
-                    <div className="quantity-control-wrapper">
+                    <div className="quantity-control-wrapper" data-label={t('product.qty')}>
                       <div className="quantity-control">
                         <button
                           type="button"
@@ -103,7 +103,7 @@ export default function Cart() {
                       </div>
                     </div>
 
-                    <div className="total-price">{formatPrice(item.price * item.quantity)}</div>
+                    <div className="total-price" data-label={t('cart.totalPrice')}>{formatPrice(item.price * item.quantity)}</div>
 
                     <button
                       type="button"

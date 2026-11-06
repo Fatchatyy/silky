@@ -30,8 +30,7 @@ const cartService = await import('../services/cart.service.js');
 const { runProductArabicContentMigration } = await import('../db/migrations/add_product_arabic_content.js');
 const productService = await import('../services/product.service.js');
 const { productRepository } = await import('../repositories/product.repository.js');
-const { buildSitemapEntries } = await import('../seo/sitemap.js');
-const { databaseLoaders } = await import('../seo/loaders.js');
+const { getSitemapEntries } = await import('../services/storefront.service.js');
 
 let passed = 0;
 let failed = 0;
@@ -165,14 +164,13 @@ async function run() {
     assert(byFrench.products.length === 3, 'French search still finds all three products');
 
     console.log('\n--- Sitemap data ---');
-    const sitemapData = await databaseLoaders.listSitemapData();
-    const stamp = sitemapData.products.find((p) => p.id === arabic.id);
-    assert(stamp && stamp.nameAr === 'فستان صيفي' && stamp.descriptionAr === 'فستان خفيف.' && !('titleAr' in stamp), 'sitemap loader exposes nameAr / descriptionAr');
-    const paths = buildSitemapEntries(sitemapData).map((e) => e.path);
+    const sitemapData = await getSitemapEntries();
     // The test saves explicit slugs, so read the current ones (a save without a slug keeps the stored one).
     const arabicNow = await productService.getProductById(arabic.id);
     const plainNow = await productService.getProductById(plain.id);
-    assert(paths.includes(`/ar/product/${arabicNow.slug}`) && !paths.includes(`/ar/product/${plainNow.slug}`) && paths.includes(`/product/${plainNow.slug}`), 'sitemap lists the Arabic twin of the translated product only (slug addresses)');
+    const arabicEntry = sitemapData.products.find((p) => p.slug === arabicNow.slug);
+    const plainEntry = sitemapData.products.find((p) => p.slug === plainNow.slug);
+    assert(arabicEntry && arabicEntry.hasArabic === true && plainEntry && plainEntry.hasArabic === false, 'sitemap entries flag the Arabic twin of the translated product only (slug addresses)');
 
     console.log('\n--- Slug (public address) ---');
     const { slug: _ignored, ...withoutSlug } = payload('Nom Complètement Différent');

@@ -1,8 +1,8 @@
 // Data loading of the server-rendered pages. Each loader returns a small tagged result so the route file can pick the
 // HTTP status: a missing thing is a real 404, an unreachable API a 503 (search engines retry a 503, they drop a 404),
 // and a stale or odd URL a single 301 to the canonical address.
-import { isCanonicalProductId, isProductSlug, productPath } from '../../../../shared/urls.js';
-import { localizePath } from '../../../../shared/locales.js';
+import { isCanonicalProductId, isProductSlug, productPath } from '../../../shared/urls.js';
+import { localizePath } from '../../../shared/locales.js';
 import { ApiNotFound, ApiUnavailable, getCached, getJson, getJsonOrNull } from '../serverApi';
 import { normalizeProduct } from '../normalizeProduct';
 import { loadTheme } from '../theme';

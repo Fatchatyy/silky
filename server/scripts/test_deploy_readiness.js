@@ -29,7 +29,7 @@ if (!base || base.pathname !== '/silky_test' || !['localhost', '127.0.0.1'].incl
 process.env.NODE_ENV = 'test';
 Object.assign(process.env, { SMTP_HOST: '127.0.0.1', SMTP_PORT: '1', SMTP_USER: 'probe', SMTP_PASS: 'probe', GOODEX_ENABLE_LIVE: 'false', GOODEX_BASE_URL: 'http://127.0.0.1:1' });
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'); // the server folder
 const { default: pg } = await import('pg');
 const { app } = await import('../app.js');
 const { env } = await import('../config/env.js');
@@ -51,7 +51,7 @@ const run = (script, extraEnv = {}, args = []) => spawnSync(process.execPath, [p
 });
 const PROD_ENV = {
   NODE_ENV: 'production', JWT_SECRET: 'a-long-random-production-secret-xyz', CORS_ALLOWED_ORIGINS: 'https://shop.example', APP_URL: 'https://shop.example',
-  SITE_URL: 'https://shop.example', SEO_HTML: 'on', TRUST_PROXY: '1', SMTP_USER: 'smtpuser-secret-name', SMTP_PASS: 'smtp-secret-pass-123', EMAIL_FROM: 'Silky <no-reply@shop.example>',
+  TRUST_PROXY: '1', SMTP_USER: 'smtpuser-secret-name', SMTP_PASS: 'smtp-secret-pass-123', EMAIL_FROM: 'Silky <no-reply@shop.example>',
   UPLOADS_DIR: path.join(process.env.TEMP || process.env.TMPDIR || '/tmp', 'silky-preflight-uploads'), DB_POOL_MAX: '', LOG_REQUESTS: 'false',
 };
 
@@ -107,9 +107,9 @@ try {
   // ---------- db:init ----------
   console.log('\n--- db:init and schema.sql');
   await admin.query(`CREATE DATABASE ${scratchName}`);
-  let out = run('server/db/init-db.js');
+  let out = run('db/init-db.js');
   assert(out.status === 0 && /31 tables created/.test(out.stdout), `builds an empty database: ${out.stdout.split('\n').filter(Boolean).pop()}`);
-  out = run('server/db/init-db.js');
+  out = run('db/init-db.js');
   assert(out.status === 1 && /already has \d+ table/.test(out.stderr), 'refuses a database that already has tables (cannot overwrite or wipe)');
   scratch = new pg.Client({ connectionString: scratchUrl });
   await scratch.connect();
@@ -160,34 +160,34 @@ try {
 
   // ---------- admin:create ----------
   console.log('\n--- admin:create');
-  out = run('server/db/create-admin.js');
+  out = run('db/create-admin.js');
   assert(out.status === 0 && /Admin account created for deploy-admin@example.test/.test(out.stdout), 'creates the admin account');
   assert(!out.stdout.includes('a-long-production-password'), 'never prints the password');
   const { rows: adminRows } = await scratch.query("SELECT role, phone_number FROM users WHERE email = 'deploy-admin@example.test'");
   assert(adminRows.length === 1 && adminRows[0].role === 'admin', 'inserted exactly one row with the admin role');
-  out = run('server/db/create-admin.js');
+  out = run('db/create-admin.js');
   assert(out.status === 0 && /already exists/.test(out.stdout), 'running it again changes nothing');
   await scratch.query("UPDATE users SET role = 'customer' WHERE email = 'deploy-admin@example.test'");
-  out = run('server/db/create-admin.js');
+  out = run('db/create-admin.js');
   assert(out.status === 1 && /belongs to a customer/.test(out.stderr), 'refuses an e-mail that belongs to a customer');
   await scratch.query("UPDATE users SET role = 'admin' WHERE email = 'deploy-admin@example.test'");
-  const weak = run('server/db/create-admin.js', { NODE_ENV: 'production', ...PROD_ENV, ADMIN_PASSWORD: 'silky-admin' });
+  const weak = run('db/create-admin.js', { NODE_ENV: 'production', ...PROD_ENV, ADMIN_PASSWORD: 'silky-admin' });
   assert(weak.status !== 0 && /ADMIN_PASSWORD/.test(weak.stderr), 'in production a weak ADMIN_PASSWORD is refused');
 
   // ---------- preflight ----------
   console.log('\n--- preflight');
   await scratch.query("DELETE FROM users WHERE email = 'deploy-admin@example.test'");
-  out = run('server/scripts/preflight.js', PROD_ENV);
+  out = run('scripts/preflight.js', PROD_ENV);
   assert(out.status === 1 && /\[FAIL\] admin: no admin account/.test(out.stdout), 'fails when the admin account is missing');
   await scratch.query("INSERT INTO users (email, password_hash, role, full_name) VALUES ('deploy-admin@example.test', 'x', 'admin', 'Silky Admin')");
-  out = run('server/scripts/preflight.js', { ...PROD_ENV, GOODEX_API_TOKEN: 'tok', GOODEX_USER_ID: '1', GOODEX_WEBHOOK_SECRET: 'whsec' });
+  out = run('scripts/preflight.js', { ...PROD_ENV, GOODEX_API_TOKEN: 'tok', GOODEX_USER_ID: '1', GOODEX_WEBHOOK_SECRET: 'whsec' });
   assert(out.status === 0 && /0 failure/.test(out.stdout), `passes on a ready database: ${out.stdout.split('\n').filter((l) => /ok,.*warning/.test(l))[0]}`);
   const secrets = ['a-long-random-production-secret-xyz', 'a-long-production-password', 'smtp-secret-pass-123', 'smtpuser-secret-name', 'whsec'];
   assert(secrets.every((s) => !out.stdout.includes(s) && !out.stderr.includes(s)), 'never prints a secret');
-  out = run('server/scripts/preflight.js', { ...PROD_ENV, ADMIN_PASSWORD: 'short' });
+  out = run('scripts/preflight.js', { ...PROD_ENV, ADMIN_PASSWORD: 'short' });
   assert(out.status === 1 && /\[FAIL\] configuration: ADMIN_PASSWORD/.test(out.stdout), 'reports an invalid configuration instead of crashing');
   await scratch.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-  out = run('server/scripts/preflight.js', PROD_ENV);
+  out = run('scripts/preflight.js', PROD_ENV);
   assert(out.status === 1 && /the database is empty: run npm run db:init/.test(out.stdout), 'says what to do on an empty database');
 } catch (err) {
   console.error('TEST CRASHED:', err);

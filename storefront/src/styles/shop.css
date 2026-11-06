@@ -6976,3 +6976,59 @@ html[dir="rtl"] .account-order-total {
 html[dir="rtl"] .share-modal-copy-box {
   padding: 4px 12px 4px 4px;
 }
+
+/* ---------- Phones: header icons on one line, cart box inside the screen, labelled cart rows ---------- */
+
+@media screen and (max-width: 850px) {
+  /* "Mon compte" and "Panier (n)" wrap onto two lines on a narrow screen and, with the items centred, pushed their icon
+     up. Every item now starts at the top, so all the icons sit on the same line and a long label only grows downwards. */
+  .user_actions {
+    align-items: flex-start;
+  }
+
+  .action_item,
+  .cart_link {
+    text-align: center;
+  }
+
+  /* The cart box was 320px wide and anchored to the cart link, which is not at the edge of the bar on a phone: it ran off
+     the screen. It is now anchored to the bar and spans its width. */
+  .top_utility_bar {
+    position: relative;
+  }
+
+  .top_utility_bar .cart_dropdown_container {
+    position: static;
+  }
+
+  .top_utility_bar .cart_dropdown_container .cart_dropdown_box {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    padding: 18px 14px 14px;
+  }
+}
+
+@media (max-width: 600px) {
+  /* The column titles (Prix, Quantité, Prix total) are hidden on a phone: each value carries its own title. */
+  .cart-item .price,
+  .cart-item .quantity-control-wrapper,
+  .cart-item .total-price {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 12px;
+    margin: 0;
+    padding: 6px 0;
+  }
+
+  .cart-item .price::before,
+  .cart-item .quantity-control-wrapper::before,
+  .cart-item .total-price::before {
+    content: attr(data-label);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444444;
+  }
+}
