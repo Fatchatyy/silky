@@ -17,8 +17,8 @@ if (!['production', 'development', 'test'].includes(rawNodeEnv)) {
 const isProduction = rawNodeEnv === 'production';
 
 /** Integer environment variable with a floor; unset, blank or invalid values fall back to the default. */
-function integerEnv(name, fallback, min) {
-  const raw = process.env[name];
+function integerEnv(name, fallback, min, source = process.env) {
+  const raw = source[name];
   if (raw === undefined || String(raw).trim() === '') return fallback;
   const value = Number(raw);
   return Number.isInteger(value) && value >= min ? value : fallback;
@@ -158,6 +158,31 @@ export function parseStorageConfig(source = process.env) {
   return { driver, r2, mediaPublicUrl: String(source.MEDIA_PUBLIC_URL || '').trim().replace(/\/+$/, '') };
 }
 
+/**
+ * The publish trigger (services/publish.service.js): PUBLISH_HOOK_URL is a URL the API POSTs to (empty body) when the
+ * catalogue the public site shows has changed, to start a rebuild (a Cloudflare deploy hook, a GitHub workflow dispatch URL ...).
+ * It is a SECRET (it usually carries a token): never logged, never sent to a client. Unset = no automatic publishing: the admin
+ * still shows when the live site is behind and the owner runs `npm run publish-site`. In production it must be https.
+ */
+export function parsePublishConfig(source = process.env, isProd = isProduction) {
+  const raw = String(source.PUBLISH_HOOK_URL || '').trim();
+  if (raw) {
+    let url;
+    try {
+      url = new URL(raw);
+    } catch {
+      throw new Error('[FATAL] PUBLISH_HOOK_URL is not a valid URL.');
+    }
+    if (isProd && url.protocol !== 'https:') throw new Error('[FATAL] PUBLISH_HOOK_URL must be an https URL in production.');
+  }
+  return {
+    hookUrl: raw,
+    // After an admin change (or an order) wait this long before looking, so a burst of edits is looked at once.
+    checkDelayMs: integerEnv('PUBLISH_CHECK_DELAY_SECONDS', 30, 0, source) * 1000,
+    hookTimeoutMs: integerEnv('PUBLISH_HOOK_TIMEOUT_MS', 10000, 1000, source),
+  };
+}
+
 export function parseCspMode(raw = process.env.CSP_MODE) {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   return ['off', 'report-only', 'enforce'].includes(value) ? value : 'report-only';
@@ -189,6 +214,7 @@ export const env = {
   // Never in production, whatever the variable says.
   exposeResetToken: !isProduction && process.env.EXPOSE_RESET_TOKEN === 'true',
   corsAllowedOrigins: parseCorsOrigins(),
+  publish: parsePublishConfig(),
 
   // Email / SMTP
   smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',

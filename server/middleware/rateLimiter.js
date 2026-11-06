@@ -174,6 +174,14 @@ export const webhookLimiter = createRateLimiter({
   keyGenerator: (req) => `webhook:${req.ip || req.socket?.remoteAddress || 'ip'}`,
 });
 
+// 13. Publishing the public site from the admin: 6 per minute per IP
+export const publishLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 6,
+  message: 'Trop de demandes de publication. Veuillez patienter un instant.',
+  keyGenerator: (req) => `publish:${req.ip || req.socket?.remoteAddress || 'ip'}`,
+});
+
 // 10. Public contact form: 10 messages per 15 minutes per IP (each one raises an admin notification)
 export const contactLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,

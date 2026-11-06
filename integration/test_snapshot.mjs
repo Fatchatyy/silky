@@ -29,9 +29,14 @@ try {
   console.log(`snapshot: HTTP ${status}, ${ms} ms, ${(JSON.stringify(snap).length / 1024).toFixed(1)} KB, ${snap.products?.length} products`);
   check('status 200 and the expected keys', () => {
     assert.equal(status, 200);
-    for (const k of ['generatedAt', 'products', 'summaries', 'categories', 'reviews', 'theme', 'settings']) assert.ok(k in snap, k);
+    for (const k of ['generatedAt', 'fingerprint', 'products', 'summaries', 'categories', 'reviews', 'theme', 'settings']) assert.ok(k in snap, k);
   });
   check('every published product has a card summary (no cap)', () => assert.equal(snap.summaries.length, snap.products.length));
+  check('the fingerprint is a SHA-256 and the same on every call (rows may come back in another order)', async () => {
+    assert.match(snap.fingerprint, /^[0-9a-f]{64}$/);
+  });
+  const again = (await get('/storefront/snapshot')).body;
+  check('a second snapshot has the same fingerprint', () => assert.equal(again.fingerprint, snap.fingerprint));
   check('hidden product is in no part of the snapshot', () => {
     const hiddenSlug = fixtures.hidden.slug;
     assert.ok(!snap.products.some((p) => p.slug === hiddenSlug), 'products');

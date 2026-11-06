@@ -51,6 +51,8 @@ function fakeSite() {
   for (const slug of products) for (const prefix of ['', 'ar/']) put(`${prefix}product/${slug}.html`, productHtml(`${SITE}/${prefix}product/${slug}`));
   for (const slug of collections) for (const prefix of ['', 'ar/']) put(`${prefix}collection/${slug}.html`, pageHtml(`${SITE}/${prefix}collection/${slug}`));
   put('redirects-map.json', JSON.stringify({ ids: { 'id-1': 'robe-noire', 'id-2': 'chemise-lin' }, products, collections }));
+  put('build-info.json', JSON.stringify({ fingerprint: 'b'.repeat(64), snapshotGeneratedAt: '2026-11-06T10:00:00.000Z', builtAt: '2026-11-06T10:01:00.000Z', products: products.length }));
+  put('search-index.json', JSON.stringify(products.map((slug) => ({ id: slug, slug, name: slug }))));
   put('robots.txt', 'User-agent: *\nAllow: /\n');
   put('_redirects', '/index.html / 301\n');
   put('_headers', '/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Content-Security-Policy-Report-Only: default-src \'self\'\n/admin/*\n  X-Robots-Tag: noindex\n');
@@ -104,9 +106,13 @@ expectProblem('pages disagree on the site address (a build with the wrong PUBLIC
 expectProblem('the sitemap lists a page that does not exist', (s) => s.put('sitemap.xml', s.read('sitemap.xml').replace('</urlset>', `<url><loc>${SITE}/product/ghost</loc></url></urlset>`)), /sitemap lists \/product\/ghost/);
 expectProblem('the sitemap does not list a product', (s) => s.put('sitemap.xml', s.read('sitemap.xml').replace(`<url><loc>${SITE}/product/chemise-lin</loc></url>`, '')), /does not list \/product\/chemise-lin/);
 expectProblem('the sitemap lists a private page', (s) => { s.put('cart.html', pageHtml(`${SITE}/cart`)); s.put('sitemap.xml', s.read('sitemap.xml').replace('</urlset>', `<url><loc>${SITE}/cart</loc></url></urlset>`)); }, /private page/);
-for (const file of ['redirects-map.json', 'sitemap.xml', 'robots.txt', '404.html', 'ar/404.html', '_headers', '_redirects']) {
+for (const file of ['redirects-map.json', 'build-info.json', 'search-index.json', 'sitemap.xml', 'robots.txt', '404.html', 'ar/404.html', '_headers', '_redirects']) {
   expectProblem(`${file} is missing`, (s) => s.remove(file), new RegExp(`missing ${file.replace('.', '\\.')}`));
 }
+expectProblem('build-info.json has no fingerprint', (s) => s.put('build-info.json', JSON.stringify({ products: 2 })), /build-info.json has no valid fingerprint/);
+expectProblem('build-info.json counts other products than the pages', (s) => s.put('build-info.json', JSON.stringify({ fingerprint: 'c'.repeat(64), products: 99 })), /product count/);
+expectProblem('the search index misses a product', (s) => s.put('search-index.json', JSON.stringify([{ slug: 'robe-noire' }])), /does not list every product/);
+expectProblem('the search index is not JSON', (s) => s.put('search-index.json', 'oops'), /search-index.json is not valid JSON/);
 expectProblem('the redirect map is not JSON', (s) => s.put('redirects-map.json', 'Not found'), /not valid JSON/);
 expectProblem('the redirect map has no products (an empty catalogue)', (s) => s.put('redirects-map.json', JSON.stringify({ ids: {}, products: [], collections: [] })), /no product pages/);
 expectProblem('_headers lacks the security headers', (s) => s.put('_headers', '/admin/*\n  X-Robots-Tag: noindex\n'), /_headers lacks/);

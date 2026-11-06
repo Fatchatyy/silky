@@ -635,6 +635,10 @@ CREATE TABLE public.site_settings (
     announcements_hidden boolean DEFAULT false NOT NULL,
     hero_config text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    publish_hook_fingerprint text,
+    publish_hook_at timestamp with time zone,
+    publish_hook_ok boolean,
+    publish_hook_message text,
     CONSTRAINT site_settings_id_check CHECK ((id = 1))
 );
 

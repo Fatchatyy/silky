@@ -25,7 +25,7 @@ const title = isNamedCollection(slug) ? text.title : name || text.title;
         <p style="text-align: center">{t('collection.empty')}</p>
       ) : (
         <div class="products_grid">
-          {products.map((product) => <ProductCard product={product} locale={locale} fallbackImage={text.fallbackImage} />)}
+          {products.map((product, index) => <ProductCard product={product} locale={locale} fallbackImage={text.fallbackImage} priority={index < 4} first={index === 0} />)}
         </div>
       )}
     </section>

@@ -1,7 +1,7 @@
 // The product list as the admin panel works on it (hidden products included). Every change that visitors can see also clears
 // the cached shop pages of that product, its collection and the home page, like the editor on the product page does.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { adminApi as api, purgeProductPages } from '../../admin/adminApi';
+import { adminApi as api, catalogueChanged } from '../../admin/adminApi';
 import { useAuth } from './useAuth';
 
 const ProductsContext = createContext(null);
@@ -129,7 +129,7 @@ export function ProductsProvider({ children }) {
   const addProduct = useCallback(async (product) => {
     const saved = await api.createProduct(product);
     const created = normalizeProductState(saved || product);
-    await purgeProductPages(created);
+    catalogueChanged();
 
     setProducts((current) => {
       const next = [...current, created];
@@ -143,7 +143,7 @@ export function ProductsProvider({ children }) {
     const previous = productsRef.current.find((p) => p.id === id);
     const saved = await api.updateProduct(id, updates);
     const savedProduct = normalizeProductState(saved || updates);
-    await purgeProductPages(savedProduct, previous);
+    catalogueChanged();
 
     setProducts((current) => {
       const next = current.map((p) => (p.id === id ? { ...p, ...savedProduct } : p));
@@ -156,7 +156,7 @@ export function ProductsProvider({ children }) {
   const deleteProduct = useCallback(async (id) => {
     const previous = productsRef.current.find((p) => p.id === id);
     await api.deleteProduct(id);
-    await purgeProductPages(previous, previous);
+    catalogueChanged();
 
     setProducts((current) => {
       const next = current.filter((p) => p.id !== id);
@@ -167,7 +167,7 @@ export function ProductsProvider({ children }) {
 
   const uploadProductVideo = useCallback(async (productId, formData) => {
     const res = await api.uploadProductVideo(productId, formData);
-    await purgeProductPages(res?.product);
+    catalogueChanged();
     if (res?.product) {
       const updated = normalizeProductState(res.product);
       setProducts((current) => {
@@ -181,7 +181,7 @@ export function ProductsProvider({ children }) {
 
   const deleteProductVideo = useCallback(async (productId, videoId) => {
     const res = await api.deleteProductVideo(productId, videoId);
-    await purgeProductPages(res?.product);
+    catalogueChanged();
     if (res?.product) {
       const updated = normalizeProductState(res.product);
       setProducts((current) => {

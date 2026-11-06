@@ -39,7 +39,7 @@ export function checkBuiltSite(dist, pagesDir, { collectionPageSize } = {}) {
   const read = (file) => fs.readFileSync(path.join(dist, file), 'utf8');
   const exists = (file) => fs.existsSync(path.join(dist, file));
 
-  for (const file of ['redirects-map.json', 'sitemap.xml', 'robots.txt', '404.html', 'ar/404.html', '_headers', '_redirects']) {
+  for (const file of ['redirects-map.json', 'build-info.json', 'search-index.json', 'sitemap.xml', 'robots.txt', '404.html', 'ar/404.html', '_headers', '_redirects']) {
     if (!exists(file)) add(`missing ${file}`);
   }
   if (problems.length) return problems;
@@ -53,6 +53,20 @@ export function checkBuiltSite(dist, pagesDir, { collectionPageSize } = {}) {
   if (!Array.isArray(map.products) || !Array.isArray(map.collections) || typeof map.ids !== 'object') return ['redirects-map.json has the wrong shape'];
   if (map.products.length === 0) add('the site has no product pages');
   if (new Set(Object.values(map.ids)).size !== map.products.length) add('redirects-map.json: ids and products disagree');
+
+  try {
+    const info = JSON.parse(read('build-info.json'));
+    if (!/^[0-9a-f]{64}$/.test(info.fingerprint ?? '') || info.products !== map.products.length) add('build-info.json has no valid fingerprint, or a product count that differs from the pages');
+  } catch {
+    add('build-info.json is not valid JSON');
+  }
+
+  try {
+    const index = JSON.parse(read('search-index.json'));
+    if (!Array.isArray(index) || index.length !== map.products.length) add('search-index.json does not list every product');
+  } catch {
+    add('search-index.json is not valid JSON');
+  }
 
   const headers = read('_headers');
   for (const need of ['/*', 'X-Content-Type-Options', 'X-Frame-Options', 'Content-Security-Policy-Report-Only', '/admin/*']) {

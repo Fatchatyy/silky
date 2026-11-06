@@ -18,7 +18,7 @@ export const adminApi = {
   updateAdminInventory: async (variantId: string, stockQuantity: number) => {
     const updated = await request(`/admin/inventory/${variantId}`, { method: 'PATCH', body: { stockQuantity } });
     // Sold out / in stock shows on the product page (and in its structured data).
-    if (updated?.productId) await purgeStorefrontCache({ productId: updated.productId });
+    catalogueChanged();
     return updated;
   },
   createManualOrder: (data: any) => request('/admin/orders/manual', { method: 'POST', body: data }),
@@ -32,16 +32,16 @@ export const adminApi = {
   createExchange: (orderId: string, data: any) => request(`/admin/orders/${orderId}/exchange`, { method: 'POST', body: data }),
   getAdminAnalytics: (params?: any) => request(`/admin/analytics${query({ granularity: params?.granularity, limit: params?.limit, piePeriod: params?.piePeriod })}`),
 
-  // Theme (colours, announcement bar, hero). Saving also clears the cached pages: it shows on every page.
+  // Theme (colours, announcement bar, hero): it shows on every page, so it needs a publish.
   getTheme: () => request('/theme'),
   updateTheme: async (theme: any) => {
     const saved = await request('/theme', { method: 'PUT', body: theme });
-    await purgeStorefrontCache({ all: true });
+    catalogueChanged();
     return saved;
   },
   uploadThemeImage: (formData: FormData) => request('/theme/upload', { method: 'POST', body: formData }),
 
-  // Products. Each call that changes what visitors see is followed by the cache purge by the caller (see purgeProductPages).
+  // Products. Each call that changes what visitors see is followed by catalogueChanged() by the caller.
   getProducts: (params?: any) => request(`/products${query({ category: params?.category, search: params?.search, page: params?.page, limit: params?.limit, includeHidden: params?.includeHidden ? 'true' : undefined })}`),
   // The public list including hidden products (the API only returns them to an admin token).
   getAllProducts: () => request('/products?includeHidden=true'),
@@ -112,22 +112,41 @@ export const adminApi = {
   getGovernorates: () => request('/governorates'),
 };
 
-type PurgeRequest = { slug?: string; category?: string; previousCategory?: string; productId?: string; all?: boolean };
+/** The browser event that asks the "site publication" banner (admin-app/components/PublishStatus.jsx) to look again. */
+export const CATALOGUE_CHANGED_EVENT = 'silky:catalogue-changed';
 
 /**
- * Used to clear the page cache after an admin change. The public pages are now files built from a snapshot of the
- * catalogue (npm run publish), so there is no cache to clear and nothing to call: a change shows on the shop after the next
- * publish. Kept as a no-op so the 9 call sites need no change until the automatic publish trigger replaces them.
+ * Call after an admin change that visitors can see. Nothing is purged and nothing is sent: the SERVER notices a change to the
+ * public site on its own (a write request, then one look at the catalogue, services/publish.service.js) and starts a publish if a
+ * deploy hook is set. This only makes the banner refresh. Never throws.
  */
-export async function purgeStorefrontCache(_change: PurgeRequest) {
-  return null;
+export function catalogueChanged() {
+  try {
+    window.dispatchEvent(new Event(CATALOGUE_CHANGED_EVENT));
+  } catch {
+    // no window (server rendering): nothing to refresh
+  }
 }
 
-/** After a product was created, saved, hidden/shown, moved to another collection or deleted: `next` is the product as saved, `previous` as it was. */
-export function purgeProductPages(next?: any, previous?: any) {
-  return purgeStorefrontCache({
-    slug: next?.slug || previous?.slug,
-    category: next?.category || previous?.category,
-    previousCategory: previous?.category,
-  });
+export type PublishStatus = {
+  /** Fingerprint of the catalogue as the public site would be built from it right now. */
+  fingerprint: string;
+  hookConfigured: boolean;
+  lastHook: { at: string; ok: boolean; message: string | null; forCurrentCatalogue: boolean } | null;
+};
+export type BuildInfo = { fingerprint: string; snapshotGeneratedAt: string; builtAt: string; products: number } | null;
+
+export const getPublishStatus = (): Promise<PublishStatus> => request('/publish/status');
+export const publishNow = (): Promise<{ ok: boolean; fingerprint: string }> => request('/publish', { method: 'POST' });
+
+/** What the LIVE site was built from (build-info.json, a file of the deployed site: same origin as the admin). null when unavailable. */
+export async function getBuildInfo(): Promise<BuildInfo> {
+  try {
+    const res = await fetch('/build-info.json', { cache: 'no-store' });
+    if (!res.ok || !/json/.test(res.headers.get('content-type') ?? '')) return null;
+    const info = await res.json();
+    return typeof info?.fingerprint === 'string' ? info : null;
+  } catch {
+    return null;
+  }
 }

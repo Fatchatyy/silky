@@ -26,6 +26,7 @@ export function snapshotProblems(snapshot: any, { minProducts = 1 }: SnapshotRul
 
   for (const key of ['products', 'summaries', 'categories']) if (!Array.isArray(snapshot[key])) add(`"${key}" is not a list`);
   if (typeof snapshot.generatedAt !== 'string' || Number.isNaN(Date.parse(snapshot.generatedAt))) add('"generatedAt" is missing or not a date');
+  if (typeof snapshot.fingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(snapshot.fingerprint)) add('"fingerprint" is missing or not a SHA-256 (an API older than the publish trigger?)');
   if (!snapshot.theme || typeof snapshot.theme !== 'object') add('"theme" is missing');
   if (!snapshot.reviews || typeof snapshot.reviews !== 'object' || Array.isArray(snapshot.reviews)) add('"reviews" is not an object');
   if (!Number.isFinite(snapshot.settings?.deliveryFee)) add('"settings.deliveryFee" is not a number');

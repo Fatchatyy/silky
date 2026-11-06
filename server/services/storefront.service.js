@@ -3,6 +3,7 @@
 import { productRepository } from '../repositories/product.repository.js';
 import { themeRepository } from '../repositories/theme.repository.js';
 import { reviewRepository } from '../repositories/review.repository.js';
+import { snapshotFingerprint } from './catalogue.fingerprint.js';
 import { AppError } from '../utils/errors.js';
 
 const CATEGORY_SLUG = /^[a-z0-9-]+$/;
@@ -67,7 +68,7 @@ export async function getSnapshot() {
     themeRepository.getDeliveryFee(),
   ]);
   const stampById = new Map(stamps.map((stamp) => [stamp.id, stamp]));
-  return {
+  const snapshot = {
     generatedAt: new Date().toISOString(),
     products: fullProducts.map((product) => {
       const stamp = stampById.get(product.id);
@@ -79,4 +80,6 @@ export async function getSnapshot() {
     theme,
     settings: { deliveryFee },
   };
+  // What a rebuild would change: lets the admin tell whether the live site is behind, and the publish trigger whether to fire (services/publish.service.js).
+  return { ...snapshot, fingerprint: snapshotFingerprint(snapshot) };
 }

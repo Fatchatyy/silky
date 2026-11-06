@@ -2,6 +2,10 @@
 // Document shell of every page: <html lang dir>, the single <Seo> head, announcement bar, header, footer.
 // One stylesheet (styles/shop.css) holds the shop's CSS in the order the old app evaluated it: reboot first, rtl last.
 import '../styles/shop.css';
+// Fonts are served from this site (fontsource), not from Google: no third-party request, no render-blocking stylesheet.
+import '@fontsource/playfair-display/latin-400.css';
+import '@fontsource/playfair-display/latin-400-italic.css';
+import ArabicFonts from '../components/layout/ArabicFonts.astro';
 import Seo from '../components/seo/Seo.astro';
 import Header from '../components/layout/Header.astro';
 import Footer from '../components/layout/Footer.astro';
@@ -21,12 +25,7 @@ const announcements = { announcements: theme.announcements, announcementsHidden:
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet" />
-    {locale === 'ar' && (
-      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet" data-arabic-font />
-    )}
+    {locale === 'ar' && <ArabicFonts />}
     <style is:inline set:html={themeCss(theme)}></style>
     <Seo {...seo} />
   </head>

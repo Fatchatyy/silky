@@ -15,7 +15,7 @@ import { useCart } from '../stores/cart';
 import { useFavorites } from '../stores/favorites';
 import { useProducts } from '../stores/products';
 import { normalizeProduct as normalizeProductState } from '../lib/normalizeProduct';
-import { adminApi, purgeProductPages } from './adminApi';
+import { adminApi, catalogueChanged } from './adminApi';
 import { colorIdOnRename, discardSessionUploads, mapProductColorsToForm, normalizeProduct, uploadFile } from './productForm';
 import { getEffectivePrice } from '@shared/price';
 import { buildStockMatrix, getAvailableStock, getStockStatus } from '@shared/stock';
@@ -197,30 +197,29 @@ export default function ProductPageAdmin({ initialProduct, standalone = false, b
 
   // The product as the API returns it, kept here: after a save the page shows the new data at once.
   const [product, setProduct] = useState(initialProduct);
-  const purgeAfter = purgeProductPages;
   const updateProduct = async (id, updates) => {
     const saved = await adminApi.updateProduct(id, updates);
     const savedProduct = normalizeProductState(saved || updates);
     const previous = product;
     setProduct((current) => ({ ...current, ...savedProduct }));
-    await purgeAfter(savedProduct, previous);
+    catalogueChanged();
     return savedProduct;
   };
   const deleteProduct = async (id) => {
     const previous = product;
     await adminApi.deleteProduct(id);
-    await purgeAfter(previous, previous);
+    catalogueChanged();
   };
   const uploadProductVideo = async (productId, formData) => {
     const res = await adminApi.uploadProductVideo(productId, formData);
     if (res?.product) setProduct(normalizeProductState(res.product));
-    await purgeAfter(res?.product || product, product);
+    catalogueChanged();
     return res;
   };
   const deleteProductVideo = async (productId, videoId) => {
     const res = await adminApi.deleteProductVideo(productId, videoId);
     if (res?.product) setProduct(normalizeProductState(res.product));
-    await purgeAfter(res?.product || product, product);
+    catalogueChanged();
     return res;
   };
 

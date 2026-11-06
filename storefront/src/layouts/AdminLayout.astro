@@ -4,6 +4,8 @@
 // shop pages, see public/admin/styles.css): the panel is the page the old stylesheet was written for, and a layered rule
 // would lose to the shop's resets (* { margin: 0 }). Visitors' pages never reference any file of the admin.
 import '../styles/shop.css';
+import '@fontsource/playfair-display/latin-400.css';
+import '@fontsource/playfair-display/latin-400-italic.css';
 import Seo from '../components/seo/Seo.astro';
 import { ADMIN_STYLES_VERSION } from '../admin/adminStyles.js';
 
@@ -18,9 +20,6 @@ const seo = {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href={`/admin/admin.css?v=${ADMIN_STYLES_VERSION}`} data-admin-styles />
     <link rel="stylesheet" href={`/admin/product-admin.css?v=${ADMIN_STYLES_VERSION}`} />
     <Seo {...seo} />

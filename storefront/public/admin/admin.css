@@ -6271,3 +6271,12 @@ textarea.gx-input {
     padding: 12px;
   }
 }
+
+/* Publication banner (admin-app/components/PublishStatus.jsx) */
+.publish-status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 16px; font-size: 0.9rem; line-height: 1.4; }
+.publish-status-ok { background: #edf7ee; color: #1e5a2a; }
+.publish-status-pending { background: #fff4e0; color: #7a4b00; border-bottom: 1px solid #f0c987; }
+.publish-status-unknown { background: #f2f2f2; color: #555; }
+.publish-status-text { flex: 1 1 320px; }
+.publish-status-button { padding: 6px 14px; border: 1px solid #7a4b00; border-radius: 4px; background: #fff; color: #7a4b00; font-weight: 600; cursor: pointer; }
+.publish-status-button:disabled { opacity: 0.6; cursor: default; }

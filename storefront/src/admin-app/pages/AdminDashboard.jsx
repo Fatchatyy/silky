@@ -20,6 +20,7 @@ import NotificationBell from '../components/NotificationBell';
 import NotificationPanel from '../components/NotificationPanel';
 import NotificationAllPanel from '../components/NotificationAllPanel';
 import NotificationPopup from '../components/NotificationPopup';
+import PublishStatus from '../components/PublishStatus';
 import '../styles/hero-editor.css';
 
 const NAV_SECTIONS = [
@@ -407,6 +408,7 @@ export default function AdminDashboard() {
       </aside>
 
       <div className="admin-main">
+        <PublishStatus />
         <header className="admin-header">
           <button
             type="button"

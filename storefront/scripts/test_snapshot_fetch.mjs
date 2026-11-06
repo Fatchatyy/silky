@@ -30,6 +30,7 @@ const goodSnapshot = (count = 3) => {
   const products = Array.from({ length: count }, (_, i) => product(i + 1));
   return {
     generatedAt: '2026-11-06T10:00:00.000Z',
+    fingerprint: 'a'.repeat(64),
     products,
     summaries: products.map((p) => ({ id: p.id, slug: p.slug })),
     categories: [{ slug: 'femme', name: 'Femme' }],
@@ -169,6 +170,8 @@ await check('validation: hidden product, missing fields, duplicates, mismatched 
     'summary of an unknown product': (s) => { s.summaries[0].id = 'ghost'; },
     'reviews of an unknown product': (s) => { s.reviews = { ghost: { reviews: [], summary: { average: 0, count: 0 } } }; },
     'no theme': (s) => { delete s.theme; },
+    'no fingerprint': (s) => { delete s.fingerprint; },
+    'a fingerprint that is not a SHA-256': (s) => { s.fingerprint = 'abc'; },
     'no delivery fee': (s) => { s.settings = {}; },
     'products not a list': (s) => { s.products = null; },
     'not an object': () => 'x',

@@ -9,6 +9,7 @@ import webhookRoutes from './routes/webhooks.routes.js';
 import { guestSessionMiddleware } from './middleware/guestSession.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { requestLogger } from './middleware/requestLogger.js';
+import { publishWatcher } from './middleware/publishWatcher.js';
 import { pool } from './db/pool.js';
 import { UPLOADS_DIR } from './utils/upload.js';
 import { env } from './config/env.js';
@@ -82,7 +83,7 @@ app.get('/health', async (_req, res) => {
 // Provider webhooks are public and authenticated by their own secret; mounted before
 // the guest-session middleware so no guest cookie is issued for them.
 app.use('/api/webhooks', webhookRoutes);
-app.use('/api', guestSessionMiddleware, apiRoutes);
+app.use('/api', publishWatcher, guestSessionMiddleware, apiRoutes);
 
 // The API serves no pages: the storefront and the admin panel are the Astro project in storefront/.
 app.get('/', (_req, res) => res.json({ ok: true }));

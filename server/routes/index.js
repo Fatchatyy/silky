@@ -12,6 +12,7 @@ import contactRoutes from './contact.routes.js';
 import notificationsRoutes from './notifications.routes.js';
 import governoratesRoutes from './governorates.routes.js';
 import storefrontRoutes from './storefront.routes.js';
+import publishRoutes from './publish.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/contact', contactRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/governorates', governoratesRoutes);
 router.use('/storefront', storefrontRoutes);
+router.use('/publish', publishRoutes);
 
 export default router;

@@ -7037,3 +7037,65 @@ html[dir="rtl"] .share-modal-copy-box {
 .pagination { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; margin: 2rem 0; }
 .pagination a, .pagination .pagination_current { min-width: 2.25rem; padding: 0.4rem 0.75rem; text-align: center; border: 1px solid var(--color-primary); color: var(--color-primary); text-decoration: none; }
 .pagination .pagination_current { background: var(--color-primary); color: #fff; }
+
+/* Home carousel as plain HTML and CSS (components/ProductCarousel.astro): a row that scrolls and snaps; the first card is centred. */
+.scroll_carousel {
+  position: relative;
+}
+
+.scroll_carousel_track {
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  padding: 0 max(16px, calc((100% - 450px) / 2));
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: max(16px, calc((100% - 450px) / 2));
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.scroll_carousel_track::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll_carousel_track:focus-visible {
+  outline: 2px solid var(--color-primary, #8D191C);
+  outline-offset: -2px;
+}
+
+.scroll_carousel_item {
+  flex: 0 0 450px;
+  aspect-ratio: 2 / 3;
+  scroll-snap-align: center;
+}
+
+@media (max-width: 768px) {
+  .scroll_carousel_track {
+    padding-inline: max(16px, calc((100% - 360px) / 2));
+    scroll-padding-inline: max(16px, calc((100% - 360px) / 2));
+  }
+
+  .scroll_carousel_item {
+    flex-basis: 360px;
+  }
+}
+
+@media (max-width: 480px) {
+  .scroll_carousel_track {
+    gap: 14px;
+    padding-inline: max(12px, calc((100% - 290px) / 2));
+    scroll-padding-inline: max(12px, calc((100% - 290px) / 2));
+  }
+
+  .scroll_carousel_item {
+    flex-basis: min(290px, 72vw);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scroll_carousel_track {
+    scroll-behavior: smooth;
+  }
+}

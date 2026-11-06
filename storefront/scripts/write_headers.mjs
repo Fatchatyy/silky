@@ -2,11 +2,10 @@
 // origin). Runs before `astro build` (npm run build). public/_headers is generated: it is in .gitignore.
 //   node scripts/write_headers.mjs
 //
-// The addresses are read the way Astro was observed to read them for the browser bundle: `.env` takes precedence over the
-// process environment (checked: a PUBLIC_API_URL given on the command line did NOT reach the bundle while `.env` held another
-// value; `.env.production.local` was ignored too). On a build machine without a `.env` file only the environment exists, so the
-// two agree; with both, make them say the same thing or the CSP would list an address the bundle does not use. This script
-// prints what it used.
+// The addresses come from the environment, then from .env. CAUTION: Astro bakes PUBLIC_* into the BROWSER bundle from `.env`
+// BEFORE the environment (checked: a PUBLIC_API_URL given on the command line did not reach the bundle while `.env` held another
+// value; `.env.production.local` was ignored too). On a build machine there is no .env file, so everything comes from the
+// environment and the two agree; on a developer's machine keep `.env` and the environment consistent. This script prints what it used.
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
@@ -19,7 +18,8 @@ for (const name of ['.env']) {
   const file = path.join(root, name);
   if (fs.existsSync(file)) Object.assign(fromFiles, parseEnv(fs.readFileSync(file, 'utf8')));
 }
-const value = (key) => String(fromFiles[key] ?? process.env[key] ?? '').trim().replace(/\/+$/, '');
+// The environment wins (a build machine, a test): .env is the fallback for a developer's own machine.
+const value = (key) => String(process.env[key] ?? fromFiles[key] ?? '').trim().replace(/\/+$/, '');
 
 const site = value('PUBLIC_SITE_URL') || 'https://silky.tn';
 const context = {

@@ -1,7 +1,7 @@
 import { useSearchParams } from '../lib/router.jsx';
 import { productPath } from '@shared/urls';
 import ProductCard from '../components/ProductCard';
-import { useProducts } from '../stores/products';
+import { useSearchProducts } from '../stores/searchIndex';
 import { useT } from '../i18n/useT';
 import { productCustomAlt, productName } from '@shared/productText';
 
@@ -13,7 +13,7 @@ export default function SearchResults() {
   const { t, locale } = useT();
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
-  const { visibleProducts, loading } = useProducts();
+  const { products: visibleProducts, loading } = useSearchProducts();
 
   const trimmed = query.trim().toLowerCase();
 

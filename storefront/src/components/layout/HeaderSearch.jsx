@@ -1,5 +1,5 @@
 // The header search box. Without JavaScript it is a plain GET form to /search?q=; with it, suggestions appear as the
-// visitor types (the product list is downloaded on the first keystroke, not on every page view).
+// visitor types (the small search index, /search-index.json, is downloaded on the first keystroke, not on every page view).
 import { useEffect, useRef, useState } from 'react';
 import { productPath } from '@shared/urls';
 import { productName } from '@shared/productText';
@@ -8,14 +8,14 @@ import { localizePath } from '@shared/locales';
 import { useNavigate } from '../../lib/router';
 import { useLocale } from '../../i18n/LocaleContext';
 import { useT } from '../../i18n/useT';
-import { useProducts } from '../../stores/products';
+import { useSearchProducts } from '../../stores/searchIndex';
 import { withIsland } from '../../lib/island';
 
 function HeaderSearch() {
   const navigate = useNavigate();
   const { locale } = useLocale();
   const { t, categoryLabel } = useT();
-  const { visibleProducts, ensureLoaded } = useProducts({ lazy: true });
+  const { products: visibleProducts, ensureLoaded } = useSearchProducts({ lazy: true });
   const [query, setQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);

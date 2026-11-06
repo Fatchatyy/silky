@@ -100,7 +100,23 @@ async function runTests(fixtures, api) {
 
   const homeAr = (await get('/ar')).text;
   assert(/<html lang="ar" dir="rtl">/.test(homeAr), 'Arabic home: lang="ar" dir="rtl"');
-  assert(/family=Cairo/.test(homeAr) && !/family=Cairo/.test(home), 'Arabic pages load the Cairo font, French pages do not');
+  // The CSS of a page: its linked stylesheets and its inline <style> blocks (Astro inlines the small ones).
+  const stylesheetText = async (html) => [...(await Promise.all([...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => get(m[1]).then((r) => r.text)))), ...[...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1])].join('\n');
+  const frCss = await stylesheetText(home);
+  const arCss = await stylesheetText(homeAr);
+  // Astro bundles CSS by import, not by what a page renders, so the French pages may carry the Cairo @font-face rules too; a browser
+  // downloads a font file only when text uses it, and no French text uses Cairo. What matters: the Arabic pages have the faces.
+  assert(/cairo-arabic-400-normal/.test(arCss) && /cairo-latin-700-normal/.test(arCss), 'Arabic pages carry the Cairo font faces, served from this site');
+  assert(/playfair-display-latin-400-normal/.test(frCss) && /playfair-display-latin-400-italic/.test(frCss), 'Playfair Display is served from this site');
+  assert(!/googleapis|gstatic/.test(home + homeAr + frCss + arCss), 'no page or stylesheet mentions Google Fonts (no third-party request, no render-blocking font stylesheet)');
+  const fontUrl = frCss.match(/url\(([^)]*playfair-display-latin-400-normal[^)]*\.woff2)\)/)?.[1]?.replace(/["']/g, '');
+  const fontFile = fontUrl ? await get(fontUrl.startsWith('http') ? new URL(fontUrl).pathname : fontUrl) : null;
+  assert(fontFile && fontFile.status === 200 && !fontFile.headers.get('x-silky-worker') && /immutable/.test(fontFile.headers.get('cache-control') || ''), 'a font file is a static file, cached as immutable');
+  assert(home.includes('data-scroll-carousel') && (home.match(/class="coverflow_card_link"/g) || []).length >= 1, 'the home carousel is plain HTML: its cards are real links in the first response');
+  assert(!/astro-island[^>]*component-url="[^"]*Carousel/.test(home), 'the home carousel is not a JavaScript island any more');
+  const carouselLinks = [...home.matchAll(/<a href="(\/product\/[^"]+)" class="coverflow_card_link">/g)].map((m) => m[1]);
+  assert(carouselLinks.length >= 1 && carouselLinks.length <= 16 && carouselLinks.includes(`/product/${fixtures.robe.slug}`), 'the carousel links the newest products (at most 16), each to its product page');
+  assert(/<img[^>]*class="coverflow_card_img"[^>]*loading="eager"[^>]*fetchpriority="high"|<img[^>]*fetchpriority="high"[^>]*class="coverflow_card_img"/.test(home) || /fetchpriority="high"[^>]*loading="eager"|loading="eager"[^>]*fetchpriority="high"/.test(home), 'the first carousel photo is loaded at once, with high priority (it is the largest thing on the page)');
   assert(meta(homeAr, 'property', 'og:locale') === 'ar_AR' && meta(home, 'property', 'og:locale') === 'fr_FR', 'og:locale is ar_AR / fr_FR');
   assert(homeAr.includes(`<link rel="canonical" href="${SITE}/ar">`), 'Arabic home canonical is /ar');
   checkHead(homeAr, 'Arabic home');
@@ -273,7 +289,7 @@ async function runTests(fixtures, api) {
     '/', '/ar', '/collection/femme', '/ar/collection/femme', `/product/${robe.slug}`, `/ar/product/${robe.slug}`, `/product/${fixtures.chemise.slug}`, `/product/${fixtures.evil.slug}`,
     '/faq', '/ar/faq', '/livraison-retours', '/service-client', '/about', '/contact', '/ar/about', '/ar/contact',
     '/cart', '/checkout', '/account', '/login', '/signup', '/register', '/search', '/favorites', '/order-confirmation', '/leave-review', '/password-reset', '/ar/cart', '/ar/search',
-    '/sitemap.xml', '/robots.txt', '/redirects-map.json', '/favicon.svg',
+    '/sitemap.xml', '/robots.txt', '/redirects-map.json', '/build-info.json', '/search-index.json', '/favicon.svg',
   ];
   const lacking = [];
   for (const route of filePaths) {
@@ -295,7 +311,7 @@ async function runTests(fixtures, api) {
   assert(/strict-origin/.test(pageHeaders.headers.get('referrer-policy') || '') && /camera=\(\)/.test(pageHeaders.headers.get('permissions-policy') || ''), 'Referrer-Policy and Permissions-Policy are set on files');
   assert(/max-age=\d+/.test(pageHeaders.headers.get('strict-transport-security') || ''), 'HSTS is set when the site address is https (production)');
   const csp = pageHeaders.headers.get('content-security-policy-report-only') || '';
-  assert(csp.includes("frame-ancestors 'none'") && csp.includes(`connect-src 'self' http://127.0.0.1:${new URL(api.url).port}`) && csp.includes('fonts.googleapis.com') && !pageHeaders.headers.get('content-security-policy'), `CSP is report-only and allows this build's API, media and Google Fonts origins (got: ${csp})`);
+  assert(csp.includes("frame-ancestors 'none'") && csp.includes(`connect-src 'self' http://127.0.0.1:${new URL(api.url).port}`) && !/googleapis|gstatic/.test(csp) && !pageHeaders.headers.get('content-security-policy'), `CSP is report-only and allows this build's API and media origins and no font origin (got: ${csp})`);
   const notFoundFile = await get('/404');
   assert(/noindex/.test(notFoundFile.text), 'the not-found file, if someone requests /404 directly, is noindex');
 
@@ -372,6 +388,23 @@ async function runTests(fixtures, api) {
 
   console.log('\n--- Collection pages (pagination) ---');
   const snapshot = await (await fetch(`${api.url}/api/storefront/snapshot`)).json();
+  const buildInfo = JSON.parse((await get('/build-info.json')).text);
+  assert(buildInfo.fingerprint === snapshot.fingerprint && buildInfo.products === snapshot.products.length && !Number.isNaN(Date.parse(buildInfo.builtAt)), 'build-info.json carries the fingerprint of the snapshot the pages were built from (the admin compares it with the API to show "changes not published")');
+  assert(/noindex/.test((await get('/build-info.json')).headers.get('x-robots-tag') || ''), 'build-info.json is noindex');
+  const searchIndex = JSON.parse((await get('/search-index.json')).text);
+  const published = new Set(snapshot.products.map((p) => p.slug));
+  assert(Array.isArray(searchIndex) && searchIndex.length === snapshot.products.length && searchIndex.every((p) => published.has(p.slug)), 'search-index.json lists every published product (and only those)');
+  assert(!searchIndex.some((p) => p.slug === fixtures.hidden.slug || p.id === fixtures.hidden.id), 'the search index never lists a hidden product');
+  assert(searchIndex.every((p) => p.id && p.name && Number.isFinite(p.price) && typeof p.category === 'string' && (p.description || '').length <= 300 && (p.descriptionAr || '').length <= 300), 'every search line has what a card and a match need, with descriptions cut to 300 characters');
+  const robeLine = searchIndex.find((p) => p.slug === robe.slug);
+  assert(robeLine && !('variants' in robeLine) && !('colors' in robeLine) && /Une pièce élégante/.test(robeLine.description), 'a search line is light (no variants or colours) but its description is searchable');
+  assert(JSON.stringify(searchIndex).length < JSON.stringify(snapshot.products).length / 3, `the search index is much smaller than the product list it replaces (${JSON.stringify(searchIndex).length} against ${JSON.stringify(snapshot.products).length} characters)`);
+  assert(/noindex/.test((await get('/search-index.json')).headers.get('x-robots-tag') || ''), 'search-index.json is noindex');
+  const firstCollectionPage = (await get('/collection/femme')).text;
+  // (split on the card markup: a product text may contain ">", the evil fixture has </script>)
+  const cardImages = firstCollectionPage.split('<img ').slice(1).map((chunk) => chunk.match(/class="product_img" loading="(eager|lazy)"( fetchpriority="(\w+)")?/)).filter(Boolean).map((m) => ({ loading: m[1], priority: m[3] }));
+  assert(cardImages.length >= 5 && cardImages.slice(0, 4).every((c) => c.loading === 'eager') && cardImages.slice(4).every((c) => c.loading === 'lazy'), `collection page: the first four card photos load at once, the rest are lazy (${cardImages.slice(0, 6).map((c) => c.loading).join(',')})`);
+  assert(cardImages[0].priority === 'high' && cardImages.slice(1).every((c) => !c.priority), 'only the very first card photo has high priority');
   const pageSize = Number(PAGE_SIZE);
   const femmeSlugs = snapshot.summaries.filter((p) => p.category === 'femme').map((p) => p.slug);
   const pagesExpected = Math.max(1, Math.ceil(femmeSlugs.length / pageSize));

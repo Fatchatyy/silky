@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { adminApi as api, purgeStorefrontCache } from './adminApi';
+import { adminApi as api, catalogueChanged } from './adminApi';
 import './adminStyles';
 
 export default function AdminProductReviewsSection({ productId, onReviewUpdated, highlightReviewId = null }) {
@@ -51,7 +51,7 @@ export default function AdminProductReviewsSection({ productId, onReviewUpdated,
     try {
       await api.updateAdminProductReview(reviewId, { status });
       await loadReviews();
-      purgeStorefrontCache({ productId });
+      catalogueChanged();
       if (onReviewUpdated) onReviewUpdated();
     } catch (err) {
       setError(err.message);
@@ -62,7 +62,7 @@ export default function AdminProductReviewsSection({ productId, onReviewUpdated,
     try {
       await api.updateAdminProductReview(reviewId, { showInGeneral: !currentVal });
       await loadReviews();
-      purgeStorefrontCache({ productId });
+      catalogueChanged();
       if (onReviewUpdated) onReviewUpdated();
     } catch (err) {
       setError(err.message);
@@ -74,7 +74,7 @@ export default function AdminProductReviewsSection({ productId, onReviewUpdated,
     try {
       await api.deleteAdminProductReview(reviewId);
       await loadReviews();
-      purgeStorefrontCache({ productId });
+      catalogueChanged();
       if (onReviewUpdated) onReviewUpdated();
     } catch (err) {
       setError(err.message);

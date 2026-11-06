@@ -9,6 +9,8 @@ import { SnapshotError } from '../snapshot/validate.ts';
 
 export type Snapshot = {
   generatedAt: string;
+  /** What a rebuild would change (server/services/catalogue.fingerprint.js); copied into build-info.json. */
+  fingerprint: string;
   products: any[];
   summaries: any[];
   categories: { slug: string; name: string }[];

@@ -26,6 +26,7 @@ import { runOrderClaimsMigration } from './db/migrations/add_order_claims.js';
 import { runExchangeDeliveriesMigration } from './db/migrations/add_exchange_deliveries.js';
 import { runRefundDeliveriesMigration } from './db/migrations/add_refund_deliveries.js';
 import { runUsersTokensValidAfterMigration } from './db/migrations/add_users_tokens_valid_after.js';
+import { runPublishStateMigration } from './db/migrations/add_publish_state.js';
 import { missingApiConfig, missingWebhookConfig } from './config/goodex.js';
 import { resolveMailMode } from './services/email.service.js';
 import { installProcessSafetyHandlers } from './utils/processSafety.js';
@@ -61,6 +62,7 @@ async function start() {
   await runExchangeDeliveriesMigration(pool);
   await runRefundDeliveriesMigration(pool);
   await runUsersTokensValidAfterMigration(pool);
+  await runPublishStateMigration(pool);
 
   if (resolveMailMode(env) === 'off') {
     console.warn('[email] RESEND_API_KEY (or SMTP_USER / SMTP_PASS) is not set in production: no e-mail (order confirmation, password reset, welcome, contact reply) will be sent until they are.');

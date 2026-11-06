@@ -1,0 +1,68 @@
+---
+// The home page's "newest products" carousel, as plain HTML and CSS: every card is a real <a href> with its name and photo in
+// the first response (the old coverflow was a client-only React island: nothing of it existed until JavaScript ran).
+// A row that scrolls and snaps (swipe, trackpad, keyboard, scrollbar-less); the two arrows are a few lines of script that only
+// scroll the row. No autoplay (it moves under the reader's pointer and fights assistive technology).
+import { localizePath } from '../../shared/locales.js';
+import { productCustomAlt, productName } from '../../shared/productText.js';
+import { productPath } from '../../shared/urls.js';
+import { translator } from '../lib/i18n.ts';
+import { mediaVariant } from '../lib/media.ts';
+import ProductBadgesView from './ProductBadgesView.astro';
+import type { Locale } from '../lib/seo/types.ts';
+
+const { products, locale } = Astro.props as { products: any[]; locale: Locale };
+const t = translator(locale);
+// 450 px cards on a desktop, narrower on a phone (see .scroll_carousel_item in shop.css).
+const sizes = '(max-width: 480px) 290px, (max-width: 768px) 360px, 450px';
+---
+{products.length > 0 && (
+  <section class="product_carousel_section scroll_carousel" aria-label={t('carousel.featured')} data-scroll-carousel>
+    <ul class="scroll_carousel_track" tabindex="0" aria-label={t('carousel.featured')}>
+      {products.map((product, index) => {
+        const image = product.collectionImage || product.mainImage;
+        return (
+          <li class="scroll_carousel_item">
+            <a href={localizePath(productPath(product), locale)} class="coverflow_card_link">
+              <ProductBadgesView product={product} locale={locale} />
+              <img
+                src={mediaVariant(image, 'card')}
+                srcset={`${mediaVariant(image, 'card')} 600w, ${mediaVariant(image, 'share')} 1200w`}
+                sizes={sizes}
+                alt={productCustomAlt(product, locale) || productName(product, locale)}
+                class="coverflow_card_img"
+                width="450"
+                height="675"
+                loading={index < 2 ? 'eager' : 'lazy'}
+                fetchpriority={index === 0 ? 'high' : undefined}
+                decoding="async"
+                draggable="false"
+              />
+              <div class="coverflow_card_overlay">
+                <h3 class="coverflow_card_title">{productName(product, locale)}</h3>
+                <span class="coverflow_card_cta">{t('hero.discover')}</span>
+              </div>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+    <button type="button" class="carousel_arrow carousel_arrow_left" data-scroll-dir="-1" aria-label={t('carousel.prev')}>❮</button>
+    <button type="button" class="carousel_arrow carousel_arrow_right" data-scroll-dir="1" aria-label={t('carousel.next')}>❯</button>
+  </section>
+)}
+<script>
+  // The arrows only scroll the row by one card. Everything else (swipe, wheel, keyboard) is the browser's own scrolling.
+  document.querySelectorAll('[data-scroll-carousel]').forEach((root) => {
+    const track = root.querySelector('.scroll_carousel_track');
+    if (!track) return;
+    root.querySelectorAll('[data-scroll-dir]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const item = track.querySelector('.scroll_carousel_item');
+        const step = item ? item.getBoundingClientRect().width + 20 : track.clientWidth * 0.8;
+        // Arrows are physical (left arrow scrolls left) in both reading directions.
+        track.scrollBy({ left: Number(button.getAttribute('data-scroll-dir')) * step, behavior: 'smooth' });
+      });
+    });
+  });
+</script>

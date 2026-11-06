@@ -8,7 +8,7 @@ import ProductPriceView from './ProductPriceView.astro';
 import ProductBadgesView from './ProductBadgesView.astro';
 import type { Locale } from '../lib/seo/types.ts';
 
-const { product, locale, fallbackImage = '' } = Astro.props as { product: any; locale: Locale; fallbackImage?: string };
+const { product, locale, fallbackImage = '', priority = false, first = false } = Astro.props as { product: any; locale: Locale; fallbackImage?: string; priority?: boolean; first?: boolean };
 const name = productName(product, locale);
 const alt = productCustomAlt(product, locale) || name;
 const image = product.collectionImage || product.mainImage || fallbackImage;
@@ -17,7 +17,7 @@ const image = product.collectionImage || product.mainImage || fallbackImage;
   <a href={localizePath(productPath(product), locale)} class="product_card_link">
     <div class="product_image_container">
       <ProductBadgesView product={product} locale={locale} />
-      <img src={mediaVariant(image, 'card')} alt={alt} class="product_img" loading="lazy" decoding="async" />
+      <img src={mediaVariant(image, 'card')} alt={alt} class="product_img" loading={priority ? 'eager' : 'lazy'} fetchpriority={first ? 'high' : undefined} decoding="async" />
     </div>
     <div class="product_info">
       <h3 class="product_name">{name}</h3>

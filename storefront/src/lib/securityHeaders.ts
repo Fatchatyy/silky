@@ -11,8 +11,8 @@ export function contentSecurityPolicy({ api, media }: HeaderContext) {
   return [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     `img-src ${origins("'self'", 'data:', 'blob:', media)}`,
     `media-src ${origins("'self'", 'blob:', media)}`,
     `connect-src ${origins("'self'", api)}`,
@@ -52,5 +52,7 @@ export function headersFile(context: HeaderContext): string {
     block('/admin', ADMIN_HEADERS),
     block('/admin/*', ADMIN_HEADERS),
     block('/redirects-map.json', [['X-Robots-Tag', 'noindex']]),
+    block('/search-index.json', [['X-Robots-Tag', 'noindex']]),
+    block('/build-info.json', [['X-Robots-Tag', 'noindex'], ['Cache-Control', 'no-cache']]),
   ].join('\n');
 }

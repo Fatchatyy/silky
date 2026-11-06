@@ -1,12 +1,11 @@
 ---
-// Home page: hero, carousel (islands) and the two collection sections as plain HTML (product names, prices and
+// Home page: hero (island), the carousel and the two collection sections as plain HTML (product names, prices and
 // links are real <a href> in the first response).
 import { localizePath } from '../../shared/locales.js';
 import { translator } from '../lib/i18n.ts';
 import { mediaVariant } from '../lib/media.ts';
-import { productForCard } from '../lib/pages/props.ts';
 import Hero from '../islands/Hero.jsx';
-import Carousel from '../islands/Carousel.jsx';
+import ProductCarousel from '../components/ProductCarousel.astro';
 import ReviewsBlock from '../islands/ReviewsBlock.jsx';
 import ProductCard from '../components/ProductCard.astro';
 import type { Locale } from '../lib/seo/types.ts';
@@ -15,7 +14,7 @@ const { products, theme, locale } = Astro.props as { products: any[]; theme: any
 const t = translator(locale);
 
 // The carousel is a shortcut to the newest products: every product is linked from its collection page. Capping it keeps the
-// home page's HTML small (the island's props are written into the page).
+// home page's HTML small.
 const CAROUSEL_LIMIT = 16;
 const byCategory = (slug: string) => products.filter((p) => p.category === slug);
 const femme = byCategory('femme');
@@ -28,7 +27,7 @@ const sections = [
 ---
 <Hero client:load locale={locale} heroConfig={theme.heroConfig ?? undefined} theme={heroTheme} />
 
-{products.length > 0 && <Carousel client:only="react" locale={locale} products={products.slice(0, CAROUSEL_LIMIT).map(productForCard)} />}
+<ProductCarousel products={products.slice(0, CAROUSEL_LIMIT)} locale={locale} />
 
 <div class="collections_wrapper">
   {sections.map((section) => (
