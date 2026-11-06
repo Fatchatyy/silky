@@ -13,3 +13,4 @@ export const home = handler(() => storefrontService.getHome());
 export const collection = handler((req) => storefrontService.getCollection(req.params.slug));
 export const settings = handler(() => storefrontService.getSettings());
 export const sitemapEntries = handler(() => storefrontService.getSitemapEntries());
+export const snapshot = handler(() => storefrontService.getSnapshot());

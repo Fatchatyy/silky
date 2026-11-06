@@ -7,6 +7,7 @@ const router = Router();
 router.get('/home', storefrontController.home);
 router.get('/collections/:slug', storefrontController.collection);
 router.get('/settings', storefrontController.settings);
+router.get('/snapshot', storefrontController.snapshot);
 router.get('/sitemap-entries', storefrontController.sitemapEntries);
 
 export default router;

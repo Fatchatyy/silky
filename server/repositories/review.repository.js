@@ -132,6 +132,17 @@ export const reviewRepository = {
     };
   },
 
+  /** Approved reviews of every published product in ONE query, grouped by product id: { [productId]: { reviews, summary } }. Used by the storefront snapshot. */
+  async getApprovedReviewsForPublishedProducts(tx = db) {
+    const rows = await tx.select({ review: reviews }).from(reviews)
+      .innerJoin(products, eq(products.id, reviews.productId))
+      .where(and(eq(products.isActive, true), or(eq(reviews.status, 'approved'), eq(reviews.isApproved, true))))
+      .orderBy(desc(reviews.createdAt));
+    const byProduct = {};
+    for (const { review } of rows) (byProduct[review.productId] ||= []).push(serializeProductReview(review));
+    return Object.fromEntries(Object.entries(byProduct).map(([id, list]) => [id, { reviews: list, summary: buildRatingSummary(list) }]));
+  },
+
   async getAllProductReviews(productId, tx = db) {
     return tx.select().from(reviews).where(eq(reviews.productId, productId)).orderBy(desc(reviews.createdAt));
   },

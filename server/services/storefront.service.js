@@ -2,6 +2,7 @@
 // product, a private field or anything an admin screen would show.
 import { productRepository } from '../repositories/product.repository.js';
 import { themeRepository } from '../repositories/theme.repository.js';
+import { reviewRepository } from '../repositories/review.repository.js';
 import { AppError } from '../utils/errors.js';
 
 const CATEGORY_SLUG = /^[a-z0-9-]+$/;
@@ -43,5 +44,39 @@ export async function getSitemapEntries() {
       hasArabic: hasText(product.titleAr) && hasText(product.descriptionAr),
     })),
     categories: categories.map((category) => ({ slug: category.slug })),
+  };
+}
+
+/**
+ * Everything the static build needs, in ONE response (SPIKE): the same data the separate endpoints give, taken in one pass so
+ * every page and the sitemap come from the same moment. Published products only; a hidden product is in none of the parts.
+ *  - products: the full product (what /api/products/by-slug returns) plus updatedAt and hasArabic
+ *  - summaries: the light card summaries, exactly as /api/storefront/home returns them
+ *  - categories: slug + name of the categories that hold a published product
+ *  - reviews: { [productId]: { reviews, summary } } approved reviews
+ *  - theme, settings: /api/theme and /api/storefront/settings
+ */
+export async function getSnapshot() {
+  const [fullProducts, stamps, summaries, categories, reviews, theme, deliveryFee] = await Promise.all([
+    productRepository.findAll({ includeHidden: false }),
+    productRepository.listPublishedProductStamps(),
+    productRepository.listPublishedProductSummaries({ limit: 'all' }),
+    productRepository.listCategoriesWithPublishedProducts(),
+    reviewRepository.getApprovedReviewsForPublishedProducts(),
+    themeRepository.getSettings(),
+    themeRepository.getDeliveryFee(),
+  ]);
+  const stampById = new Map(stamps.map((stamp) => [stamp.id, stamp]));
+  return {
+    generatedAt: new Date().toISOString(),
+    products: fullProducts.map((product) => {
+      const stamp = stampById.get(product.id);
+      return { ...product, updatedAt: stamp?.updatedAt ?? null, hasArabic: hasText(product.nameAr) && hasText(product.descriptionAr) };
+    }),
+    summaries,
+    categories,
+    reviews,
+    theme,
+    settings: { deliveryFee },
   };
 }

@@ -409,7 +409,7 @@ export const productRepository = {
     async listPublishedProductSummaries({ categorySlug = null, limit = 100 } = {}, tx = db) {
         const conditions = [eq(products.isActive, true)];
         if (categorySlug) conditions.push(eq(categories.slug, categorySlug));
-        const rows = await tx
+        const query = tx
             .select({
                 id: products.id,
                 slug: products.slug,
@@ -435,8 +435,9 @@ export const productRepository = {
             .from(products)
             .innerJoin(categories, eq(products.categoryId, categories.id))
             .where(and(...conditions))
-            .orderBy(desc(products.createdAt))
-            .limit(Math.min(Math.max(Number(limit) || 100, 1), 300));
+            .orderBy(desc(products.createdAt));
+        // limit: 'all' (the snapshot) reads every published product; a number is clamped to 1-300 (the storefront's own lists).
+        const rows = await (limit === 'all' ? query : query.limit(Math.min(Math.max(Number(limit) || 100, 1), 300)));
         return rows.map((row) => ({
             id: row.id,
             slug: row.slug,
@@ -451,6 +452,15 @@ export const productRepository = {
             collectionImage: row.collectionImageUrl || row.primaryImageUrl || '',
             soldOut: row.soldOut === true,
         }));
+    },
+
+    async listCategoriesWithPublishedProducts(tx = db) {
+        return tx
+            .selectDistinct({ slug: categories.slug, name: categories.name })
+            .from(categories)
+            .innerJoin(products, eq(products.categoryId, categories.id))
+            .where(eq(products.isActive, true))
+            .orderBy(asc(categories.slug));
     },
 
     async listCategorySlugsWithPublishedProducts(tx = db) {
