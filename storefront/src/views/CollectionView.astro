@@ -2,10 +2,13 @@
 import { translator } from '../lib/i18n.ts';
 import { collectionText } from '../lib/seo/routeText.ts';
 import { isNamedCollection } from '../lib/seo/routeText.ts';
+import { localizePath } from '../../shared/locales.js';
+import { collectionPagePath } from '../lib/seo/urls.ts';
 import ProductCard from '../components/ProductCard.astro';
 import type { Locale } from '../lib/seo/types.ts';
 
-const { slug, name, products, locale } = Astro.props as { slug: string; name: string; products: any[]; locale: Locale };
+const { slug, name, products, locale, page = 1, pages = 1 } = Astro.props as { slug: string; name: string; products: any[]; locale: Locale; page?: number; pages?: number };
+const pageHref = (n: number) => localizePath(collectionPagePath(slug, n), locale);
 const t = translator(locale);
 const text = collectionText(slug, locale);
 const title = isNamedCollection(slug) ? text.title : name || text.title;
@@ -26,5 +29,12 @@ const title = isNamedCollection(slug) ? text.title : name || text.title;
         </div>
       )}
     </section>
+    {pages > 1 && (
+      <nav class="pagination" aria-label={locale === 'ar' ? 'التنقل بين الصفحات' : 'Pagination'}>
+        {page > 1 && <a href={pageHref(page - 1)} rel="prev">{locale === 'ar' ? 'السابق' : 'Précédent'}</a>}
+        {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (n === page ? <span class="pagination_current" aria-current="page">{n}</span> : <a href={pageHref(n)}>{n}</a>))}
+        {page < pages && <a href={pageHref(page + 1)} rel="next">{locale === 'ar' ? 'التالي' : 'Suivant'}</a>}
+      </nav>
+    )}
   </div>
 </main>

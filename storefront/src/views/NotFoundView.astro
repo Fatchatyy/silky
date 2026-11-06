@@ -6,7 +6,7 @@ import type { Locale } from '../lib/seo/types.ts';
 const { locale, unavailable = false, hiddenProductKey = null } = Astro.props as { locale: Locale; unavailable?: boolean; hiddenProductKey?: string | null };
 const t = translator(locale);
 ---
-<main data-admin-hidden-product={hiddenProductKey ?? undefined}>
+<main id="not_found_main" data-admin-hidden-product={hiddenProductKey ?? undefined}>
   <section class="about_section">
     {unavailable ? (
       <>
@@ -22,3 +22,13 @@ const t = translator(locale);
     <p><a href={localizePath('/', locale)}>{t('notfound.home')}</a></p>
   </section>
 </main>
+<script is:inline>
+  // This file is the same for every unknown address. When the address is a product's (/product/<slug> or /ar/product/<slug>),
+  // hand the slug to the admin tools: an admin's browser then looks the product up with the admin token and shows it
+  // (src/admin/enhance.jsx). A visitor's browser never loads those tools and sees only this page.
+  (function () {
+    var match = location.pathname.match(/^(?:\/ar)?\/product\/([A-Za-z0-9-]{1,255})\/?$/);
+    var main = document.getElementById('not_found_main');
+    if (match && main) main.setAttribute('data-admin-hidden-product', match[1]);
+  })();
+</script>

@@ -7,6 +7,9 @@ import type { Locale, SeoContext } from './types.ts';
 
 export { categoryPath, productPath };
 
+/** /collection/femme for page 1, /collection/femme/2 for the next ones (French path; localize it with pageUrl). */
+export const collectionPagePath = (slug: string, page = 1) => (page > 1 ? `${categoryPath(slug)}/${page}` : categoryPath(slug));
+
 /** https://silky.tn/ar/faq for ('/faq', 'ar'); never a trailing slash except the home page. */
 export function pageUrl(siteUrl: string, path: string, locale: Locale): string {
   return absoluteUrl(siteUrl, localizePath(path, locale)) ?? '';

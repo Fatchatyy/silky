@@ -3,14 +3,15 @@ import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import react from '@astrojs/react';
 import { fileURLToPath } from 'node:url';
+import buildGuard from './integrations/buildGuard.mjs';
 
 export default defineConfig({
-  output: 'server',
+  output: 'static',
   adapter: cloudflare({
     // sharp does not run on Workers: product photos are plain <img> tags using the pre-made WebP copies.
     imageService: 'passthrough',
   }),
-  integrations: [react()],
+  integrations: [react(), buildGuard()],
   site: 'https://silky.tn',
   // 'ignore' (not 'never') so /product/x/ reaches src/middleware.ts, which answers one 301 to /product/x; with 'never'
   // Astro answers such an address with a 404 before any code of ours runs.

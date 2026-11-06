@@ -2,18 +2,14 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { siteUrl, mediaBase } from '../lib/config';
 import HomeView from '../views/HomeView.astro';
-import NotFoundView from '../views/NotFoundView.astro';
 import { loadHome } from '../lib/pages/load';
-import { textPageSeo, errorPageSeo } from '../lib/seo/builders.ts';
-import { cacheablePage, shareImagePath } from '../lib/pages/respond';
+import { textPageSeo } from '../lib/seo/builders.ts';
+import { shareImagePath } from '../lib/pages/respond';
 const locale = 'fr';
 const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
-const result = await loadHome();
-const unavailable = result.kind !== 'ok';
-if (unavailable) Astro.response.status = 503;
-cacheablePage(Astro.response, !unavailable);
-const seo = unavailable ? errorPageSeo('unavailable', locale, ctx) : textPageSeo('home', locale, ctx, shareImagePath(result.data.products));
+const { products, theme } = await loadHome();
+const seo = textPageSeo('home', locale, ctx, shareImagePath(products));
 ---
 <BaseLayout locale={locale} seo={seo}>
-  {result.kind === 'ok' ? <HomeView products={result.data.products} theme={result.data.theme} locale={locale} /> : <NotFoundView locale={locale} unavailable />}
+  <HomeView products={products} theme={theme} locale={locale} />
 </BaseLayout>

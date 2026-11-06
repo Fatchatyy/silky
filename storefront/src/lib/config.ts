@@ -19,3 +19,21 @@ export const siteUrl = () => trim(runtime.PUBLIC_SITE_URL || import.meta.env.PUB
 export const mediaBase = () => trim(runtime.PUBLIC_MEDIA_URL || import.meta.env.PUBLIC_MEDIA_URL);
 
 export const isProduction = () => siteUrl().startsWith('https://') && !siteUrl().includes('localhost');
+
+// --- Static build (src/lib/pages/snapshot.ts). Read while `astro build` prerenders the pages; never at visitor time. ---
+const number = (value: string | undefined) => (value && Number.isFinite(Number(value)) ? Number(value) : undefined);
+
+/** The API the BUILD reads the catalogue from. SNAPSHOT_API_URL wins over API_URL so a Worker variable meant for run time (often localhost in wrangler.jsonc) cannot point a production build at the wrong place. */
+export const snapshotApiUrl = () => trim(runtime.SNAPSHOT_API_URL || import.meta.env.SNAPSHOT_API_URL) || apiUrl();
+export const snapshotOptions = () => ({
+  attemptTimeoutMs: number(runtime.SNAPSHOT_ATTEMPT_TIMEOUT_MS || import.meta.env.SNAPSHOT_ATTEMPT_TIMEOUT_MS),
+  totalBudgetMs: number(runtime.SNAPSHOT_BUDGET_MS || import.meta.env.SNAPSHOT_BUDGET_MS),
+  minProducts: number(runtime.SNAPSHOT_MIN_PRODUCTS || import.meta.env.SNAPSHOT_MIN_PRODUCTS),
+});
+/** Products per collection page (default 48). Read at build time; the tests lower it to get several pages from a small catalogue. */
+export const collectionPageSize = () => {
+  const value = number(runtime.COLLECTION_PAGE_SIZE || import.meta.env.COLLECTION_PAGE_SIZE);
+  return value && Number.isInteger(value) && value >= 1 ? value : 48;
+};
+/** Escape hatch for tests and local rehearsals: allow a production-looking build (https site address) to read a loopback API. */
+export const allowLocalApiForBuild = () => String(runtime.ALLOW_LOCAL_API_FOR_BUILD || import.meta.env.ALLOW_LOCAL_API_FOR_BUILD || '') === '1';

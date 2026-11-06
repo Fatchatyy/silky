@@ -1,13 +1,12 @@
 ---
+// The page of every unknown address (French). Static: the Worker answers an unknown address with this file and status 404
+// (src/middleware.ts), so rendering it never needs the API or React on the server. The Arabic twin is ar/404.astro.
 import BaseLayout from '../layouts/BaseLayout.astro';
 import NotFoundView from '../views/NotFoundView.astro';
 import { siteUrl, mediaBase } from '../lib/config';
 import { errorPageSeo } from '../lib/seo/builders.ts';
-
-const locale = Astro.url.pathname === '/ar' || Astro.url.pathname.startsWith('/ar/') ? 'ar' : 'fr';
-const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
-Astro.response.status = 404;
-const seo = errorPageSeo('not-found', locale, ctx, Astro.url.pathname);
+const locale = 'fr';
+const seo = errorPageSeo('not-found', locale, { siteUrl: siteUrl(), mediaBase: mediaBase() }, '/');
 ---
 <BaseLayout locale={locale} seo={seo}>
   <NotFoundView locale={locale} />

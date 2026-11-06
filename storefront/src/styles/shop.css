@@ -7032,3 +7032,8 @@ html[dir="rtl"] .share-modal-copy-box {
     color: #444444;
   }
 }
+
+/* Collection pagination (static collection pages split after COLLECTION_PAGE_SIZE products) */
+.pagination { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; margin: 2rem 0; }
+.pagination a, .pagination .pagination_current { min-width: 2.25rem; padding: 0.4rem 0.75rem; text-align: center; border: 1px solid var(--color-primary); color: var(--color-primary); text-decoration: none; }
+.pagination .pagination_current { background: var(--color-primary); color: #fff; }

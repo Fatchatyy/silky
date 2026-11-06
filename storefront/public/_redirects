@@ -1,0 +1,5 @@
+# Cloudflare redirects, applied to static files before the Worker runs (301 = permanent).
+# Old addresses that depend on the catalogue (/product/<id>, wrong-case slugs) are handled by the Worker: src/middleware.ts.
+/index.html / 301
+/ar/index.html /ar 301
+/*/ /:splat 301

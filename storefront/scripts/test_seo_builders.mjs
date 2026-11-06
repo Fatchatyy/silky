@@ -9,7 +9,9 @@ import { collectionSeo, errorPageSeo, privatePageSeo, productSeo, textPageSeo } 
 import { cleanText, safeJson, trimDescription } from '../src/lib/seo/text.ts';
 import { INDEXABLE_PAGES, PAGE_TEXT } from '../src/lib/seo/routeText.ts';
 import { robotsTxt, sitemapEntries, sitemapXml } from '../src/lib/seo/sitemap.ts';
-import { pathsForSite, pathsToPurge } from '../src/lib/pages/cacheKeys.ts';
+import { collectionPagePath } from '../src/lib/seo/urls.ts';
+import { legacyTarget } from '../src/lib/legacyRedirects.ts';
+import { headersFile } from '../src/lib/securityHeaders.ts';
 
 const SITE = 'https://silky.tn';
 const ctx = { siteUrl: SITE, mediaBase: 'https://media.silky.tn' };
@@ -250,18 +252,56 @@ check('robots.txt: one group for everyone (AI crawlers included), private pages 
   assert.ok(txt.startsWith('User-agent: *\nAllow: /'));
   assert.equal((txt.match(/User-agent:/g) || []).length, 1);
   for (const bot of ['GPTBot', 'ClaudeBot', 'Google-Extended', 'CCBot', 'anthropic-ai', 'PerplexityBot']) assert.ok(!txt.includes(bot), bot);
-  for (const path of ['/cart', '/checkout', '/account', '/login', '/signup', '/password-reset', '/favorites', '/search', '/admin', '/internal']) assert.ok(txt.includes(`Disallow: ${path}\n`), path);
+  for (const path of ['/cart', '/checkout', '/account', '/login', '/signup', '/password-reset', '/favorites', '/search', '/admin']) assert.ok(txt.includes(`Disallow: ${path}\n`), path);
   assert.ok(txt.trimEnd().endsWith(`Sitemap: ${SITE}/sitemap.xml`));
 });
 
-check('cache purge paths: a product, and every cacheable page for a site-wide change', () => {
-  const product = pathsToPurge({ slug: 'robe-noire', category: 'femme', previousCategory: 'enfant' });
-  for (const p of ['/', '/ar', '/sitemap.xml', '/product/robe-noire', '/ar/product/robe-noire', '/collection/femme', '/collection/enfant', '/ar/collection/enfant']) assert.ok(product.includes(p), p);
-  assert.deepEqual(pathsToPurge({ slug: '../etc/passwd', category: 'a b' }), ['/', '/sitemap.xml', '/ar'], 'values that do not look like a slug or category are ignored');
-  const site = pathsForSite({ products: [{ slug: 'robe-noire' }, { slug: 'Bad Slug' }, {}], categories: [{ slug: 'femme' }, { slug: 'x y' }] });
-  for (const p of ['/', '/ar', '/sitemap.xml', '/faq', '/ar/faq', '/livraison-retours', '/service-client', '/about', '/contact', '/collection/femme', '/ar/collection/femme', '/product/robe-noire', '/ar/product/robe-noire']) assert.ok(site.includes(p), p);
-  assert.ok(!site.some((p) => /Bad|x y|admin|internal/.test(p)), 'no invalid slug, no admin path');
-  assert.ok(!site.includes('/ar/sitemap.xml') && new Set(site).size === site.length, 'no Arabic sitemap, no duplicate');
+check('collection pages: page 1 keeps the plain address, later pages have their own title and canonical, both languages link to the same page', () => {
+  assert.equal(collectionPagePath('femme', 1), '/collection/femme');
+  assert.equal(collectionPagePath('femme', 3), '/collection/femme/3');
+  const one = collectionSeo('femme', 'fr', ctx, 'Femme', undefined, 1);
+  const two = collectionSeo('femme', 'fr', ctx, 'Femme', undefined, 2);
+  assert.equal(one.canonical, `${SITE}/collection/femme`);
+  assert.equal(two.canonical, `${SITE}/collection/femme/2`);
+  assert.ok(/Page 2/.test(two.title) && !/Page/.test(one.title));
+  assert.equal(two.robots, 'index,follow');
+  assert.equal(two.alternates.ar, `${SITE}/ar/collection/femme/2`);
+  assert.equal(two.alternates.fr, `${SITE}/collection/femme/2`);
+  assert.equal(collectionSeo('femme', 'ar', ctx, 'Femme', undefined, 2).canonical, `${SITE}/ar/collection/femme/2`);
+  assert.ok(/صفحة 2/.test(collectionSeo('femme', 'ar', ctx, 'Femme', undefined, 2).title));
+  assert.equal(two.jsonLd[0].itemListElement.at(-1).item, `${SITE}/collection/femme`, 'the breadcrumb points at the collection, not at page 2');
+});
+
+check('old addresses: ids and wrong-case slugs map to the canonical address; unknown, hidden and odd ones map to nothing', () => {
+  const id = '2e6caee6-d226-4e65-a6ee-e8b3c0a1d111';
+  const map = { ids: { [id]: 'robe-noire' }, products: ['robe-noire'], collections: ['femme'] };
+  assert.equal(legacyTarget(`/product/${id}`, map), '/product/robe-noire');
+  assert.equal(legacyTarget(`/product/${id.toUpperCase()}`, map), '/product/robe-noire');
+  assert.equal(legacyTarget(`/ar/product/${id}/`, map), '/ar/product/robe-noire');
+  assert.equal(legacyTarget('/product/Robe-Noire', map), '/product/robe-noire');
+  assert.equal(legacyTarget('/ar/product/ROBE-NOIRE', map), '/ar/product/robe-noire');
+  assert.equal(legacyTarget('/collection/Femme', map), '/collection/femme');
+  assert.equal(legacyTarget('/ar/collection/FEMME/2', map), '/ar/collection/femme/2');
+  assert.equal(legacyTarget('/product/00000000-0000-4000-8000-000000000000', map), null, 'an id that is not published (a hidden product) maps to nothing');
+  assert.equal(legacyTarget('/product/robe-noire', map), null, 'an address that is already canonical is not redirected');
+  assert.equal(legacyTarget('/product/UNKNOWN', map), null);
+  assert.equal(legacyTarget('/collection/Nope', map), null);
+  assert.equal(legacyTarget('/product/%E0%A4%A', map), null, 'a malformed escape does not throw');
+  assert.equal(legacyTarget('/about', map), null);
+  assert.equal(legacyTarget('/product/a/b', map), null);
+});
+
+check('_headers: security headers for every file, HSTS only for a production build, the CSP lists this build API and media origins', () => {
+  const dev = headersFile({ api: 'http://localhost:3001', media: 'http://localhost:3001', production: false });
+  const prod = headersFile({ api: 'https://api.silky.tn', media: 'https://media.silky.tn', production: true });
+  assert.ok(!/Strict-Transport-Security/.test(dev));
+  assert.ok(/Strict-Transport-Security: max-age=\d+; includeSubDomains/.test(prod));
+  for (const h of ['X-Content-Type-Options: nosniff', 'X-Frame-Options: DENY', 'Referrer-Policy: strict-origin-when-cross-origin', 'Permissions-Policy:', 'Content-Security-Policy-Report-Only:']) assert.ok(prod.includes(h), h);
+  assert.ok(/connect-src 'self' https:\/\/api\.silky\.tn/.test(prod));
+  assert.ok(/img-src [^;]*https:\/\/media\.silky\.tn/.test(prod));
+  assert.ok(/\/password-reset\/\*\n  Referrer-Policy: no-referrer/.test(prod));
+  assert.ok(/\/admin\/\*\n  X-Robots-Tag: noindex, nofollow\n  Cache-Control: no-store/.test(prod));
+  assert.ok(prod.startsWith('# GENERATED') && prod.includes('\n/*\n'));
 });
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);

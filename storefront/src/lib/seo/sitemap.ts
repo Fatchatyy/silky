@@ -59,8 +59,6 @@ export function robotsTxt(siteUrl: string): string {
   const privatePaths = ['cart', 'checkout', 'account', 'login', 'signup', 'register', 'password-reset', 'favorites', 'search', 'order-confirmation', 'leave-review'];
   const lines = ['User-agent: *', 'Allow: /'];
   for (const prefix of ['', '/ar']) for (const path of privatePaths) lines.push(`Disallow: ${prefix}/${path}`);
-  // The cache purge endpoint (POST only, admin token) is no page, but a crawler has no business there either.
-  lines.push('Disallow: /internal');
   // The admin panel is not part of the public site.
   lines.push('Disallow: /admin');
   lines.push('',`Sitemap: ${base}/sitemap.xml`, '');

@@ -11,6 +11,7 @@
  * Usage (PowerShell): $env:DATABASE_URL='postgres://USER:PASSWORD@localhost:5432/silky_test'; node storefront/scripts/test_rendered_pages.mjs
  */
 import { spawn, spawnSync } from 'node:child_process';
+import http from 'node:http';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -26,6 +27,8 @@ process.env.GOODEX_BASE_URL = 'http://127.0.0.1:1';
 
 const STOREFRONT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../storefront');
 const SITE = 'https://silky.test';
+// Collection pages hold this many products in the test build (the production default is 48): a small catalogue still gets several pages.
+const PAGE_SIZE = '30';
 const { startApi, createFixtures } = await import('./lib/fixtures.mjs');
 
 let passed = 0;
@@ -264,23 +267,141 @@ async function runTests(fixtures, api) {
   assert((await get('/admin/')).status === 301, '/admin/ redirects once to /admin');
   assert((await get('/ar/admin')).status === 404, '/ar/admin stays a 404');
 
-  console.log('\n--- Cache and headers ---');
-  // The sitemap crawl above already fetched this page, so it may be a HIT; the next request must be one.
-  const first = await get(`/product/${fixtures.enfantProduct.slug}`);
-  const second = await get(`/product/${fixtures.enfantProduct.slug}?utm_source=x`);
-  assert(['MISS', 'HIT'].includes(first.headers.get('x-silky-cache')) && second.headers.get('x-silky-cache') === 'HIT', 'a repeated request is a cache HIT (the query string does not bypass it)');
-  assert(second.text === first.text, 'the cached page is the same page');
-  assert(first.headers.get('cache-control') === 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400', 'visitor pages carry the s-maxage cache header');
-  const authed = await get(`/product/${fixtures.enfantProduct.slug}`, { headers: { Authorization: 'Bearer x' } });
-  assert(!authed.headers.get('x-silky-cache'), 'a request with an Authorization header skips the cache');
-  assert((await get('/cart')).headers.get('x-silky-cache') === null, 'the cart shell is not cached');
-  for (const [name, value] of [['x-content-type-options', 'nosniff'], ['x-frame-options', 'DENY']]) assert(second.headers.get(name) === value, `header ${name}: ${value}`);
-  assert(/strict-origin/.test(second.headers.get('referrer-policy') || '') && /camera=\(\)/.test(second.headers.get('permissions-policy') || ''), 'Referrer-Policy and Permissions-Policy are set');
-  assert(/max-age=\d+/.test(second.headers.get('strict-transport-security') || ''), 'HSTS is set when the site address is https (production)');
-  const csp = second.headers.get('content-security-policy-report-only') || '';
-  assert(csp.includes("frame-ancestors 'none'") && csp.includes(`connect-src 'self' http://127.0.0.1:${new URL(api.url).port}`) && csp.includes('fonts.googleapis.com') && !second.headers.get('content-security-policy'), `CSP is report-only and allows the API, media and Google Fonts origins (got: ${csp})`);
+  console.log('\n--- A1. Normal pages are files: they never start the Worker ---');
+  const WORKER = 'x-silky-worker';
+  const filePaths = [
+    '/', '/ar', '/collection/femme', '/ar/collection/femme', `/product/${robe.slug}`, `/ar/product/${robe.slug}`, `/product/${fixtures.chemise.slug}`, `/product/${fixtures.evil.slug}`,
+    '/faq', '/ar/faq', '/livraison-retours', '/service-client', '/about', '/contact', '/ar/about', '/ar/contact',
+    '/cart', '/checkout', '/account', '/login', '/signup', '/register', '/search', '/favorites', '/order-confirmation', '/leave-review', '/password-reset', '/ar/cart', '/ar/search',
+    '/sitemap.xml', '/robots.txt', '/redirects-map.json', '/favicon.svg',
+  ];
+  const lacking = [];
+  for (const route of filePaths) {
+    const res = await get(route);
+    if (res.status !== 200 || res.headers.get(WORKER)) lacking.push(`${route} -> ${res.status}${res.headers.get(WORKER) ? ' (ran the Worker)' : ''}`);
+  }
+  assert(lacking.length === 0, `${filePaths.length} pages and files answer 200 without the Worker (no ${WORKER} header)${lacking.length ? `: ${lacking.join(', ')}` : ''}`);
+  const scriptSrc = (await get('/')).text.match(/(?:src|component-url|renderer-url)="(\/_astro\/[^"]+\.js)"/)?.[1];
+  const asset = scriptSrc ? await get(scriptSrc) : null;
+  assert(asset && asset.status === 200 && !asset.headers.get(WORKER) && /immutable/.test(asset.headers.get('cache-control') || ''), 'a hashed script in /_astro is a file, cached as immutable');
+  for (const route of ['/about/', '/index.html', `/product/${robe.slug}/`, '/collection/femme/']) {
+    const res = await get(route);
+    assert(res.status === 301 && !res.headers.get(WORKER), `${route} -> one 301 from public/_redirects, without the Worker`);
+  }
+  const pageHeaders = await get(`/product/${fixtures.enfantProduct.slug}`);
+  assert(!/s-maxage|stale-while-revalidate/.test(pageHeaders.headers.get('cache-control') || '') && !pageHeaders.headers.get('x-silky-cache'), 'a page is a file revalidated with its ETag: no s-maxage, no page cache');
+  assert(pageHeaders.headers.get('etag'), 'a page has an ETag (conditional requests are answered with 304 by the platform)');
+  for (const [name, value] of [['x-content-type-options', 'nosniff'], ['x-frame-options', 'DENY']]) assert(pageHeaders.headers.get(name) === value, `file header ${name}: ${value} (from public/_headers)`);
+  assert(/strict-origin/.test(pageHeaders.headers.get('referrer-policy') || '') && /camera=\(\)/.test(pageHeaders.headers.get('permissions-policy') || ''), 'Referrer-Policy and Permissions-Policy are set on files');
+  assert(/max-age=\d+/.test(pageHeaders.headers.get('strict-transport-security') || ''), 'HSTS is set when the site address is https (production)');
+  const csp = pageHeaders.headers.get('content-security-policy-report-only') || '';
+  assert(csp.includes("frame-ancestors 'none'") && csp.includes(`connect-src 'self' http://127.0.0.1:${new URL(api.url).port}`) && csp.includes('fonts.googleapis.com') && !pageHeaders.headers.get('content-security-policy'), `CSP is report-only and allows this build's API, media and Google Fonts origins (got: ${csp})`);
+  const notFoundFile = await get('/404');
+  assert(/noindex/.test(notFoundFile.text), 'the not-found file, if someone requests /404 directly, is noindex');
 
-  console.log('\n--- Admin on the shop: same HTML for everyone, purge only for an admin ---');
+  console.log('\n--- A2. The only requests that run the Worker ---');
+  for (const route of ['/admin', '/admin/login', '/admin/orders', '/admin/anything/deep']) {
+    const res = await get(route);
+    assert(res.status === 200 && res.headers.get(WORKER) === '1' && res.headers.get('cache-control') === 'no-store' && /noindex/.test(res.headers.get('x-robots-tag') || ''), `${route}: rendered by the Worker, no-store, noindex`);
+  }
+  const resetRes = await get('/password-reset/abc123token');
+  assert(resetRes.status === 200 && resetRes.headers.get(WORKER) === '1' && resetRes.headers.get('referrer-policy') === 'no-referrer', '/password-reset/<token>: rendered by the Worker (the token is in the address), no referrer');
+  const arResetRes = await get('/ar/password-reset/abc123token');
+  assert(arResetRes.status === 200 && arResetRes.headers.get(WORKER) === '1', '/ar/password-reset/<token>: rendered by the Worker');
+
+  console.log('\n--- A3. Old product addresses: one 301 from the map, nothing else ---');
+  const hop = async (route, expectedPath) => {
+    const res = await get(route);
+    assert(res.status === 301 && res.headers.get(WORKER) === '1' && new URL(res.location, BASE).pathname === expectedPath, `${route} -> 301 ${expectedPath}`);
+    return res;
+  };
+  const viaId = await hop(`/product/${robe.id}`, `/product/${robe.slug}`);
+  assert(/public, max-age=\d+/.test(viaId.headers.get('cache-control') || ''), 'the redirect is cacheable by browsers and crawlers');
+  await hop(`/product/${robe.id.toUpperCase()}`, `/product/${robe.slug}`);
+  await hop(`/ar/product/${robe.id}`, `/ar/product/${robe.slug}`);
+  const slashId = await get(`/ar/product/${robe.id}/`, { redirect: 'follow' });
+  assert(slashId.status === 200 && slashId.text.includes(`Robe Satin ${M}`), 'an old id address with a trailing slash ends on the product page (two hops: slash, then id)');
+  await hop(`/product/${robe.slug.toUpperCase()}`, `/product/${robe.slug}`);
+  await hop('/collection/FEMME', '/collection/femme');
+  await hop('/ar/collection/Femme', '/ar/collection/femme');
+  await hop('/collection/FEMME/2', '/collection/femme/2');
+  const withQuery = await get(`/product/${robe.id}?utm_source=facebook`);
+  assert(withQuery.status === 301 && withQuery.location.endsWith(`/product/${robe.slug}?utm_source=facebook`), 'the query string survives the redirect');
+  const followedAll = await get(`/product/${robe.id}`, { redirect: 'follow' });
+  assert(followedAll.status === 200 && followedAll.text.includes(`Robe Satin ${M}`), 'following an old id address ends on the product page in one hop');
+  assert((await get(`/product/${robe.slug}`)).status === 200 && !(await get(`/product/${robe.slug}`)).location, 'a canonical address is never redirected (no loop)');
+  assert((await get(`/product/${fixtures.hidden.id}`)).status === 404, 'the id of a HIDDEN product is not in the map: 404, not a redirect that would confirm the product exists');
+  assert((await get(`/product/${fixtures.hidden.slug.toUpperCase()}`)).status === 404, 'a hidden slug in capitals: 404');
+  assert((await get('/product/00000000-0000-4000-8000-000000000000')).status === 404, 'an unknown id: 404');
+  assert((await get('/product/%E0%A4%A')).status === 404, 'a malformed escape in the address: 404, not an error');
+  const redirectMap = JSON.parse((await get('/redirects-map.json')).text);
+  assert(redirectMap.ids[robe.id] === robe.slug && !(fixtures.hidden.id in redirectMap.ids) && !redirectMap.products.includes(fixtures.hidden.slug), 'redirects-map.json holds published products only');
+
+  console.log('\n--- A4. Unknown addresses are genuine 404s ---');
+  const unknowns = [
+    `/product/${M}-nope`, '/product', '/collection/nope-nothing', '/collection', '/xyz', '/a/b/c/d/e', '/ar/xyz', '/ar/product/zzz',
+    `/product/${fixtures.hidden.slug}`, `/ar/product/${fixtures.hidden.slug}`, '/collection/femme/1', '/collection/femme/0', '/collection/femme/abc', '/collection/femme/99999',
+    '/internal/purge', '/admin-fake', '/ar/admin', '/product/..%2f..%2fetc%2fpasswd', '/ar/' + 'x'.repeat(300), '/404x',
+  ];
+  const wrong = [];
+  for (const route of unknowns) {
+    const res = await get(route);
+    const isPage = /text\/html/.test(res.headers.get('content-type') || '');
+    if (res.status !== 404 || !res.headers.get(WORKER) || !isPage || !/noindex/.test(res.text) || !/<h1/.test(res.text) || /products_grid|product_card/.test(res.text)) wrong.push(`${route.slice(0, 50)} -> ${res.status}`);
+  }
+  assert(wrong.length === 0, `${unknowns.length} unknown addresses: status 404, the not-found page (title, h1, noindex, no catalogue content), from the Worker${wrong.length ? `: ${wrong.join(', ')}` : ''}`);
+  const filesMissing = [];
+  for (const route of ['/wp-login.php', '/index.php', '/.env', '/_astro/missing.js', '/pictures/missing.png', '/favicon-nope.ico']) {
+    const res = await get(route);
+    if (res.status !== 404 || !/text\/plain/.test(res.headers.get('content-type') || '') || res.text.length > 20) filesMissing.push(`${route} -> ${res.status}`);
+  }
+  assert(filesMissing.length === 0, `a missing file (script, photo, probe) is a small plain 404, not a full page${filesMissing.length ? `: ${filesMissing.join(', ')}` : ''}`);
+  for (const route of ['/product/', '/collection/']) {
+    const slashed = await get(route, { redirect: 'follow' });
+    assert(slashed.status === 404 && /noindex/.test(slashed.text), `${route} (an address with no slug): the slash is removed, then a genuine 404`);
+  }
+  const headRes = await fetch(`${BASE}/product/${M}-nope`, { method: 'HEAD' });
+  assert(headRes.status === 404 && (await headRes.text()) === '', 'HEAD on an unknown address: 404 with no body');
+  const postRes = await fetch(`${BASE}/product/${M}-nope`, { method: 'POST', body: '{}' });
+  assert(postRes.status === 404, 'POST on an unknown address: 404');
+  const postPurge = await fetch(`${BASE}/internal/purge`, { method: 'POST', body: '{}' });
+  assert(postPurge.status === 404, 'the old cache-purge endpoint is gone (404)');
+  const arabic404 = await get('/ar/does-not-exist');
+  assert(arabic404.status === 404 && /<html lang="ar" dir="rtl">/.test(arabic404.text), 'an unknown address under /ar answers the Arabic 404 page');
+  assert(/<html lang="fr" dir="ltr">/.test((await get('/does-not-exist')).text), 'an unknown French address answers the French 404 page');
+
+  console.log('\n--- Collection pages (pagination) ---');
+  const snapshot = await (await fetch(`${api.url}/api/storefront/snapshot`)).json();
+  const pageSize = Number(PAGE_SIZE);
+  const femmeSlugs = snapshot.summaries.filter((p) => p.category === 'femme').map((p) => p.slug);
+  const pagesExpected = Math.max(1, Math.ceil(femmeSlugs.length / pageSize));
+  console.log(`  femme: ${femmeSlugs.length} published products, ${pageSize} per page -> ${pagesExpected} page(s)`);
+  const seen = new Set();
+  let duplicates = 0;
+  for (let n = 1; n <= pagesExpected; n++) {
+    const res = await get(n === 1 ? '/collection/femme' : `/collection/femme/${n}`);
+    assert(res.status === 200 && !res.headers.get(WORKER), `collection page ${n} is a file`);
+    for (const m of res.text.matchAll(/class="product_card_link"[^>]*href="\/product\/([^"]+)"|href="\/product\/([^"]+)"[^>]*class="product_card_link"/g)) {
+      const slug = m[1] || m[2];
+      if (seen.has(slug)) duplicates++;
+      seen.add(slug);
+    }
+    assert(res.text.includes(`<link rel="canonical" href="${SITE}/collection/femme${n === 1 ? '' : `/${n}`}">`), `collection page ${n}: its own canonical`);
+    if (pagesExpected > 1) {
+      assert(/<nav class="pagination"/.test(res.text), `collection page ${n}: pagination links in the HTML`);
+      assert(n === 1 ? !/rel="prev"/.test(res.text) : res.text.includes(`rel="prev"`), `collection page ${n}: ${n === 1 ? 'no previous link' : 'a previous link'}`);
+      assert(n === pagesExpected ? !/rel="next"/.test(res.text) : res.text.includes(`rel="next"`), `collection page ${n}: ${n === pagesExpected ? 'no next link' : 'a next link'}`);
+    }
+    if (n === 2) {
+      assert(/<title>[^<]*Page 2[^<]*<\/title>/.test(res.text) && /index,follow/.test(res.text) && res.text.includes(`hreflang="ar" href="${SITE}/ar/collection/femme/2"`), 'page 2: its own title, indexable, hreflang to the Arabic page 2');
+    }
+  }
+  assert(seen.size === femmeSlugs.length && duplicates === 0 && femmeSlugs.every((s) => seen.has(s)), `every one of the ${femmeSlugs.length} products of the collection is linked from exactly one page (no cap, no duplicate)`);
+  assert((await get(`/collection/femme/${pagesExpected + 1}`)).status === 404 && (await get('/collection/femme/1')).status === 404, 'a page past the last one, and /1 (a duplicate of page 1), are 404');
+  assert(pagesExpected === 1 || (await get('/ar/collection/femme/2')).status === 200, 'the Arabic collection is paginated too');
+  assert(!/collection\/femme\/\d/.test((await get('/sitemap.xml')).text), 'the sitemap lists page 1 of a collection only');
+  assert((await get('/')).text.split('class="product_card_link"').length - 1 <= 8, 'the home page shows 4 products per collection (its carousel is capped, the page stays small)');
+  console.log('\n--- Admin code never reaches a visitor ---');
   const adminTraces = /ProductAdminLoader|AdminProductReviewsSection|AdminApp|admin-app|admin\/styles\.css|adminStyles|adminApi|admin_product_bar|Masqué du site/;
   for (const route of [`/product/${robe.slug}`, `/ar/product/${robe.slug}`, '/', '/collection/femme', `/product/${fixtures.hidden.slug}`]) {
     const res = await get(route);
@@ -296,53 +417,61 @@ async function runTests(fixtures, api) {
   assert(/<nav[^>]*class="product_breadcrumb"/.test(arPage.text) && arPage.text.includes('الرئيسية'), 'the Arabic breadcrumb is in the HTML, in Arabic');
   assert(/<section class="product_reviews_section product_geo_info"[^>]*>/.test(page.text), 'the delivery and returns block uses the site\'s product section style');
 
-  const purgeBody = JSON.stringify({ slug: robe.slug, category: 'femme' });
-  const purgeHeaders = { 'Content-Type': 'application/json' };
-  const noToken = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: purgeHeaders, body: purgeBody });
-  assert(noToken.status === 403, 'purge without a token: 403');
-  const badToken = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: 'Bearer not.a.token' }, body: purgeBody });
-  assert(badToken.status === 403, 'purge with an invalid token: 403');
-  { const getPurge = (await fetch(`${BASE}/internal/purge`)).status; assert(getPurge === 404 || getPurge === 405, `purge answers nothing to a GET (got ${getPurge})`); }
+  console.log('\n--- A5. Hidden products stay protected ---');
+  // 1. A hidden product is in no file of the build.
+  const distClient = path.join(STOREFRONT, 'dist', 'client');
+  const leaks = [];
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'pictures') walk(full);
+      } else if (/\.(html|json|xml|txt|js|css)$/.test(entry.name)) {
+        const text = fs.readFileSync(full, 'utf8');
+        for (const needle of [fixtures.hidden.slug, fixtures.hidden.id, 'Produit Cache']) if (text.includes(needle)) leaks.push(`${path.relative(distClient, full)} contains ${needle.slice(0, 24)}`);
+      }
+    }
+  })(distClient);
+  assert(leaks.length === 0, `the hidden product (slug, id, name) is in no file of the build (html, json, xml, js, css)${leaks.length ? `: ${leaks.slice(0, 4).join('; ')}` : ''}`);
 
-  const { createAccount, removeAccounts } = await import('../server/scripts/helpers/test_accounts.js');
-  const { pool } = await import('../server/db/pool.js');
-  const { env: apiEnv } = await import('../server/config/env.js');
-  const { default: jwt } = await importFromServer('jsonwebtoken');
-  const customerId = await createAccount(pool, 'customer', 'storefront-test');
-  const adminId = await createAccount(pool, 'admin', 'storefront-test');
+  // 2. Its address is a 404 for a visitor, and the 404 page only carries the hook the admin tools use.
+  const hiddenFr = await get(`/product/${fixtures.hidden.slug}`);
+  assert(hiddenFr.status === 404 && /id="not_found_main"/.test(hiddenFr.text) && /location\.pathname\.match/.test(hiddenFr.text), 'a hidden product address: the 404 page with the inline script that hands the slug to the admin tools');
+  assert(!/data-admin-hidden-product="[^"]+"/.test(hiddenFr.text), 'the slug is not written into the HTML by the server (the script reads the address in the browser)');
+  assert(!adminTraces.test(hiddenFr.text), 'no admin code in the 404 page: a visitor downloads nothing of the admin');
+
+  // 3. The product itself is only returned to an admin token, by the API.
+  const { createAccount: createAdminAccount, removeAccounts: removeAdminAccounts } = await import('../server/scripts/helpers/test_accounts.js');
+  const { pool: adminPool } = await import('../server/db/pool.js');
+  const { env: adminEnv } = await import('../server/config/env.js');
+  const { default: adminJwt } = await importFromServer('jsonwebtoken');
+  const customerId = await createAdminAccount(adminPool, 'customer', 'storefront-test');
+  const adminId = await createAdminAccount(adminPool, 'admin', 'storefront-test');
   try {
-    const sign = (id, role) => jwt.sign({ sub: id, email: `${role}@storefront-test.invalid`, role }, apiEnv.jwtSecret, { expiresIn: 600 });
-    const asCustomer = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(customerId, 'customer')}` }, body: purgeBody });
-    assert(asCustomer.status === 403, 'purge with a customer token: 403');
-    await get(`/product/${robe.slug}`);
-    assert((await get(`/product/${robe.slug}`)).headers.get('x-silky-cache') === 'HIT', 'the product page is cached before the purge');
-    const asAdmin = await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(adminId, 'admin')}` }, body: purgeBody });
-    const purged = await asAdmin.json();
-    assert(asAdmin.status === 200 && purged.paths.includes(`/product/${robe.slug}`) && purged.paths.includes(`/ar/product/${robe.slug}`) && purged.paths.includes('/collection/femme') && purged.paths.includes('/'), 'purge with an admin token: product (fr and ar), its collection and the home page');
-    assert(purged.removedHere >= 1, 'the cached product page was removed by the purge');
-    assert((await get(`/product/${robe.slug}`)).headers.get('x-silky-cache') === 'MISS', 'the next visitor gets a fresh page (MISS)');
-
-    // Purge by product id only (review moderation knows no slug) and site-wide (theme, announcement bar, hero).
-    await get(`/product/${robe.slug}`);
-    const byId = await (await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(adminId, 'admin')}` }, body: JSON.stringify({ productId: robe.id }) })).json();
-    assert(byId.paths.includes(`/product/${robe.slug}`) && byId.paths.includes('/collection/femme'), 'purge with only a product id: the API says which page it is');
-    await get('/faq');
-    assert((await get('/faq')).headers.get('x-silky-cache') === 'HIT', 'a text page is cached before the site-wide purge');
-    const all = await (await fetch(`${BASE}/internal/purge`, { method: 'POST', headers: { ...purgeHeaders, Authorization: `Bearer ${sign(adminId, 'admin')}` }, body: JSON.stringify({ all: true }) })).json();
-    assert(['/', '/ar', '/faq', '/ar/faq', '/collection/femme', `/product/${robe.slug}`, `/ar/product/${robe.slug}`].every((p) => all.paths.includes(p)) && !all.paths.some((p) => p.includes(fixtures.hidden.slug)), 'site-wide purge lists the home, text pages, collections and published products (never a hidden one), French and Arabic');
-    assert((await get('/faq')).headers.get('x-silky-cache') === 'MISS', 'after the site-wide purge a text page is rebuilt (MISS)');
+    const sign = (id, role) => adminJwt.sign({ sub: id, email: `${role}@storefront-test.invalid`, role }, adminEnv.jwtSecret, { expiresIn: 600 });
+    const bySlug = (token) => fetch(`${api.url}/api/products/by-slug/${fixtures.hidden.slug}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    assert((await bySlug()).status === 404, 'the API gives a visitor no hidden product');
+    assert((await bySlug(sign(customerId, 'customer'))).status === 404, 'the API gives a customer no hidden product');
+    assert((await bySlug('not.a.token')).status === 404, 'the API gives an invalid token no hidden product');
+    const adminCall = await bySlug(sign(adminId, 'admin'));
+    const adminProduct = await adminCall.json();
+    assert(adminCall.status === 200 && adminProduct.isHidden === true && adminProduct.slug === fixtures.hidden.slug, 'the API gives an admin token the hidden product (what the preview in the browser loads)');
   } finally {
-    await removeAccounts(pool).catch(() => {});
+    await removeAdminAccounts(adminPool).catch(() => {});
   }
-  assert(/Disallow: \/internal\n/.test(robots.text), 'robots.txt disallows /internal');
-
-  console.log('\n--- API down -> 503 ---');
+  assert(!(await get(`/product/${fixtures.hidden.slug}`)).text.includes('Produit Cache'), 'the preview needs the admin token: without it the page never shows the product');
+  assert(/Disallow: \/admin\n/.test(robots.text), 'robots.txt disallows /admin');
+  console.log('\n--- The API is down: the published site does not notice ---');
   await api.stop();
-  const never = await get(`/product/${M}-never-requested`);
-  assert(never.status === 503 && never.headers.get('cache-control') === 'no-store' && /noindex/.test(never.text), 'API unreachable: the product page answers 503 (not 404), no-store, noindex');
-  const robotsDown = await get('/robots.txt');
-  assert(robotsDown.status === 200, 'robots.txt does not need the API');
-
+  for (const route of ['/', '/ar', `/product/${robe.slug}`, `/ar/product/${robe.slug}`, '/collection/femme', '/faq', '/cart', '/sitemap.xml', '/robots.txt']) {
+    const res = await get(route);
+    assert(res.status === 200 && !res.headers.get(WORKER), `API down: ${route} still answers 200 as a file`);
+  }
+  const downRedirect = await get(`/product/${robe.id}`);
+  assert(downRedirect.status === 301, 'API down: an old id address is still redirected (the map is a file)');
+  assert((await get(`/product/${M}-never-existed`)).status === 404, 'API down: an unknown address is still a 404 (not a 503)');
+  assert((await get('/admin')).status === 200, 'API down: the admin shell is still served (its calls fail in the browser, not on the server)');
+  assert((await get('/password-reset/sometoken')).status === 200, 'API down: the password-reset page falls back to the default theme');
   console.log('\n--- No dependency on the old SEO layer ---');
   const files = [];
   (function walk(dir) {
@@ -360,6 +489,83 @@ async function runTests(fixtures, api) {
   assert(writers.length === 0, `only Seo.astro writes title, description, canonical, hreflang, Open Graph and JSON-LD${writers.length ? ` (also: ${writers.map((f) => path.relative(STOREFRONT, f)).join(', ')})` : ''}`);
 }
 
+// --- B. The build and a sleeping or unusable API: it either publishes a complete site or fails, never a half-filled one. ---
+async function runBuildScenarios(fixtures) {
+  console.log('\n--- B. Build scenarios (the API asleep, never waking, wrong or incomplete data) ---');
+  const live = await startApi(0); // a running API only to take a real snapshot from (the main run stopped its own)
+  const publishDry = (env, onOutput = () => {}) =>
+    new Promise((resolve) => {
+      const child = spawn('node', ['scripts/publish.mjs', '--dry-run'], { cwd: STOREFRONT, shell: false, env: { ...process.env, ...env, NODE_ENV: 'production', CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+      let out = '';
+      const take = (d) => {
+        out += d;
+        onOutput(out);
+      };
+      child.stdout.on('data', take);
+      child.stderr.on('data', take);
+      child.on('close', (code) => resolve({ code, out }));
+    });
+  const baseEnv = (snapshotUrl, extra = {}) => ({ PUBLIC_API_URL: snapshotUrl, PUBLIC_MEDIA_URL: snapshotUrl, PUBLIC_SITE_URL: SITE, API_URL: snapshotUrl, SNAPSHOT_API_URL: snapshotUrl, ALLOW_LOCAL_API_FOR_BUILD: '1', COLLECTION_PAGE_SIZE: PAGE_SIZE, ...extra });
+
+  // B1. The API is asleep when the build asks for the catalogue, and wakes up only after the build has been refused twice (a real
+  // Render cold start is 30-60 s: the retry schedule is the same, only shorter here). The build must wait, then publish a
+  // COMPLETE site. The API is started when the build's own log shows the second refusal, so the timing cannot drift.
+  const wakePort = await freePort();
+  const wakeUrl = `http://127.0.0.1:${wakePort}`;
+  let wakeApi = null;
+  let waking = false;
+  const slept = await publishDry(baseEnv(wakeUrl), (out) => {
+    if (!waking && /snapshot attempt 2 failed/.test(out)) {
+      waking = true;
+      startApi(wakePort).then((started) => (wakeApi = started));
+    }
+  });
+  assert(slept.code === 0, `B1 API asleep when the build asks (refused twice), awake after that: the build waits and succeeds${slept.code === 0 ? '' : `\n${slept.out.slice(-1500)}`}`);
+  assert(/\[snapshot\] snapshot attempt 1 failed \(no connection/.test(slept.out) && /snapshot received after [3-9]\d* attempt/.test(slept.out), `B1 the log shows a refused attempt, a pause, then the snapshot${/snapshot attempt 1 failed/.test(slept.out) ? '' : `\n${slept.out.split('\n').filter((l) => /snapshot/.test(l)).join('\n')}`}`);
+  assert(/build guard: \d+ pages checked/.test(slept.out) && /DRY RUN: the site was built and checked/.test(slept.out), 'B1 the build guard ran and the deploy step was reached');
+  const builtProduct = path.join(STOREFRONT, 'dist', 'client', 'product', `${fixtures.robe.slug}.html`);
+  assert(fs.existsSync(builtProduct) && fs.statSync(builtProduct).size > 5000, 'B1 the site that was built is complete (the fixture product page is a real page)');
+  if (wakeApi) await wakeApi.stop();
+
+  // B2. The API never wakes: the build gives up inside its budget, with a clear message, and deploys nothing.
+  const deadPort = await freePort();
+  const started = Date.now();
+  const never = await publishDry(baseEnv(`http://127.0.0.1:${deadPort}`, { SNAPSHOT_BUDGET_MS: '9000', SNAPSHOT_ATTEMPT_TIMEOUT_MS: '2000' }));
+  assert(never.code !== 0 && /Could not get the catalogue snapshot/.test(never.out) && /Nothing was built/.test(never.out), 'B2 API never wakes: the build fails with a clear message');
+  assert(/STOPPED: "2\/3 build the site/.test(never.out) && !/DRY RUN: the site was built/.test(never.out) && !/Deployed/.test(never.out), 'B2 the publish script stops at the build: the deploy step is never reached');
+  assert(Date.now() - started < 60_000, `B2 it gave up within its time budget (${Math.round((Date.now() - started) / 1000)} s, not an endless wait)`);
+
+  // B3. The API answers, but with something that must not be published.
+  const realSnapshot = await (await fetch(`${live.url}/api/storefront/snapshot`)).json();
+  const serveJson = async (body, status = 200) => {
+    const server = http.createServer((req, res) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(typeof body === 'string' ? body : JSON.stringify(body));
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    return { url: `http://127.0.0.1:${server.address().port}`, stop: () => new Promise((resolve) => (server.closeAllConnections?.(), server.close(resolve))) };
+  };
+  const refused = async (label, body, pattern, status = 200) => {
+    const server = await serveJson(body, status);
+    try {
+      const result = await publishDry(baseEnv(server.url, { SNAPSHOT_BUDGET_MS: '20000', SNAPSHOT_ATTEMPT_TIMEOUT_MS: '5000' }));
+      assert(result.code !== 0 && pattern.test(result.out) && !/DRY RUN: the site was built/.test(result.out), `B3 ${label}: the build fails and nothing is deployed`);
+    } finally {
+      await server.stop();
+    }
+  };
+  await refused('an empty catalogue', { ...realSnapshot, products: [], summaries: [], categories: [], reviews: {} }, /near-empty/);
+  await refused('a hidden product inside the snapshot', { ...realSnapshot, products: realSnapshot.products.map((p, i) => (i === 0 ? { ...p, isHidden: true } : p)) }, /hidden product is in the snapshot/);
+  await refused('summaries that do not match the products', { ...realSnapshot, summaries: realSnapshot.summaries.slice(1) }, /card summaries for/);
+  await refused('an answer that is not a snapshot', { error: 'Internal server error' }, /cannot be published/);
+  await refused('the endpoint does not exist (404)', { error: 'not found' }, /404/, 404);
+
+  // B4. A production-looking build (https site address) must not read a database on this machine.
+  const local = await publishDry({ ...baseEnv(live.url), ALLOW_LOCAL_API_FOR_BUILD: '' });
+  assert(local.code !== 0 && /Refusing to publish a site built from a local database/.test(local.out), 'B4 a build for the https site address refuses an API on this machine (a developer database)');
+  await live.stop();
+}
+
 let api;
 let fixtures;
 let worker;
@@ -370,16 +576,23 @@ try {
   const port = await freePort();
   BASE = `http://127.0.0.1:${port}`;
 
-  console.log('Building the storefront...');
-  const build = spawnSync('npx', ['astro', 'build'], {
-    cwd: STOREFRONT,
-    shell: true,
-    encoding: 'utf8',
-    // The API's .env says NODE_ENV=development; the storefront must be built as production (like a deploy).
-    env: { ...process.env, NODE_ENV: 'production', CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false', PUBLIC_API_URL: apiUrl, PUBLIC_MEDIA_URL: apiUrl, PUBLIC_SITE_URL: SITE, API_URL: apiUrl },
+  console.log('Building the storefront (npm run build: headers, snapshot, pages, build guard)...');
+  const build = await new Promise((resolve) => {
+    // Asynchronous on purpose: the API of this test runs in THIS process and must answer the build's snapshot request.
+    const child = spawn('npm', ['run', 'build'], {
+      cwd: STOREFRONT,
+      shell: true,
+      // The API's .env says NODE_ENV=development; the storefront must be built as production (like a deploy).
+      env: { ...process.env, NODE_ENV: 'production', CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false', PUBLIC_API_URL: apiUrl, PUBLIC_MEDIA_URL: apiUrl, PUBLIC_SITE_URL: SITE, API_URL: apiUrl, SNAPSHOT_API_URL: apiUrl, ALLOW_LOCAL_API_FOR_BUILD: '1', COLLECTION_PAGE_SIZE: PAGE_SIZE },
+    });
+    let out = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (out += d));
+    child.on('close', (status) => resolve({ status, stdout: out, stderr: '' }));
   });
-  assert(build.status === 0, 'astro build succeeds');
-  if (build.status !== 0) throw new Error(`${build.stdout}\n${build.stderr}`.slice(-3000));
+  assert(build.status === 0, 'npm run build succeeds');
+  assert(/build guard: \d+ pages checked/.test(build.stdout) && /\[snapshot\] snapshot received after 1 attempt/.test(build.stdout), 'the build took ONE snapshot and the build guard passed');
+  if (build.status !== 0) throw new Error(build.stdout.slice(-3000));
 
   console.log(`Starting wrangler dev on ${BASE} ...`);
   worker = spawn(
@@ -396,6 +609,9 @@ try {
   if (!/Ready on/.test(log)) throw new Error(log.slice(-2000));
 
   await runTests(fixtures, api);
+  killTree(worker);
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await runBuildScenarios(fixtures);
 } catch (err) {
   failed++;
   console.error('✗ FAIL: unexpected error:', err);

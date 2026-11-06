@@ -18,7 +18,7 @@ import {
   type PageKey,
 } from './routeText.ts';
 import { cleanText, trimDescription, withSiteName } from './text.ts';
-import { alternatesFor, categoryPath, pageUrl, productPath, shareImageUrl } from './urls.ts';
+import { alternatesFor, categoryPath, collectionPagePath, pageUrl, productPath, shareImageUrl } from './urls.ts';
 import type { Locale, SeoContext, SeoProps } from './types.ts';
 
 const ogLocale = (locale: Locale) => (locale === 'ar' ? 'ar_AR' : 'fr_FR');
@@ -71,14 +71,16 @@ export function errorPageSeo(kind: 'not-found' | 'product-not-found' | 'unavaila
 }
 
 /** Collection (category) page. An Arabic collection is indexable only when it has an Arabic title (named collections). */
-export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, name?: string, imagePath?: string): SeoProps {
+export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, name?: string, imagePath?: string, page = 1): SeoProps {
   const text = collectionText(slug, locale);
   const title = isNamedCollection(slug) ? text.title : cleanText(name) || text.title;
   const hasArabic = isNamedCollection(slug);
   const indexable = locale === 'fr' || hasArabic;
-  const path = categoryPath(slug);
+  const path = collectionPagePath(slug, page);
+  // Page 2 onwards: its own title and canonical (a paginated page is indexable on its own), the same description.
+  const pageLabel = page > 1 ? (locale === 'ar' ? ` - صفحة ${page}` : ` - Page ${page}`) : '';
   return {
-    title: withSiteName(title),
+    title: withSiteName(title + pageLabel),
     description: trimDescription(text.heroText),
     canonical: pageUrl(ctx.siteUrl, path, locale),
     alternates: indexable && hasArabic ? alternatesFor(ctx.siteUrl, path) : undefined,
@@ -87,7 +89,7 @@ export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, nam
     jsonLd: [
       breadcrumbJsonLd([
         { name: homeName(locale), url: pageUrl(ctx.siteUrl, '/', locale) },
-        { name: title, url: pageUrl(ctx.siteUrl, path, locale) },
+        { name: title, url: pageUrl(ctx.siteUrl, categoryPath(slug), locale) },
       ]) as object,
     ].filter(Boolean),
   };

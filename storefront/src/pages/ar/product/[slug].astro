@@ -1,24 +1,22 @@
 ---
+// Static page, one per published product (generated from the catalogue snapshot at build time). A hidden or unknown product has
+// no file here: its address falls through to the Worker's 404 (see src/middleware.ts), where an admin's browser can still open it.
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { siteUrl, mediaBase } from '../../../lib/config';
 import ProductView from '../../../views/ProductView.astro';
-import NotFoundView from '../../../views/NotFoundView.astro';
 import { loadProductPage } from '../../../lib/pages/load';
-import { productSeo, errorPageSeo } from '../../../lib/seo/builders.ts';
-import { cacheablePage } from '../../../lib/pages/respond';
+import { getSnapshot } from '../../../lib/pages/snapshot';
+import { productSeo } from '../../../lib/seo/builders.ts';
+
+export async function getStaticPaths() {
+  return (await getSnapshot()).products.map((product) => ({ params: { slug: product.slug } }));
+}
+
 const locale = 'ar';
 const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
-const result = await loadProductPage(Astro.params.slug ?? '', locale, Astro.url.pathname);
-if (result.kind === 'redirect') return Astro.redirect(result.to + Astro.url.search, 301);
-if (result.kind === 'notfound') Astro.response.status = 404;
-if (result.kind === 'unavailable') Astro.response.status = 503;
-cacheablePage(Astro.response, result.kind === 'ok');
-const seo = result.kind === 'ok'
-  ? productSeo(result.data.product, locale, ctx, { rating: result.data.rating, deliveryFee: result.data.deliveryFee, collectionName: result.data.collectionName })
-  : errorPageSeo(result.kind === 'unavailable' ? 'unavailable' : 'product-not-found', locale, ctx, Astro.url.pathname);
+const { product, reviews, rating, deliveryFee, collectionName, recommendations } = await loadProductPage(Astro.params.slug!);
+const seo = productSeo(product, locale, ctx, { rating, deliveryFee, collectionName });
 ---
 <BaseLayout locale={locale} seo={seo}>
-  {result.kind === 'ok'
-    ? <ProductView product={result.data.product} reviews={result.data.reviews} rating={result.data.rating} collectionName={result.data.collectionName} recommendations={result.data.recommendations} locale={locale} />
-    : <NotFoundView locale={locale} unavailable={result.kind === 'unavailable'} hiddenProductKey={result.kind === 'notfound' ? Astro.params.slug : null} />}
+  <ProductView product={product} reviews={reviews} rating={rating} collectionName={collectionName} recommendations={recommendations} locale={locale} />
 </BaseLayout>

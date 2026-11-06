@@ -6,3 +6,6 @@ dist
 .env.*
 !.env.example
 .dev.vars
+
+# generated at build time by scripts/write_headers.mjs
+public/_headers

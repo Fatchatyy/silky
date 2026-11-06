@@ -8,10 +8,12 @@ import Footer from '../components/layout/Footer.astro';
 import AnnouncementBar from '../components/layout/AnnouncementBar.jsx';
 import { dirOf } from '../lib/i18n.ts';
 import { loadTheme, themeCss } from '../lib/theme';
+import { getSnapshot } from '../lib/pages/snapshot';
 import type { Locale, SeoProps } from '../lib/seo/types.ts';
 
 const { locale, seo } = Astro.props as { locale: Locale; seo: SeoProps };
-const theme = await loadTheme();
+// Static pages take the theme from the build's snapshot; the few pages rendered on request (the password-reset address) ask the API.
+const theme = Astro.isPrerendered ? (await getSnapshot()).theme : await loadTheme();
 const announcements = { announcements: theme.announcements, announcementsHidden: theme.announcementsHidden };
 ---
 <!doctype html>

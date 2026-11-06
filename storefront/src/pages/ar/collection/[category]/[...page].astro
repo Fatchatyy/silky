@@ -1,0 +1,23 @@
+---
+// Static pages of a collection: /collection/<slug> (page 1) and /collection/<slug>/2, /3 ... when it holds more than
+// the collection page size. Generated from the catalogue snapshot at build time.
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import { siteUrl, mediaBase } from '../../../../lib/config';
+import CollectionView from '../../../../views/CollectionView.astro';
+import { collectionPagePaths, loadCollectionPage } from '../../../../lib/pages/load';
+import { collectionSeo } from '../../../../lib/seo/builders.ts';
+import { shareImagePath } from '../../../../lib/pages/respond';
+
+export async function getStaticPaths() {
+  return (await collectionPagePaths()).map(({ category, page }) => ({ params: { category, page: page === 1 ? undefined : String(page) } }));
+}
+
+const locale = 'ar';
+const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
+const pageNumber = Astro.params.page ? Number(Astro.params.page) : 1;
+const data = await loadCollectionPage(Astro.params.category!, pageNumber);
+const seo = collectionSeo(data.slug, locale, ctx, data.name, shareImagePath(data.products), data.page);
+---
+<BaseLayout locale={locale} seo={seo}>
+  <CollectionView slug={data.slug} name={data.name} products={data.products} page={data.page} pages={data.pages} locale={locale} />
+</BaseLayout>

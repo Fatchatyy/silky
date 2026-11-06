@@ -1,7 +1,7 @@
 # Silky storefront (Astro)
 
-The public shop (French at `/`, Arabic at `/ar`) and the admin panel (`/admin`), rendered on the server by Astro and deployed
-as a Cloudflare Worker. It never talks to the database: every piece of catalog data comes from the Express API in `../server`.
+The public shop (French at `/`, Arabic at `/ar`) and the admin panel (`/admin`), generated as static files by Astro from a snapshot of the
+catalogue (one API request per build) and deployed as a Cloudflare Worker with static assets. It never talks to the database: every piece of catalog data comes from the Express API in `../server`.
 Plan and decisions: `../MIGRATION_PLAN_ASTRO.md`.
 
 ## Run everything locally
@@ -46,10 +46,11 @@ and restart the API. Without it the browser blocks the cart, login, checkout and
   editor), `AdminProductReviewsSection.jsx`, the inline editor (`ProductPageAdmin.jsx`), `enhance.jsx` ... The shop loads them
   lazily, only for a browser that holds an admin token; a visitor's page never contains or downloads them.
 - **Not a page of the site.** Everything under `/admin` is `noindex` (meta tag and `X-Robots-Tag`), `Cache-Control: no-store`,
-  never stored by or served from the page cache, absent from `sitemap.xml` and `Disallow`ed in `robots.txt`. `/ar/admin` is a 404.
-- **Cache purge.** Every admin change that visitors can see (product created, saved, hidden/shown, deleted, stock, product
-  reviews, theme, announcement bar, hero) calls `POST /internal/purge` so the 5-minute page cache is cleared for the pages
-  concerned (`{ slug, category, previousCategory }`, `{ productId }` or `{ all: true }`).
+  rendered on request by the Worker (never a file), absent from `sitemap.xml` and `Disallow`ed in `robots.txt`. `/ar/admin` is a 404.
+- **No page cache, no purge.** The public pages are files built from a snapshot of the catalogue, so a change made in the admin
+  (product created, saved, hidden/shown, deleted, reviews, theme, announcement bar, hero) shows on the shop after the next
+  `npm run publish-site`. An admin sees a hidden or new product at once: its address is a 404 for visitors, and the admin's
+  browser then loads the product with the admin token and shows it with the editor.
 - **Styles.** The shell loads the shop stylesheet (`src/styles/shop.css`) and `public/admin/styles.css` (the admin stylesheet:
   `admin.css` in the `admin` cascade layer, then `product-admin.css`), in the order the old single-page app evaluated them.
 
@@ -70,6 +71,8 @@ one. After changing a `PUBLIC_` value, rebuild.
 ```bash
 cd storefront
 node scripts/test_seo_builders.mjs                 # pure tests of the SEO builders, no server needed
+node scripts/test_snapshot_fetch.mjs               # the snapshot client: retries through a cold start, never returns partial data
+node scripts/test_build_guard.mjs                  # the build guard catches every kind of broken site
 node scripts/test_order_search.mjs                 # admin orders search, pure
 node scripts/test_admin_orders_table_safeguards.mjs   # admin orders table and PDF selection, pure
 node scripts/test_governorate_lists.mjs            # checkout governorate lists, pure
@@ -90,10 +93,27 @@ storefront without touching your own database (set `API_URL` / `PUBLIC_API_URL` 
 account whose generated password is written to the session file (nothing of your own data is read or written; Ctrl+C removes
 what it created).
 
+## Publishing
+
+```bash
+cd storefront && npm run publish-site            # headers -> build (snapshot, pages, build guard) -> wrangler deploy
+cd storefront && npm run publish-site -- --dry-run   # everything except the deploy
+```
+
+- The build reads the catalogue from `SNAPSHOT_API_URL` (falls back to `API_URL`): the Express API. A sleeping Render API is
+  waited for (90 s per attempt, 8 minutes in all, growing pauses). If the API never answers, or answers with something that must
+  not be published (no products, a hidden product, mismatched data), the build fails and **nothing is deployed**: the live site
+  stays as it is.
+- After the pages are written, `integrations/buildGuard.mjs` fails the build when a page is missing, empty, a redirect stub or
+  shows `undefined`, when a page has no title, canonical, h1 or Product JSON-LD, or when the sitemap lists a page that does not exist.
+- A build for the real address (`PUBLIC_SITE_URL=https://...`) refuses an API on this machine, so a developer database is never
+  published. Deploying needs `wrangler login` (or `CLOUDFLARE_API_TOKEN`) on the machine that runs the command.
+- Extra settings: `SNAPSHOT_ATTEMPT_TIMEOUT_MS`, `SNAPSHOT_BUDGET_MS`, `SNAPSHOT_MIN_PRODUCTS`, `COLLECTION_PAGE_SIZE`.
+
 ## Notes
 
 - `astro dev` runs in `workerd` (the Cloudflare runtime), so Workers-only limits show up while developing.
 - Product photos are plain `<img>` tags using the pre-made WebP copies (`.card/.share/.large.webp`): Astro's image
   optimizer needs `sharp`, which does not run on Workers.
-- Rendered pages are cached 5 minutes by Cloudflare (`src/middleware.ts`): a price change shows within that time (the admin
-  clears it at once with the purge above; a browser may still show its own copy once).
+- Pages are files, revalidated by the browser with their ETag. Cloudflare serves a file without starting the Worker; only
+  `/admin`, `/password-reset/<token>`, old product addresses (301) and unknown addresses (404) run it (`src/fetch.ts`).

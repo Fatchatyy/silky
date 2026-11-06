@@ -112,25 +112,15 @@ export const adminApi = {
   getGovernorates: () => request('/governorates'),
 };
 
-type PurgeRequest = { slug?: string; category?: string; previousCategory?: string; all?: boolean };
+type PurgeRequest = { slug?: string; category?: string; previousCategory?: string; productId?: string; all?: boolean };
 
 /**
- * Tells the storefront server that something visitors see changed, so the cached pages that show it are dropped: for a
- * product, its page in French and Arabic, its collection(s), the home page and the sitemap; with `all`, every cached page
- * (colours, announcement bar and hero show on all of them). Never throws: the change itself already succeeded.
+ * Used to clear the page cache after an admin change. The public pages are now files built from a snapshot of the
+ * catalogue (npm run publish), so there is no cache to clear and nothing to call: a change shows on the shop after the next
+ * publish. Kept as a no-op so the 9 call sites need no change until the automatic publish trigger replaces them.
  */
-export async function purgeStorefrontCache(change: PurgeRequest) {
-  try {
-    const token = getUserToken();
-    const res = await fetch('/internal/purge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(change),
-    });
-    return res.ok ? await res.json() : null;
-  } catch {
-    return null;
-  }
+export async function purgeStorefrontCache(_change: PurgeRequest) {
+  return null;
 }
 
 /** After a product was created, saved, hidden/shown, moved to another collection or deleted: `next` is the product as saved, `previous` as it was. */

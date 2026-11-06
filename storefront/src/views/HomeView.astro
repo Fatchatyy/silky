@@ -14,6 +14,9 @@ import type { Locale } from '../lib/seo/types.ts';
 const { products, theme, locale } = Astro.props as { products: any[]; theme: any; locale: Locale };
 const t = translator(locale);
 
+// The carousel is a shortcut to the newest products: every product is linked from its collection page. Capping it keeps the
+// home page's HTML small (the island's props are written into the page).
+const CAROUSEL_LIMIT = 16;
 const byCategory = (slug: string) => products.filter((p) => p.category === slug);
 const femme = byCategory('femme');
 const enfant = byCategory('enfant');
@@ -25,7 +28,7 @@ const sections = [
 ---
 <Hero client:load locale={locale} heroConfig={theme.heroConfig ?? undefined} theme={heroTheme} />
 
-{products.length > 0 && <Carousel client:only="react" locale={locale} products={products.map(productForCard)} />}
+{products.length > 0 && <Carousel client:only="react" locale={locale} products={products.slice(0, CAROUSEL_LIMIT).map(productForCard)} />}
 
 <div class="collections_wrapper">
   {sections.map((section) => (

@@ -1,102 +1,90 @@
-// Data loading of the server-rendered pages. Each loader returns a small tagged result so the route file can pick the
-// HTTP status: a missing thing is a real 404, an unreachable API a 503 (search engines retry a 503, they drop a 404),
-// and a stale or odd URL a single 301 to the canonical address.
-import { isCanonicalProductId, isProductSlug, productPath } from '../../../shared/urls.js';
-import { localizePath } from '../../../shared/locales.js';
-import { ApiNotFound, ApiUnavailable, getCached, getJson, getJsonOrNull } from '../serverApi';
+// Data of the static pages, taken from the catalogue snapshot (one API request per build, see ./snapshot.ts). Pure
+// functions over the snapshot: a missing thing here is a bug in the build (the routes are generated FROM the snapshot), so
+// these throw; they never produce an "unavailable" page. A visitor never triggers any of this.
 import { normalizeProduct } from '../normalizeProduct';
-import { loadTheme } from '../theme';
-import type { Locale } from '../seo/types.ts';
+import { collectionPageSize } from '../config';
+import { getSnapshot, type Snapshot } from './snapshot';
 
-export type Loaded<T> =
-  | { kind: 'ok'; data: T }
-  | { kind: 'redirect'; to: string }
-  | { kind: 'notfound' }
-  | { kind: 'unavailable' };
 
-/** Maps an API failure to a result; anything unexpected is treated as the API being unavailable. */
-function failure(err: unknown): { kind: 'notfound' } | { kind: 'unavailable' } {
-  if (err instanceof ApiNotFound) return { kind: 'notfound' };
-  if (!(err instanceof ApiUnavailable)) console.error('[storefront] unexpected error while loading a page:', err);
-  return { kind: 'unavailable' };
-}
-
-// The home, collection and product pages never load the full product list (every variant, colour and photo of every
-// product). They use the API's light summaries: exactly what a product card shows (name, price, discount, photos, alt
-// text, sold-out flag, category). The full product is loaded only for the product page itself.
 /** A summary as the cards expect a product: published, no colours or variants. */
 const fromSummary = (p: any) => ({ ...p, isHidden: false, is_active: true });
 
-/** The home page's published products (summaries), kept 5 seconds per Worker instance (a burst of crawler hits). */
-async function loadHomeProducts(): Promise<any[]> {
-  const data = await getCached('home', 5_000, () => getJson<{ products: any[] }>('/storefront/home'));
-  return (data?.products || []).map(fromSummary);
+/** A collection with more products than collectionPageSize() is split into /collection/<slug>, /collection/<slug>/2, ... */
+export const pageCount = (total: number) => Math.max(1, Math.ceil(total / collectionPageSize()));
+
+/** Every collection page to generate: { category, page } with page 1 first. */
+export async function collectionPagePaths(): Promise<{ category: string; page: number }[]> {
+  const snap = await getSnapshot();
+  return snap.categories.flatMap((category) => {
+    const total = snap.summaries.filter((p) => p.category === category.slug).length;
+    return Array.from({ length: pageCount(total) }, (_, i) => ({ category: category.slug, page: i + 1 }));
+  });
 }
 
-/** A collection: its name and published products (summaries). Same 5-second memory as the home list. */
-async function loadCollectionSummaries(slug: string): Promise<{ slug: string; name: string; products: any[] }> {
-  const data = await getCached(`collection:${slug}`, 5_000, () => getJson<any>(`/storefront/collections/${slug}`));
-  return { slug: data.slug, name: data.name, products: (data.products || []).map(fromSummary) };
+/** The home page: every published product as a card summary (the view decides how many to show where). */
+export async function loadHome() {
+  const snap = await getSnapshot();
+  return { products: snap.summaries.map(fromSummary), theme: snap.theme };
 }
 
-export async function loadHome(): Promise<Loaded<{ products: any[]; theme: any }>> {
-  try {
-    const [products, theme] = await Promise.all([loadHomeProducts(), loadTheme()]);
-    return { kind: 'ok', data: { products, theme } };
-  } catch (err) {
-    return failure(err);
-  }
-}
-
-export async function loadCollection(slug: string): Promise<Loaded<{ slug: string; name: string; products: any[] }>> {
-  if (!/^[a-z0-9-]+$/.test(slug)) return { kind: 'notfound' };
-  try {
-    return { kind: 'ok', data: await loadCollectionSummaries(slug) };
-  } catch (err) {
-    return failure(err);
-  }
-}
-
-/**
- * A product page. The URL holds the product's slug; its id (an old share link) or a different letter case is
- * answered with one 301 to `/product/<slug>` (keeping the /ar prefix), as the old server did.
- */
-export async function loadProductPage(rawKey: string, locale: Locale, pathname: string) {
-  const key = String(rawKey || '').toLowerCase();
-  const byId = isCanonicalProductId(key);
-  if (!byId && !isProductSlug(key)) return { kind: 'notfound' } as const;
-
-  let product: any;
-  try {
-    product = normalizeProduct(await getJson(byId ? `/products/${key}` : `/products/by-slug/${key}`));
-  } catch (err) {
-    return failure(err);
-  }
-  if (!product || product.isHidden) return { kind: 'notfound' } as const;
-
-  const canonicalPath = localizePath(productPath(product), locale);
-  if (pathname.replace(/\/+$/, '') !== canonicalPath) return { kind: 'redirect', to: canonicalPath } as const;
-
-  // Side data: a failure only removes the part it feeds (rating, delivery fee, collection name, other products).
-  const [reviews, settings, collection] = await Promise.all([
-    getJsonOrNull<any>(`/products/${product.id}/reviews`).catch(() => null),
-    getJsonOrNull<any>('/storefront/settings').catch(() => null),
-    product.category ? loadCollectionSummaries(product.category).catch(() => null) : null,
-  ]);
+/** One page of a collection. */
+export async function loadCollectionPage(slug: string, page: number) {
+  const snap = await getSnapshot();
+  const category = snap.categories.find((c) => c.slug === slug);
+  if (!category) throw new Error(`collection "${slug}" is not in the snapshot`);
+  const all = snap.summaries.filter((p) => p.category === slug).map(fromSummary);
+  const pages = pageCount(all.length);
+  if (!Number.isInteger(page) || page < 1 || page > pages) throw new Error(`collection "${slug}" has no page ${page} (${pages} pages)`);
   return {
-    kind: 'ok',
-    data: {
-      product,
-      reviews: reviews?.reviews ?? null,
-      rating: reviews?.summary ?? null,
-      deliveryFee: typeof settings?.deliveryFee === 'number' ? settings.deliveryFee : null,
-      collectionName: collection?.name ?? null,
-      // The other products of the same collection (newest first), 4 at most.
-      recommendations: (collection?.products ?? []).filter((p: any) => p.id !== product.id).slice(0, 4),
-    },
-  } as const;
+    slug: category.slug,
+    name: category.name,
+    products: all.slice((page - 1) * collectionPageSize(), page * collectionPageSize()),
+    page,
+    pages,
+    total: all.length,
+  };
 }
 
+/** The other products of a product's collection, newest first, 4 at most. */
+function recommendationsFor(snap: Snapshot, product: any) {
+  return snap.summaries
+    .filter((p) => p.category === product.category && p.id !== product.id)
+    .slice(0, 4)
+    .map(fromSummary);
+}
+
+/** A product page: the product, its approved reviews and rating, the delivery fee, its collection's name and recommendations. */
+export async function loadProductPage(slug: string) {
+  const snap = await getSnapshot();
+  const raw = snap.products.find((p) => p.slug === slug);
+  if (!raw) throw new Error(`product "${slug}" is not in the snapshot`);
+  const product = normalizeProduct(raw);
+  const reviews = snap.reviews[product.id];
+  return {
+    product,
+    reviews: reviews?.reviews ?? [],
+    rating: reviews?.summary ?? { average: 0, count: 0 },
+    deliveryFee: snap.settings.deliveryFee,
+    collectionName: snap.categories.find((c) => c.slug === product.category)?.name ?? null,
+    recommendations: recommendationsFor(snap, product),
+  };
+}
+
+/** What the sitemap lists. */
 export async function loadSitemapEntries() {
-  return getJson<{ products: { slug: string; updatedAt: string; hasArabic: boolean }[]; categories: { slug: string }[] }>('/storefront/sitemap-entries');
+  const snap = await getSnapshot();
+  return {
+    products: snap.products.map((p) => ({ slug: p.slug, updatedAt: p.updatedAt, hasArabic: p.hasArabic })),
+    categories: snap.categories.map((c) => ({ slug: c.slug })),
+  };
+}
+
+/** For the Worker's redirects of old addresses (see src/middleware.ts): published ids and slugs only, never a hidden product. */
+export async function loadLegacyRedirects() {
+  const snap = await getSnapshot();
+  return {
+    ids: Object.fromEntries(snap.products.map((p) => [p.id, p.slug])),
+    products: snap.products.map((p) => p.slug),
+    collections: snap.categories.map((c) => c.slug),
+  };
 }

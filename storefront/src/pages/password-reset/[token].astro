@@ -1,4 +1,6 @@
 ---
+// The one public page rendered on request: its address carries a secret token, so it cannot be a file.
+export const prerender = false;
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { siteUrl, mediaBase } from '../../lib/config';
 import Island from '../../islands/PasswordResetPage.jsx';
