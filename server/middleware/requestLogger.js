@@ -1,7 +1,7 @@
 import { env } from '../config/env.js';
 
-// Paths that would only add noise: the uptime/health probe and static files.
-const QUIET_PREFIXES = ['/health', '/uploads/', '/assets/', '/pictures/'];
+// Paths that would only add noise: the uptime/health probes (a keep-awake ping every 10 minutes) and static files.
+const QUIET_PREFIXES = ['/health', '/ping', '/uploads/', '/assets/', '/pictures/'];
 
 /**
  * One line per request once it is answered: method, path, status, duration. Nothing else: no query string (it can carry

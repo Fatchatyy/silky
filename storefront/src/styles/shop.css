@@ -537,28 +537,16 @@ progress{vertical-align:baseline}
   pointer-events: none;
 }
 
-.hero_box.left::before,
-.hero_box.right::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-  z-index: 1;
+/* The 15 % darkening of the two photos is a filter on the photo itself (it used to be a black layer drawn over the box), so while a
+   photo is still loading nothing is painted: no grey, and no yellow / orange box behind it either. */
+.hero_box_bg {
+  filter: brightness(0.85);
 }
 
 .hero_box.left .cta_button,
 .hero_box.right .cta_button {
   position: relative;
   z-index: 2;
-}
-
-.hero_box.left {
-  background-color: #ffcc00;
-}
-
-.hero_box.right {
-  background-color: #ff851b;
 }
 
 .hero_text_overlay {
@@ -770,6 +758,10 @@ progress{vertical-align:baseline}
 }
 
 .coverflow_viewport {
+  /* --cf-w: card width; --cf-s: distance between the centre card and its neighbours; --cf-drag: set by the script while dragging. */
+  --cf-w: 450px;
+  --cf-s: clamp(195px, 28.5vw, 390px);
+  --cf-drag: 0px;
   position: relative;
   overflow: hidden;
   width: 100%;
@@ -789,15 +781,77 @@ progress{vertical-align:baseline}
   width: 100%;
   height: 100%;
   will-change: transform;
+  transform: translateX(calc(var(--cf-drag) * 0.15));
+  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .coverflow_card {
   position: absolute;
   left: 50%;
   top: 50%;
+  width: var(--cf-w);
+  height: calc(var(--cf-w) * 1.5);
   transform-origin: center center;
   will-change: transform, opacity, filter;
   pointer-events: auto;
+  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0, 0.2, 1), filter 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+  /* A card that is not one of the five positions below (should not happen) stays out of sight. */
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.68);
+}
+
+/* The five positions of the coverflow, from each card's data-offset (the script changes it, the HTML starts at 0). The
+   formulas are those of the old React carousel: scales 1 / 0.82 / 0.68, opacity 1 / 0.82 / 0.58, and the second neighbour sits at
+   2 * spacing - 0.16 * width so the gaps between the scaled cards stay even. */
+.coverflow_card[data-offset="0"] {
+  transform: translate(calc(-50% + var(--cf-drag)), -50%) scale(1);
+  opacity: 1;
+  z-index: 30;
+  filter: brightness(1.05);
+  pointer-events: auto;
+}
+.coverflow_card[data-offset="1"] {
+  transform: translate(calc(-50% + var(--cf-s) + var(--cf-drag)), -50%) scale(0.82);
+  opacity: 0.82;
+  z-index: 19;
+  filter: brightness(0.88);
+  pointer-events: auto;
+}
+.coverflow_card[data-offset="-1"] {
+  transform: translate(calc(-50% - var(--cf-s) + var(--cf-drag)), -50%) scale(0.82);
+  opacity: 0.82;
+  z-index: 19;
+  filter: brightness(0.88);
+  pointer-events: auto;
+}
+.coverflow_card[data-offset="2"] {
+  transform: translate(calc(-50% + 2 * var(--cf-s) - 0.16 * var(--cf-w) + var(--cf-drag)), -50%) scale(0.68);
+  opacity: 0.58;
+  z-index: 18;
+  filter: brightness(0.88);
+  pointer-events: auto;
+}
+.coverflow_card[data-offset="-2"] {
+  transform: translate(calc(-50% - 2 * var(--cf-s) + 0.16 * var(--cf-w) + var(--cf-drag)), -50%) scale(0.68);
+  opacity: 0.58;
+  z-index: 18;
+  filter: brightness(0.88);
+  pointer-events: auto;
+}
+
+/* While the pointer drags, the cards follow it at once. */
+.coverflow_viewport.is-dragging .coverflow_card,
+.coverflow_viewport.is-dragging .coverflow_stage {
+  transition: none;
+}
+
+/* Only the centre card shows its "Découvrir" button; the arrows need the script, so they appear once it has run. */
+.coverflow_card:not(.coverflow_card_active) .coverflow_card_cta {
+  display: none;
+}
+.coverflow_carousel:not([data-ready]) .carousel_arrow {
+  visibility: hidden;
 }
 
 .coverflow_card_active {
@@ -971,6 +1025,8 @@ progress{vertical-align:baseline}
   }
 
   .coverflow_viewport {
+    --cf-w: clamp(290px, 52vw, 360px);
+    --cf-s: clamp(140px, 28vw, 220px);
     height: 580px;
   }
 
@@ -995,6 +1051,8 @@ progress{vertical-align:baseline}
   }
 
   .coverflow_viewport {
+    --cf-w: clamp(230px, 70vw, 290px);
+    --cf-s: clamp(90px, 30vw, 140px);
     height: 480px;
   }
 
@@ -1123,13 +1181,10 @@ progress{vertical-align:baseline}
   overflow: hidden;
 }
 
-.hero_single_container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.35) 100%);
-  pointer-events: none;
-  z-index: 1;
+/* The darkening of the photo (it was a top-to-bottom black gradient of 20 % to 35 % drawn over the whole hero, so a grey hero showed
+   before the photo arrived) is now a uniform filter on the photo itself, about the average of that gradient. */
+.hero_single_bg {
+  filter: brightness(0.725);
 }
 
 .hero_single_content {
@@ -7038,64 +7093,33 @@ html[dir="rtl"] .share-modal-copy-box {
 .pagination a, .pagination .pagination_current { min-width: 2.25rem; padding: 0.4rem 0.75rem; text-align: center; border: 1px solid var(--color-primary); color: var(--color-primary); text-decoration: none; }
 .pagination .pagination_current { background: var(--color-primary); color: #fff; }
 
-/* Home carousel as plain HTML and CSS (components/ProductCarousel.astro): a row that scrolls and snaps; the first card is centred. */
-.scroll_carousel {
-  position: relative;
+/* Product page: the customer pressed « Ajouter au panier » / « Commander » without choosing a size. The size buttons are outlined
+   and shake once, and the message sits right under them in red (components/ProductMain.jsx). */
+.size_section_error .sizes_grid {
+  /* hug the buttons (the grid is a full-width flex row), but never wider than the column when the sizes wrap */
+  width: fit-content;
+  max-width: 100%;
+  outline: 2px solid #c62828;
+  outline-offset: 6px;
+  border-radius: 6px;
+  animation: size_error_shake 0.45s ease-in-out;
 }
 
-.scroll_carousel_track {
-  display: flex;
-  gap: 20px;
-  margin: 0;
-  padding: 0 max(16px, calc((100% - 450px) / 2));
-  list-style: none;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-padding-inline: max(16px, calc((100% - 450px) / 2));
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
+.size_error_message {
+  margin: 14px 0 0;
+  color: #c62828;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
-.scroll_carousel_track::-webkit-scrollbar {
-  display: none;
+@keyframes size_error_shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 
-.scroll_carousel_track:focus-visible {
-  outline: 2px solid var(--color-primary, #8D191C);
-  outline-offset: -2px;
-}
-
-.scroll_carousel_item {
-  flex: 0 0 450px;
-  aspect-ratio: 2 / 3;
-  scroll-snap-align: center;
-}
-
-@media (max-width: 768px) {
-  .scroll_carousel_track {
-    padding-inline: max(16px, calc((100% - 360px) / 2));
-    scroll-padding-inline: max(16px, calc((100% - 360px) / 2));
-  }
-
-  .scroll_carousel_item {
-    flex-basis: 360px;
-  }
-}
-
-@media (max-width: 480px) {
-  .scroll_carousel_track {
-    gap: 14px;
-    padding-inline: max(12px, calc((100% - 290px) / 2));
-    scroll-padding-inline: max(12px, calc((100% - 290px) / 2));
-  }
-
-  .scroll_carousel_item {
-    flex-basis: min(290px, 72vw);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .scroll_carousel_track {
-    scroll-behavior: smooth;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .size_section_error .sizes_grid { animation: none; }
 }

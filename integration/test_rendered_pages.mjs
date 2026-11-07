@@ -112,10 +112,10 @@ async function runTests(fixtures, api) {
   const fontUrl = frCss.match(/url\(([^)]*playfair-display-latin-400-normal[^)]*\.woff2)\)/)?.[1]?.replace(/["']/g, '');
   const fontFile = fontUrl ? await get(fontUrl.startsWith('http') ? new URL(fontUrl).pathname : fontUrl) : null;
   assert(fontFile && fontFile.status === 200 && !fontFile.headers.get('x-silky-worker') && /immutable/.test(fontFile.headers.get('cache-control') || ''), 'a font file is a static file, cached as immutable');
-  assert(home.includes('data-scroll-carousel') && (home.match(/class="coverflow_card_link"/g) || []).length >= 1, 'the home carousel is plain HTML: its cards are real links in the first response');
+  assert(home.includes('data-coverflow') && (home.match(/class="coverflow_card_link"/g) || []).length >= 1 && /class="coverflow_card coverflow_card_active"[^>]*data-offset="0"/.test(home), 'the home carousel is static HTML: its cards are real links in the first response and the first paint is already the coverflow (offset 0 active)');
   assert(!/astro-island[^>]*component-url="[^"]*Carousel/.test(home), 'the home carousel is not a JavaScript island any more');
-  const carouselLinks = [...home.matchAll(/<a href="(\/product\/[^"]+)" class="coverflow_card_link">/g)].map((m) => m[1]);
-  assert(carouselLinks.length >= 1 && carouselLinks.length <= 16 && carouselLinks.includes(`/product/${fixtures.robe.slug}`), 'the carousel links the newest products (at most 16), each to its product page');
+  const carouselLinks = [...home.matchAll(/<a href="(\/product\/[^"]+)" class="coverflow_card_link"[^>]*>/g)].map((m) => m[1]);
+  assert(carouselLinks.length >= 1 && carouselLinks.length <= 5 && carouselLinks.includes(`/product/${fixtures.robe.slug}`), 'the carousel links the newest products (at most 5, like the old coverflow), each to its product page');
   assert(/<img[^>]*class="coverflow_card_img"[^>]*loading="eager"[^>]*fetchpriority="high"|<img[^>]*fetchpriority="high"[^>]*class="coverflow_card_img"/.test(home) || /fetchpriority="high"[^>]*loading="eager"|loading="eager"[^>]*fetchpriority="high"/.test(home), 'the first carousel photo is loaded at once, with high priority (it is the largest thing on the page)');
   assert(meta(homeAr, 'property', 'og:locale') === 'ar_AR' && meta(home, 'property', 'og:locale') === 'fr_FR', 'og:locale is ar_AR / fr_FR');
   assert(homeAr.includes(`<link rel="canonical" href="${SITE}/ar">`), 'Arabic home canonical is /ar');

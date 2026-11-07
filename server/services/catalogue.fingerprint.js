@@ -30,7 +30,15 @@ export function canonicalSnapshot(snapshot) {
     if (Array.isArray(copy.variants)) copy.variants = copy.variants.map(({ stockQuantity, ...variant }) => ({ ...variant, inStock: inStock(stockQuantity) }));
     return copy;
   });
-  return sortKeys({ ...rest, products });
+  // « Afficher dans avis généraux » only decides what the home page's reviews block asks the API for at load time
+  // (/api/reviews/published); no static page shows it, so ticking it must not rebuild the site.
+  const reviews = Object.fromEntries(
+    Object.entries(rest.reviews ?? {}).map(([productId, group]) => [
+      productId,
+      { ...group, reviews: (group.reviews ?? []).map(({ showInGeneral: _showInGeneral, ...review }) => review) },
+    ]),
+  );
+  return sortKeys({ ...rest, products, reviews });
 }
 
 export function snapshotFingerprint(snapshot) {

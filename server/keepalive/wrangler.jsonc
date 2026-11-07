@@ -1,0 +1,19 @@
+{
+  "name": "silky-keepalive",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-01",
+  // A scheduled Worker only: no public address.
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": {
+    // Every 10 minutes (UTC). The opening hours are decided in the code, in Tunis time (see src/window.js).
+    "crons": ["*/10 * * * *"]
+  },
+  "observability": { "enabled": true },
+  "vars": {
+    "PING_URL": "https://api.silky.tn/ping",
+    "KEEPALIVE_FROM_HOUR": "7",
+    "KEEPALIVE_TO_HOUR": "24",
+    "KEEPALIVE_TIMEZONE": "Africa/Tunis"
+  }
+}

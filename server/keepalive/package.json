@@ -1,0 +1,15 @@
+{
+  "name": "silky-keepalive",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cloudflare cron Worker that keeps the Render API awake from 07:00 to midnight (Tunis time).",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "test": "node ../scripts/test_ping_keepalive.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.157.0"
+  }
+}

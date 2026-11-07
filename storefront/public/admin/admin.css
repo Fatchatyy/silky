@@ -6278,5 +6278,12 @@ textarea.gx-input {
 .publish-status-pending { background: #fff4e0; color: #7a4b00; border-bottom: 1px solid #f0c987; }
 .publish-status-unknown { background: #f2f2f2; color: #555; }
 .publish-status-text { flex: 1 1 320px; }
-.publish-status-button { padding: 6px 14px; border: 1px solid #7a4b00; border-radius: 4px; background: #fff; color: #7a4b00; font-weight: 600; cursor: pointer; }
+.publish-status-button { padding: 6px 14px; border: 1px solid #1e5a2a; border-radius: 4px; background: #fff; color: #1e5a2a; font-weight: 600; cursor: pointer; }
+/* Unpublished changes: the button is filled and orange so it cannot be missed. */
+.publish-status-button-attention { border-color: #b45f00; background: #d9730d; color: #fff; }
+.publish-status-button-attention:hover:not(:disabled) { background: #b45f00; }
 .publish-status-button:disabled { opacity: 0.6; cursor: default; }
+/* How many calls the deploy hook accepted this month (the allowance is PUBLISH_MONTHLY_BUILD_LIMIT). */
+.publish-status-counter { font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.publish-status-counter-warn { color: #b45f00; }
+.publish-status-counter-over { color: #fff; background: #b3261e; padding: 2px 8px; border-radius: 10px; }

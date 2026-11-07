@@ -67,13 +67,15 @@ export default function AdminInventory({ refreshKey = 0 }) {
     const parsed = parseInt(value, 10);
     setEditing((prev) => ({
       ...prev,
-      [variantId]: Number.isNaN(parsed) ? 0 : Math.max(0, parsed),
+      // An emptied field stays empty while the admin types the new number (it used to snap back to 0, which could not be deleted).
+      // « Enregistrer » is disabled until there is a number.
+      [variantId]: value === '' ? '' : Number.isNaN(parsed) ? 0 : Math.max(0, parsed),
     }));
   };
 
   const handleSave = async (variantId) => {
     const stockQuantity = editing[variantId];
-    if (stockQuantity === undefined) return;
+    if (stockQuantity === undefined || stockQuantity === '') return;
 
     setSaving(variantId);
     setMessage('');
@@ -264,7 +266,7 @@ export default function AdminInventory({ refreshKey = 0 }) {
                         <button
                           type="button"
                           className="admin-secondary-btn sm"
-                          disabled={saving === item.variantId || !isEditing}
+                          disabled={saving === item.variantId || !isEditing || editing[item.variantId] === ''}
                           onClick={() => handleSave(item.variantId)}
                           style={{ padding: '4px 10px', height: '32px', display: 'inline-flex', alignItems: 'center' }}
                         >

@@ -110,12 +110,7 @@ cd storefront && npm run publish-site -- --dry-run   # everything except the dep
   published. Deploying needs `wrangler login` (or `CLOUDFLARE_API_TOKEN`) on the machine that runs the command.
 - Extra settings: `SNAPSHOT_ATTEMPT_TIMEOUT_MS`, `SNAPSHOT_BUDGET_MS`, `SNAPSHOT_MIN_PRODUCTS`, `COLLECTION_PAGE_SIZE`.
 
-**Automatic publishing.** If the API has `PUBLISH_HOOK_URL` (a deploy-hook URL that starts this build somewhere: Cloudflare
-Workers Builds, a CI workflow ...), it calls it once, about 30 seconds after a change that alters what the public site shows
-(a product, a review, the theme, selling out a variant ...; an ordinary stock decrement changes nothing). The admin shows a banner
-at the top: "Le site public est à jour" or "Modifications non publiées" with a "Publier maintenant" button. How it knows: the build
-writes `build-info.json` (the fingerprint of the snapshot it used) and the API computes the same fingerprint of the live catalogue.
-Without a hook the banner tells the owner to run `npm run publish-site`. Where the build runs is not decided yet (see `PRE_PRODUCTION.md`).
+**Publishing is manual.** Nothing rebuilds the site by itself. The owner edits everything in the admin, then presses « Publier maintenant » in the banner at the top: the API makes one request to `PUBLISH_HOOK_URL` (a deploy-hook URL that starts this build somewhere: Cloudflare Workers Builds, a CI workflow ...), once for all the changes. The banner shows « Le site public est à jour » or « Modifications non publiées » (the button is always there, orange while changes wait) and how many calls the hook accepted this month. How it knows: the build writes `build-info.json` (the fingerprint of the snapshot it used) and the API computes the same fingerprint of the live catalogue. Without a hook (local development) there is no button: run `npm run publish-site`. Where the build runs is not decided yet (see `PRE_PRODUCTION.md`).
 
 ## Notes
 

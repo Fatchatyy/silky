@@ -639,6 +639,8 @@ CREATE TABLE public.site_settings (
     publish_hook_at timestamp with time zone,
     publish_hook_ok boolean,
     publish_hook_message text,
+    publish_month text,
+    publish_month_count integer,
     CONSTRAINT site_settings_id_check CHECK ((id = 1))
 );
 

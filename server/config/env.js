@@ -159,10 +159,11 @@ export function parseStorageConfig(source = process.env) {
 }
 
 /**
- * The publish trigger (services/publish.service.js): PUBLISH_HOOK_URL is a URL the API POSTs to (empty body) when the
- * catalogue the public site shows has changed, to start a rebuild (a Cloudflare deploy hook, a GitHub workflow dispatch URL ...).
- * It is a SECRET (it usually carries a token): never logged, never sent to a client. Unset = no automatic publishing: the admin
- * still shows when the live site is behind and the owner runs `npm run publish-site`. In production it must be https.
+ * The publish button (services/publish.service.js): PUBLISH_HOOK_URL is a URL the API POSTs to (empty body) when the owner presses
+ * « Publier maintenant » in the admin, to start a rebuild (a Cloudflare deploy hook, a GitHub workflow dispatch URL ...). Nothing
+ * else ever calls it: there is no automatic publishing.
+ * It is a SECRET (it usually carries a token): never logged, never sent to a client. Unset = no button call: the admin still shows
+ * when the live site is behind and the owner runs `npm run publish-site`. In production it must be https.
  */
 export function parsePublishConfig(source = process.env, isProd = isProduction) {
   const raw = String(source.PUBLISH_HOOK_URL || '').trim();
@@ -177,8 +178,8 @@ export function parsePublishConfig(source = process.env, isProd = isProduction) 
   }
   return {
     hookUrl: raw,
-    // After an admin change (or an order) wait this long before looking, so a burst of edits is looked at once.
-    checkDelayMs: integerEnv('PUBLISH_CHECK_DELAY_SECONDS', 30, 0, source) * 1000,
+    // The allowance the admin banner counts the button's accepted calls against (Cloudflare's build allowance; display only, nothing is blocked).
+    monthlyBuildLimit: integerEnv('PUBLISH_MONTHLY_BUILD_LIMIT', 500, 1, source),
     hookTimeoutMs: integerEnv('PUBLISH_HOOK_TIMEOUT_MS', 10000, 1000, source),
   };
 }

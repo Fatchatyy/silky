@@ -17,7 +17,7 @@ Everything below was tried on a scratch database. The commands that touch a data
 | Node version | 20 or newer (24 locally). | `nodemailer` 10 needs it. |
 
 Build command on the API host (root directory `server/`): `npm ci` (the API serves no pages since Phase 3 step 2; the storefront and admin panel are built from `storefront/` with `npm run build` and deployed on Cloudflare, see `MIGRATION_PLAN_ASTRO.md` phases 6 and 7).
-Start command: `npm start`. Health check path (if the host asks): `/health`.
+Start command: `npm start`. Health check path (if the host asks): **`/ping`** on Render, not `/health`: the host calls it again and again, and `/health` queries the database, which would keep the free Neon database awake all month. `/ping` answers `{"ok":true}` without any database access.
 
 ## 2. Environment variables
 
@@ -131,8 +131,7 @@ Do it once, in this order. Use a staging copy first if you can (a second databas
 
 ## 6. Monitoring, logging and restarts
 
-- **Uptime**: create a free monitor (UptimeRobot or similar) on `https://your-domain/health` with alerts to your phone
-  or e-mail. `/health` answers 200 only while the database answers within 3 seconds, 503 otherwise.
+- **Uptime**: create a free monitor (UptimeRobot or similar) with alerts to your phone or e-mail. On the free Render and Neon plans point it at `/ping` (no database access, see "Keeping the free API awake" below), or at `/health` with a long interval such as one hour. `/health` answers 200 only while the database answers within 3 seconds, 503 otherwise; checking it every few minutes keeps Neon awake and uses up its 100 free compute-hours.
 - **Logs**: the server writes to standard output; the host keeps it. One line per request
   (`[http] GET /api/products 200 12ms`), plus error lines (`[db]`, `[process]`, `[health]`, `[server error]`). Query strings,
   bodies and IP addresses are never logged. Set the host's log retention and, if it offers one, an alert on `[process]`.
@@ -141,6 +140,22 @@ Do it once, in this order. Use a staging copy first if you can (a second databas
   (`pm2 start npm --name silky -- start`, or a systemd unit with `Restart=always`).
 - **Database down**: the server keeps running and requests fail after the wait time; `/health` goes 503 and your monitor
   alerts you. It recovers by itself when the database returns.
+
+### Keeping the free API awake (Render free plan)
+
+A free Render web service goes to sleep after 15 minutes without a request and takes about a minute to wake up. To avoid that during the day, a small Cloudflare Worker (`server/keepalive/`, its own `package.json`, imports nothing from the API) calls `GET /ping` every 10 minutes **from 07:00 to midnight, Tunis time**; at night the API may sleep. The hours are decided in the Worker's code in the shop's time zone (`KEEPALIVE_FROM_HOUR`, `KEEPALIVE_TO_HOUR`, `KEEPALIVE_TIMEZONE` in `server/keepalive/wrangler.jsonc`), because Cloudflare cron triggers are always in UTC.
+
+Deploy it once the API answers on its public address: set `PING_URL` in `server/keepalive/wrangler.jsonc` if the address is not `https://api.silky.tn/ping`, then `cd server/keepalive && npm ci && npm run deploy`. Check in the Cloudflare dashboard (Workers, silky-keepalive, Logs) that a `[keepalive] ping ok` line appears every 10 minutes inside the window and `skipped` lines outside it. Test (no network): `node server/scripts/test_ping_keepalive.js`.
+
+Render's free plan limits that matter for Silky (from Render's documentation, checked 2026-11-07; re-check before going live):
+
+- 750 free instance hours a month for the whole workspace, used only while the service runs. Awake 17 hours a day is about 527 hours a month; even 24 hours a day (744 h) would just fit, but only if Silky is the only free service of that workspace. Past the limit Render suspends the service until the next month.
+- The filesystem is erased on every restart, redeploy and sleep: uploads must use `STORAGE_DRIVER=r2`, never `disk`.
+- Outbound ports 25, 465 and 587 are blocked: e-mail goes through Resend over HTTPS (`RESEND_API_KEY`).
+- No shell, SSH or one-off jobs: run `db:init`, `admin:create`, `preflight` and `uploads:copy-to-r2` from your own computer with the production environment variables.
+- Render may restart the service at any time: what the API keeps only in memory (rate-limit counters, the GOODEX failure back-off, the claim-types cache) starts again from empty.
+- Traffic the service starts itself (Neon, R2, GOODEX, Resend) counts as "service-initiated traffic"; an uncommonly high volume can get the service suspended. A small shop is far below it; large video uploads to R2 are the heaviest part.
+- While asleep (midnight to 07:00), the first request waits about a minute. GOODEX webhooks are not used: delivery statuses come from the background poll (`GOODEX_POLL_INTERVAL_MINUTES`, off by default) and the manual refresh, and the poll only runs while the API is awake.
 
 ## 7. Rollback
 

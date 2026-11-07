@@ -139,6 +139,8 @@ export const DEFAULT_COLLECTION: Record<Locale, { title: string; heroText: strin
   fallbackImage: '/pictures/femme_example.jpg',
 };
 export const isNamedCollection = (slug: string) => Object.prototype.hasOwnProperty.call(COLLECTIONS, slug);
+/** The collections the header links to (femme, enfant): they always have a page, even while they hold no published product. */
+export const NAMED_COLLECTION_SLUGS = Object.keys(COLLECTIONS);
 export function collectionText(slug: string, locale: Locale) {
   const base = isNamedCollection(slug) ? COLLECTIONS[slug] : DEFAULT_COLLECTION;
   return { ...base[locale], fallbackImage: base.fallbackImage };

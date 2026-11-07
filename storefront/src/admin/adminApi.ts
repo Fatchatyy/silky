@@ -116,9 +116,9 @@ export const adminApi = {
 export const CATALOGUE_CHANGED_EVENT = 'silky:catalogue-changed';
 
 /**
- * Call after an admin change that visitors can see. Nothing is purged and nothing is sent: the SERVER notices a change to the
- * public site on its own (a write request, then one look at the catalogue, services/publish.service.js) and starts a publish if a
- * deploy hook is set. This only makes the banner refresh. Never throws.
+ * Call after an admin change that visitors can see. Nothing is purged and nothing is sent, and nothing publishes by itself: the
+ * owner presses « Publier maintenant » when all the edits are done. This only makes the banner look again (it then turns to
+ * "Modifications non publiées"). Never throws.
  */
 export function catalogueChanged() {
   try {
@@ -133,6 +133,8 @@ export type PublishStatus = {
   fingerprint: string;
   hookConfigured: boolean;
   lastHook: { at: string; ok: boolean; message: string | null; forCurrentCatalogue: boolean } | null;
+  /** Calls the deploy hook accepted this month (UTC) against the allowance set on the API. */
+  builds: { month: string; thisMonth: number; limit: number };
 };
 export type BuildInfo = { fingerprint: string; snapshotGeneratedAt: string; builtAt: string; products: number } | null;
 

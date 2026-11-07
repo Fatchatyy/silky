@@ -127,13 +127,13 @@ check('canonicalSnapshot reduces stock to booleans and leaves the input untouche
 });
 
 check('publish settings: unset, valid, invalid, and http in production', () => {
-  assert.deepEqual(parsePublishConfig({}, false), { hookUrl: '', checkDelayMs: 30000, hookTimeoutMs: 10000 });
-  const ok = parsePublishConfig({ PUBLISH_HOOK_URL: ' https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/abc ', PUBLISH_CHECK_DELAY_SECONDS: '5', PUBLISH_HOOK_TIMEOUT_MS: '2000' }, true);
+  assert.deepEqual(parsePublishConfig({}, false), { hookUrl: '', monthlyBuildLimit: 500, hookTimeoutMs: 10000 });
+  const ok = parsePublishConfig({ PUBLISH_HOOK_URL: ' https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/abc ', PUBLISH_MONTHLY_BUILD_LIMIT: '300', PUBLISH_HOOK_TIMEOUT_MS: '2000' }, true);
   assert.equal(ok.hookUrl, 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/abc');
-  assert.equal(ok.checkDelayMs, 5000);
+  assert.equal(ok.monthlyBuildLimit, 300);
   assert.equal(ok.hookTimeoutMs, 2000);
-  assert.equal(parsePublishConfig({ PUBLISH_CHECK_DELAY_SECONDS: '0' }, false).checkDelayMs, 0, '0 is allowed (tests)');
-  assert.equal(parsePublishConfig({ PUBLISH_CHECK_DELAY_SECONDS: 'abc', PUBLISH_HOOK_TIMEOUT_MS: '5' }, false).checkDelayMs, 30000, 'junk falls back to the default');
+  assert.equal(parsePublishConfig({ PUBLISH_MONTHLY_BUILD_LIMIT: 'abc', PUBLISH_HOOK_TIMEOUT_MS: '5' }, false).monthlyBuildLimit, 500, 'junk falls back to the default');
+  assert.ok(!('checkDelayMs' in ok), 'there is no waiting delay any more: nothing publishes by itself');
   assert.throws(() => parsePublishConfig({ PUBLISH_HOOK_URL: 'not a url' }, false), /not a valid URL/);
   assert.throws(() => parsePublishConfig({ PUBLISH_HOOK_URL: 'http://example.com/hook' }, true), /https/);
   assert.doesNotThrow(() => parsePublishConfig({ PUBLISH_HOOK_URL: 'http://127.0.0.1:9999/hook' }, false));

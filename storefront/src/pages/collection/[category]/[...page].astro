@@ -15,8 +15,17 @@ export async function getStaticPaths() {
 const locale = 'fr';
 const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
 const pageNumber = Astro.params.page ? Number(Astro.params.page) : 1;
-const data = await loadCollectionPage(Astro.params.category!, pageNumber);
-const seo = collectionSeo(data.slug, locale, ctx, data.name, shareImagePath(data.products), data.page);
+let data;
+try {
+  data = await loadCollectionPage(Astro.params.category!, pageNumber);
+} catch (error) {
+  // astro dev only: the route list was computed when the server started, the data is read again on every request. A build
+  // must fail loudly instead (a missing collection there is a bug), so it rethrows.
+  if (!import.meta.env.DEV) throw error;
+  return Astro.rewrite('/404');
+}
+// A collection with no published product (all hidden) is a real page but not one to index.
+const seo = { ...collectionSeo(data.slug, locale, ctx, data.name, shareImagePath(data.products), data.page), ...(data.total === 0 ? { robots: 'noindex,follow' } : {}) };
 ---
 <BaseLayout locale={locale} seo={seo}>
   <CollectionView slug={data.slug} name={data.name} products={data.products} page={data.page} pages={data.pages} locale={locale} />

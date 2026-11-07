@@ -2,7 +2,7 @@
 // buy now). Ported from the visitor view of the old src/pages/Product.jsx: same markup and classes. The admin editing
 // mode is not part of the storefront (products are edited in the admin app). It is rendered on the server with the
 // first colour and size selected, so the name, price, description and photos are in the HTML a crawler receives.
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { productName, productDescription, productImageAlt, productCustomAlt } from '@shared/productText';
 import { mediaVariantUrl as imageVariantPath } from '@shared/media';
 import { getEffectivePrice } from '@shared/price';
@@ -12,6 +12,7 @@ import ProductBadges from './ProductBadges';
 import BuyNowModal from './BuyNowModal';
 import ShareModal from './ShareModal';
 import Breadcrumb from './Breadcrumb';
+import { api } from '../lib/apiClient';
 import { useCart } from '../stores/cart';
 import { useFavorites } from '../stores/favorites';
 import { useAuth } from '../stores/auth';
@@ -22,7 +23,31 @@ import { withIsland } from '../lib/island';
 // The admin's inline editor: a separate chunk, downloaded only when the browser holds a valid admin token.
 const ProductAdminLoader = lazy(() => import('../admin/ProductAdminLoader'));
 
-function ProductMain({ product, breadcrumb = null }) {
+function ProductMain({ product: staticProduct, breadcrumb = null }) {
+  // The page is a static file: its price, discount and stock are those of the last build. Once the page has loaded in the
+  // browser it asks the API for the current ones (the first render, and so the HTML a crawler gets, is the static one), so a
+  // sale, a restock, a price change or a removed product shows at once instead of after the next publish. Only these three
+  // values are refreshed; colours, sizes and photos stay those of the build. If the product is gone (404: deleted or hidden
+  // since the build) the page reads "out of stock" and nothing can be added.
+  const [live, setLive] = useState(null);
+  useEffect(() => {
+    if (!staticProduct.slug) return undefined;
+    let cancelled = false;
+    api
+      .getProductBySlug(staticProduct.slug)
+      .then((fresh) => {
+        if (cancelled || !fresh || typeof fresh !== 'object') return;
+        setLive({ price: fresh.price, discount: fresh.discount ?? 0, stock: fresh.stock || {} });
+      })
+      .catch((err) => {
+        if (!cancelled && err?.status === 404) setLive({ stock: {} });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [staticProduct.slug]);
+  const product = useMemo(() => (live ? { ...staticProduct, ...live } : staticProduct), [staticProduct, live]);
+
   const { t, known, colorLabel } = useT();
   const { addItem } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -30,7 +55,8 @@ function ProductMain({ product, breadcrumb = null }) {
   const { locale } = useLocale();
 
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? null);
+  // No size is selected when the page opens: the customer must choose one (« Ajouter au panier » and « Commander » ask for it).
+  const [selectedSize, setSelectedSize] = useState(null);
   const initialMainImage =
     product.mainImage || product.colors?.[0]?.thumbnail || product.colors?.[0]?.images?.[0] || product.colors?.[0]?.image || '';
   const [mainImage, setMainImage] = useState(initialMainImage);
@@ -49,6 +75,10 @@ function ProductMain({ product, breadcrumb = null }) {
     return first;
   });
   const [cartMessage, setCartMessage] = useState('');
+  // « Choose a size » asked of the customer: shown red under the size buttons (not in the small line further down), with the
+  // buttons outlined and the section scrolled into view. The number restarts the shake on every press; 0 = no error.
+  const [sizeErrorTick, setSizeErrorTick] = useState(0);
+  const sizeSectionRef = useRef(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
   const [isZoomed, setIsZoomed] = useState(false);
@@ -196,6 +226,9 @@ function ProductMain({ product, breadcrumb = null }) {
   };
 
   const availableStock = getAvailableStock(product, selectedColor?.id, selectedSize);
+  // The product has sizes and none is chosen yet: there is no stock to talk about (it is per size), so the stock line stays hidden
+  // and the quantity is not capped by it (the stock check runs when « Ajouter au panier » / « Commander » is pressed).
+  const sizeMissing = product.sizes?.length > 0 && !selectedSize;
   const stockStatus = getStockStatus(availableStock);
   const stockText = t(`stock.${stockStatus.status}`, { qty: availableStock });
 
@@ -228,7 +261,9 @@ function ProductMain({ product, breadcrumb = null }) {
       return false;
     }
     if (product.sizes?.length && !selectedSize) {
-      setCartMessage(t('product.pickSize'));
+      setCartMessage('');
+      setSizeErrorTick((n) => n + 1);
+      sizeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return false;
     }
     if (quantity > availableStock) {
@@ -423,7 +458,7 @@ function ProductMain({ product, breadcrumb = null }) {
 
           {/* Sizes Section */}
           {product.sizes?.length > 0 && (
-            <div className="size_section">
+            <div className={`size_section${sizeErrorTick > 0 ? ' size_section_error' : ''}`} ref={sizeSectionRef}>
               <div className="color_header_line">
                 <span className="section_subtitle" style={{ marginBottom: 0 }}>
                   {t('product.sizeLabel')}
@@ -432,7 +467,7 @@ function ProductMain({ product, breadcrumb = null }) {
                   {selectedSize ? t('product.sizeValue', { size: selectedSize }) : t('product.chooseSize')}
                 </span>
               </div>
-              <div className="sizes_grid">
+              <div className="sizes_grid" key={`sizes-${sizeErrorTick}`}>
                 {product.sizes.map((size) => {
                   const isSizeUnavailable =
                     product.colors?.length > 0
@@ -449,6 +484,7 @@ function ProductMain({ product, breadcrumb = null }) {
                       onClick={() => {
                         setSelectedSize(size);
                         setCartMessage('');
+                        setSizeErrorTick(0);
                       }}
                       title={isSizeUnavailable ? t('product.sizeUnavailable', { size }) : t('product.sizeValue', { size })}
                     >
@@ -457,6 +493,11 @@ function ProductMain({ product, breadcrumb = null }) {
                   );
                 })}
               </div>
+              {sizeErrorTick > 0 && (
+                <p className="size_error_message" role="alert">
+                  {t('product.pickSize')}
+                </p>
+              )}
             </div>
           )}
 
@@ -473,7 +514,7 @@ function ProductMain({ product, breadcrumb = null }) {
                   -
                 </button>
                 <input type="text" value={quantity} readOnly className="qty_input" />
-                <button type="button" className="qty_btn" onClick={() => setQuantity((q) => Math.min(q + 1, Math.max(availableStock, 1)))}>
+                <button type="button" className="qty_btn" onClick={() => setQuantity((q) => (sizeMissing ? q + 1 : Math.min(q + 1, Math.max(availableStock, 1))))}>
                   +
                 </button>
               </div>
@@ -516,9 +557,11 @@ function ProductMain({ product, breadcrumb = null }) {
 
           {cartMessage && <p className="stock_status_text stock_status_message">{cartMessage}</p>}
 
-          <p className={`stock_status_text stock_${stockStatus.status || (stockStatus.inStock ? 'available' : 'out')}${stockStatus.inStock ? '' : ' out-of-stock'}`}>
-            <span className="stock_bullet">•</span> {t('product.stockLabel')} {stockText}
-          </p>
+          {!sizeMissing && (
+            <p className={`stock_status_text stock_${stockStatus.status || (stockStatus.inStock ? 'available' : 'out')}${stockStatus.inStock ? '' : ' out-of-stock'}`}>
+              <span className="stock_bullet">•</span> {t('product.stockLabel')} {stockText}
+            </p>
+          )}
 
           <button type="button" className="buy_now_btn" onClick={handleCommander}>
             {t('product.order')}

@@ -4,6 +4,7 @@
 import { normalizeProduct } from '../normalizeProduct';
 import { collectionPageSize } from '../config';
 import { getSnapshot, type Snapshot } from './snapshot';
+import { NAMED_COLLECTION_SLUGS, collectionText, isNamedCollection } from '../seo/routeText.ts';
 
 
 /** A summary as the cards expect a product: published, no colours or variants. */
@@ -15,9 +16,12 @@ export const pageCount = (total: number) => Math.max(1, Math.ceil(total / collec
 /** Every collection page to generate: { category, page } with page 1 first. */
 export async function collectionPagePaths(): Promise<{ category: string; page: number }[]> {
   const snap = await getSnapshot();
-  return snap.categories.flatMap((category) => {
-    const total = snap.summaries.filter((p) => p.category === category.slug).length;
-    return Array.from({ length: pageCount(total) }, (_, i) => ({ category: category.slug, page: i + 1 }));
+  // The header links to Femme and Enfant: they get a page even if every product of one was hidden (an empty-collection message,
+  // noindex, not in the sitemap) instead of a link that ends on a 404.
+  const slugs = [...new Set([...snap.categories.map((c) => c.slug), ...NAMED_COLLECTION_SLUGS])];
+  return slugs.flatMap((slug) => {
+    const total = snap.summaries.filter((p) => p.category === slug).length;
+    return Array.from({ length: pageCount(total) }, (_, i) => ({ category: slug, page: i + 1 }));
   });
 }
 
@@ -30,7 +34,7 @@ export async function loadHome() {
 /** One page of a collection. */
 export async function loadCollectionPage(slug: string, page: number) {
   const snap = await getSnapshot();
-  const category = snap.categories.find((c) => c.slug === slug);
+  const category = snap.categories.find((c) => c.slug === slug) ?? (isNamedCollection(slug) ? { slug, name: collectionText(slug, 'fr').title } : null);
   if (!category) throw new Error(`collection "${slug}" is not in the snapshot`);
   const all = snap.summaries.filter((p) => p.category === slug).map(fromSummary);
   const pages = pageCount(all.length);

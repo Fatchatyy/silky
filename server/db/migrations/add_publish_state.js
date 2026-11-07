@@ -14,7 +14,9 @@ export async function runPublishStateMigration(poolInstance = defaultPool) {
       ADD COLUMN IF NOT EXISTS publish_hook_fingerprint TEXT,
       ADD COLUMN IF NOT EXISTS publish_hook_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS publish_hook_ok BOOLEAN,
-      ADD COLUMN IF NOT EXISTS publish_hook_message TEXT;
+      ADD COLUMN IF NOT EXISTS publish_hook_message TEXT,
+      ADD COLUMN IF NOT EXISTS publish_month TEXT,
+      ADD COLUMN IF NOT EXISTS publish_month_count INTEGER;
     `);
     await client.query('COMMIT');
   } catch (err) {

@@ -933,3 +933,33 @@
     width: 100%;
   }
 }
+
+/* The editor's preview boxes keep the look the hero always had here: a coloured box while a slot is empty (yellow / orange in option 1)
+   and the dark layer over the picture. The public hero (components/hero/HeroRenderer.jsx) no longer paints either before its photos load,
+   so these rules, which used to be shared with it in shop.css, now belong to the editor only. */
+.hero_editor_preview_wrapper .hero_box.left::before,
+.hero_editor_preview_wrapper .hero_box.right::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hero_editor_preview_wrapper .hero_box.left {
+  background-color: #ffcc00;
+}
+
+.hero_editor_preview_wrapper .hero_box.right {
+  background-color: #ff851b;
+}
+
+.hero_editor_preview_wrapper .hero_single_container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.35) 100%);
+  pointer-events: none;
+  z-index: 1;
+}

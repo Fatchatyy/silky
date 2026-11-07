@@ -265,6 +265,10 @@ check('collection pages: page 1 keeps the plain address, later pages have their 
   assert.equal(two.canonical, `${SITE}/collection/femme/2`);
   assert.ok(/Page 2/.test(two.title) && !/Page/.test(one.title));
   assert.equal(two.robots, 'index,follow');
+  const ar2 = collectionSeo('femme', 'ar', ctx, 'Femme', undefined, 2);
+  assert.ok(/ - Page 2$/.test(two.description) && !/Page/.test(one.description), 'page 2 description carries the page number, page 1 is unchanged');
+  assert.ok(/ - صفحة 2$/.test(ar2.description));
+  assert.ok(two.description.length <= 155 && ar2.description.length <= 155, 'the description stays within the usual length');
   assert.equal(two.alternates.ar, `${SITE}/ar/collection/femme/2`);
   assert.equal(two.alternates.fr, `${SITE}/collection/femme/2`);
   assert.equal(collectionSeo('femme', 'ar', ctx, 'Femme', undefined, 2).canonical, `${SITE}/ar/collection/femme/2`);

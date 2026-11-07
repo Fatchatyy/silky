@@ -14,7 +14,17 @@ export async function getStaticPaths() {
 
 const locale = 'ar';
 const ctx = { siteUrl: siteUrl(), mediaBase: mediaBase() };
-const { product, reviews, rating, deliveryFee, collectionName, recommendations } = await loadProductPage(Astro.params.slug!);
+let loaded;
+try {
+  loaded = await loadProductPage(Astro.params.slug!);
+} catch (error) {
+  // astro dev only: the route list was computed when the server started, the data is read again on every request, so a product
+  // hidden or deleted since then is a route with no data. Show the real 404 page (an admin's browser opens the editor from it,
+  // as on the live site). A build must fail loudly instead, so it rethrows.
+  if (!import.meta.env.DEV) throw error;
+  return Astro.rewrite('/ar/404');
+}
+const { product, reviews, rating, deliveryFee, collectionName, recommendations } = loaded;
 const seo = productSeo(product, locale, ctx, { rating, deliveryFee, collectionName });
 ---
 <BaseLayout locale={locale} seo={seo}>

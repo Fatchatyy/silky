@@ -343,7 +343,9 @@ async function executeWithIdempotency({
       return createdOrder;
     });
   } catch (err) {
+    // drizzle wraps the driver's error: the PostgreSQL code is on err.cause when it is not on err itself.
     const isUniqueViolation = err?.code === '23505' ||
+      err?.cause?.code === '23505' ||
       err?.message?.includes('idx_idempotency_') ||
       err?.message?.includes('idempotency_keys_key');
 

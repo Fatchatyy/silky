@@ -9,7 +9,6 @@ import webhookRoutes from './routes/webhooks.routes.js';
 import { guestSessionMiddleware } from './middleware/guestSession.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { requestLogger } from './middleware/requestLogger.js';
-import { publishWatcher } from './middleware/publishWatcher.js';
 import { pool } from './db/pool.js';
 import { UPLOADS_DIR } from './utils/upload.js';
 import { env } from './config/env.js';
@@ -80,10 +79,18 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// Keep-awake probe (see keepalive/): answers without touching the database, so a free Render instance that is pinged
+// every few minutes stays up while the free Neon database is still allowed to sleep (`/health` would wake it each time).
+// Outside /api like /health: no guest cookie, no rate limit; the body reveals nothing.
+app.get('/ping', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ok: true });
+});
+
 // Provider webhooks are public and authenticated by their own secret; mounted before
 // the guest-session middleware so no guest cookie is issued for them.
 app.use('/api/webhooks', webhookRoutes);
-app.use('/api', publishWatcher, guestSessionMiddleware, apiRoutes);
+app.use('/api', guestSessionMiddleware, apiRoutes);
 
 // The API serves no pages: the storefront and the admin panel are the Astro project in storefront/.
 app.get('/', (_req, res) => res.json({ ok: true }));

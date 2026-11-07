@@ -77,11 +77,12 @@ export function collectionSeo(slug: string, locale: Locale, ctx: SeoContext, nam
   const hasArabic = isNamedCollection(slug);
   const indexable = locale === 'fr' || hasArabic;
   const path = collectionPagePath(slug, page);
-  // Page 2 onwards: its own title and canonical (a paginated page is indexable on its own), the same description.
+  // Page 2 onwards: its own title, description and canonical (a paginated page is indexable on its own). The page label
+  // is kept whole: the text is shortened to leave room for it.
   const pageLabel = page > 1 ? (locale === 'ar' ? ` - صفحة ${page}` : ` - Page ${page}`) : '';
   return {
     title: withSiteName(title + pageLabel),
-    description: trimDescription(text.heroText),
+    description: trimDescription(text.heroText, 155 - pageLabel.length) + pageLabel,
     canonical: pageUrl(ctx.siteUrl, path, locale),
     alternates: indexable && hasArabic ? alternatesFor(ctx.siteUrl, path) : undefined,
     robots: indexable ? 'index,follow' : 'noindex,follow',
