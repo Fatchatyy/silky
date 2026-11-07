@@ -7,8 +7,9 @@
     "directory": "./dist",
     "binding": "ASSETS"
   },
-  // Local values. Production values (Phase 7) are given at deploy time: API_URL=https://api.silky.tn.
+  // The API the Worker itself calls at run time (the admin shell and password-reset pages). Temporary Render address until
+  // the domain exists: then https://api.silky.tn. `astro dev` and the tests read API_URL from their own environment.
   "vars": {
-    "API_URL": "http://localhost:3001"
+    "API_URL": "https://silky-api.onrender.com"
   }
 }
