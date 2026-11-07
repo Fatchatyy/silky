@@ -11,7 +11,7 @@
   },
   "observability": { "enabled": true },
   "vars": {
-    "PING_URL": "https://api.silky.tn/ping",
+    "PING_URL": "https://silky-api.onrender.com/ping",
     "KEEPALIVE_FROM_HOUR": "7",
     "KEEPALIVE_TO_HOUR": "24",
     "KEEPALIVE_TIMEZONE": "Africa/Tunis"
