@@ -11,8 +11,9 @@
   },
   "observability": { "enabled": true },
   "vars": {
-    "PING_URL": "https://silky-api.onrender.com/ping",
-    "KEEPALIVE_FROM_HOUR": "7",
+    "PING_URL": "https://api.silky.tn/ping",
+    // 0 to 24 = every hour of the day (the API never sleeps). Set "7" back to stop the night pings.
+    "KEEPALIVE_FROM_HOUR": "0",
     "KEEPALIVE_TO_HOUR": "24",
     "KEEPALIVE_TIMEZONE": "Africa/Tunis"
   }

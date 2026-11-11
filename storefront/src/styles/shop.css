@@ -3413,7 +3413,10 @@ progress{vertical-align:baseline}
     height: 22px !important;
   }
 
-  .action_item span {
+  /* Only the header icon labels ("Accueil", "Mon compte"): the cart dropdown is also inside an .action_item, and its
+     names, prices and totals are spans too and must keep their own sizes. */
+  .action_item > span,
+  .action_item > .cart_link > span {
     font-size: 9px !important;
   }
 
@@ -6448,7 +6451,10 @@ html {
     height: 22px !important;
   }
 
-  .action_item span {
+  /* Only the header icon labels ("Accueil", "Mon compte"): the cart dropdown is also inside an .action_item, and its
+     names, prices and totals are spans too and must keep their own sizes. */
+  .action_item > span,
+  .action_item > .cart_link > span {
     font-size: 9px !important;
   }
 
@@ -6530,99 +6536,324 @@ html {
   }
 }
 
-/* ---------- SMALL PHONE: max-width 480px ---------- */
+/* ---------- Phone header: max-width 480px ---------- */
+/* Row 1 (44 px): menu button at the start, the reviews icon and the cart at the end. Row 2 is the old main header
+   unchanged: logo, Femme / Enfant, search. Favourites, account, language, phone and social links are in the drawer
+   (Header.astro). The utility bar becomes `display: contents`, so its children are cells of .header_wrapper and the
+   desktop markup is the same. Above 480px the menu button and the drawer do not exist. */
+.m_menu_btn,
+.m_overlay,
+.m_drawer {
+  display: none;
+}
+
+.cart_badge {
+  display: none;
+}
+
 @media screen and (max-width: 480px) {
   .announcement_text {
     font-size: 10px;
   }
 
-  .contact_info {
-    display: block;
-    font-size: 9px;
-    line-height: 1.2;
-    white-space: normal;
-    max-width: 140px;
+  .header_wrapper {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+    grid-template-rows: 44px auto;
+    align-items: center;
   }
 
-  .logo_img {
+  .header_wrapper .top_utility_bar,
+  .header_wrapper .user_actions {
+    display: contents;
+  }
+
+  /* The old main header (logo, Femme / Enfant, search) fills the second row. */
+  .header_wrapper .main_header {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* What the drawer now holds. */
+  .header_wrapper .contact_section,
+  .header_wrapper .user_actions .action_item:not(.cart_dropdown_container):not(.reviews_item) {
+    display: none !important;
+  }
+
+  .m_menu_btn {
+    display: flex;
+    margin-inline-start: 6px;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-primary);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .m_menu_btn {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .header_wrapper .logo_img {
     width: 60px !important;
   }
 
-  .nav_links a {
+  .header_wrapper .nav_links a {
     font-size: 12px !important;
   }
-}
 
-/* ---------- VERY NARROW: max-width 360px ---------- */
-/* ROOT CAUSE FIX for .header-logout-btn disappearing between 301px–338px:
-   CSS flex items have min-width: auto by default, meaning they refuse to shrink
-   below their content's intrinsic minimum width. The .action_item span labels
-   ("Déconnexion" ≈60px, "Mon compte" ≈50px, etc.) set a ~257px floor on
-   .user_actions that cannot be overcome by gap reduction alone. Hiding the spans
-   collapses each item to its icon width (~16px), bringing .user_actions minimum
-   width to ~102px — well within any viewport ≥ 301px. */
-@media screen and (max-width: 360px) {
-  .contact_info {
-    display: none;
-  }
-
-  .contact_section {
-    gap: 0;
-  }
-
-  .user_actions {
-    gap: 4px;
-  }
-
-  /* Hiding text labels removes the intrinsic min-width floor on each flex item.
-     The logout button remains visible as the ⏻ icon (already rendered via ::before
-     at ≤774px) with its accessible title="Déconnexion" / aria-label intact. */
-  .action_item span {
-    display: none;
-  }
-}
-
-/* ---------- ULTRA-NARROW: max-width 300px ---------- */
-/* Fixes the top utility bar overflowing (Compte icon pushed off-screen) below ~270px */
-@media screen and (max-width: 300px) {
-  .top_utility_bar {
-    flex-wrap: wrap;
-    justify-content: center !important;
-    row-gap: 6px;
-  }
-
-  .contact_section {
+  /* The reviews icon sits next to the cart. */
+  .header_wrapper .user_actions .reviews_item {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: row;
     align-items: center;
-    width: 100%;
-  }
-
-  .social_icons {
     justify-content: center;
-    width: 100%;
+    width: 44px;
+    height: 44px;
   }
 
-  .contact_info {
-    text-align: center;
-    max-width: none;
+  .header_wrapper .reviews_icon_img {
+    height: 26px !important;
+    width: auto;
   }
 
-  .user_actions {
-    width: 100%;
+  .header_wrapper .user_actions .cart_dropdown_container {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: center;
+    flex-direction: row;
+    margin-inline-end: 6px;
+  }
+
+  .header_wrapper .cart_link {
+    position: relative;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    gap: 10px;
+    width: 44px;
+    height: 44px;
   }
 
-  .action_icon_img {
-    width: 15px !important;
-    height: 15px !important;
+  .header_wrapper .cart_link span {
+    display: none !important;
   }
 
-  .reviews_icon_img {
-    height: 20px !important;
+  .header_wrapper .cart_link .action_icon_img {
+    width: 24px !important;
+    height: 24px !important;
   }
 
-  .action_item span {
-    display: none;
+  .cart_badge {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    line-height: 1;
+    box-sizing: border-box;
+  }
+
+  /* ----- Drawer ----- */
+  .m_overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 1;
+  }
+
+  .m_drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: min(84vw, 320px);
+    background: #fff;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0.25s;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 2;
+  }
+
+  html[dir="rtl"] .m_drawer {
+    transform: translateX(100%);
+  }
+
+  .header_wrapper.menu_open .m_overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .header_wrapper.menu_open .m_drawer {
+    transform: none;
+    visibility: visible;
+  }
+
+  html.m_scroll_lock,
+  html.m_scroll_lock body {
+    overflow: hidden;
+  }
+
+  .m_drawer_head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px 6px 16px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  html[dir="rtl"] .m_drawer_head {
+    padding: 6px 16px 6px 8px;
+  }
+
+  .m_drawer_close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: none;
+    color: var(--color-primary);
+    cursor: pointer;
+  }
+
+  .m_drawer_nav {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 8px;
+    flex: 1;
+  }
+
+  .m_drawer_link,
+  .m_drawer_account .action_item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    color: var(--color-primary);
+    font-size: 16px !important;
+    font-weight: bold;
+    text-decoration: none;
+    text-align: start;
+    width: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+  }
+
+  .m_drawer_link:active,
+  .m_drawer_account .action_item:active {
+    background: var(--color-secondary);
+  }
+
+  .m_drawer_account {
+    display: contents;
+  }
+
+  .m_drawer .action_icon_img {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .m_drawer_link span,
+  .m_drawer_account .action_item span {
+    display: inline !important;
+    font-size: 16px !important;
+  }
+
+  .m_drawer_foot {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 16px 20px;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .m_drawer_lang {
+    display: flex;
+    gap: 8px;
+  }
+
+  .m_lang_pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--color-primary);
+    border-radius: 20px;
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+  }
+
+  .m_lang_pill.on {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  .m_drawer_phone {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+    color: #555;
+    font-size: 12px;
+    text-decoration: none;
+  }
+
+  .m_drawer_phone strong {
+    color: var(--color-primary);
+    font-size: 16px;
+  }
+
+  .m_drawer_social {
+    display: flex;
+    gap: 6px;
+  }
+
+  .m_drawer_social a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+  }
+
+  .m_drawer_social .icon_img {
+    width: 22px !important;
+    height: 22px !important;
   }
 }
 
@@ -7057,6 +7288,7 @@ html[dir="rtl"] .share-modal-copy-box {
   }
 
   .top_utility_bar .cart_dropdown_container .cart_dropdown_box {
+    text-align: start; /* the box is inside an .action_item, whose centred text it inherited */
     left: 10px;
     right: 10px;
     width: auto;
@@ -7122,4 +7354,417 @@ html[dir="rtl"] .share-modal-copy-box {
 
 @media (prefers-reduced-motion: reduce) {
   .size_section_error .sizes_grid { animation: none; }
+}
+
+/* ---------- Phone product page: max-width 480px ---------- */
+/* Same markup and same logic as on desktop; this only re-orders and re-sizes it for a thumb:
+   photo shorter, title + one-line price + colour + size + buttons right under it, 44px+ tap targets,
+   and texts of 12px or more. */
+@media screen and (max-width: 480px) {
+  /* --- Photo and thumbnails --- */
+  .product_page_wrapper {
+    gap: 10px !important;
+    margin: 10px auto !important;
+  }
+
+  /* Square: the title is on the first screen. The tap-to-zoom and the thumbnails show the rest of the photo. */
+  .main_image_container {
+    aspect-ratio: 1 / 1;
+  }
+
+  .main_product_img {
+    object-position: center 20%;
+  }
+
+  /* The video / reviews buttons move after the details (they were between the photo and the title). */
+  .main_image_column {
+    display: contents;
+  }
+
+  .main_image_container {
+    order: 1;
+  }
+
+  .thumbnails_vertical_container {
+    order: 2;
+  }
+
+  .product_info_panel {
+    order: 3;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .product_section_actions {
+    order: 4;
+  }
+
+  .vertical_thumbnails_track {
+    min-height: 70px !important;
+  }
+
+  .thumb_box_vertical {
+    width: 48px !important;
+    height: 62px !important;
+  }
+
+  /* --- Order inside the details panel: title, price, colour, size, buttons, then the text --- */
+  .product_title {
+    order: 1;
+    font-size: 22px;
+    margin: 4px 0 6px;
+  }
+
+  .price_section {
+    order: 3;
+    margin-bottom: 14px;
+  }
+
+  .color_section {
+    order: 4;
+    margin-bottom: 14px;
+  }
+
+  .size_section {
+    order: 5;
+    margin-bottom: 16px;
+  }
+
+  .action_row {
+    order: 6;
+  }
+
+  .product_info_panel > .stock_status_text {
+    order: 7;
+  }
+
+  .buy_now_btn {
+    order: 8;
+  }
+
+  /* The description sits right under the title. */
+  .product_info_panel > .product_description {
+    order: 2;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .product_info_panel > .guarantee_row {
+    order: 9;
+    font-size: 14px;
+  }
+
+  .product_breadcrumb a {
+    display: inline-block;
+    padding: 5px 0;
+  }
+
+  /* --- Price on one line: 65,000 TND  70,000  -5,000 (the « Prix » heading is not needed on a phone) --- */
+  .price_label {
+    display: none;
+  }
+
+  .product_price_display.product_price_large {
+    font-size: 21px;
+    gap: 4px 10px;
+  }
+
+  .product_price_display.product_price_large .price_new {
+    order: -1;
+  }
+
+  .product_price_display.product_price_large .price_original {
+    font-size: 14px;
+  }
+
+  .product_price_discounted.product_price_large .price_discount_amount {
+    font-size: 13px;
+  }
+
+  /* --- Colour --- */
+  .color_header_line {
+    margin-bottom: 6px;
+  }
+
+  .selected_value_text {
+    font-size: 14px;
+  }
+
+  .color_thumb_box {
+    width: 56px;
+    height: 72px;
+  }
+
+  .color_carousel_wrapper .scroll_arrow {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* --- Size: 44px high buttons --- */
+  .sizes_grid {
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .size_box {
+    width: auto;
+    min-width: 44px;
+    height: 42px;
+    padding: 0 8px;
+    font-size: 15px;
+  }
+
+  /* --- Quantity + add to cart on one row, favourites + share on the next --- */
+  .action_row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    align-items: start;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .quantity_wrapper {
+    grid-column: span 3;
+    align-items: stretch;
+  }
+
+  .quantity_box {
+    height: 48px;
+  }
+
+  .qty_btn {
+    flex: 1 1 0;
+    width: auto;
+    font-size: 20px;
+  }
+
+  .qty_input {
+    flex: 1.3 1 0;
+    width: auto;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .qty_label {
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .add_to_cart_btn {
+    grid-column: span 3;
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .icon_action_btn {
+    grid-column: span 3;
+    flex-direction: row;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 1px solid #e5d5d6;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .custom_icon_gap {
+    width: 22px;
+    height: 22px;
+  }
+
+  .stock_status_text {
+    font-size: 14px;
+  }
+
+  .buy_now_btn {
+    height: 50px;
+    font-size: 18px;
+    margin-bottom: 18px;
+  }
+
+  /* --- Small texts: nothing under 12px --- */
+  .product_section_btn {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .product_badge {
+    font-size: 12px;
+  }
+}
+
+/* The breadcrumb is the first line of the product page, above the photos, in every layout. */
+.product_breadcrumb_row {
+  grid-column: 1 / -1;
+}
+
+.product_breadcrumb_row .product_breadcrumb {
+  margin: 0;
+}
+
+/* Phones and tablets: the section titles (Couleur, Taille, Prix) and the price are smaller. */
+@media screen and (max-width: 850px) {
+  .section_subtitle {
+    font-size: 16px;
+  }
+
+  .price_label {
+    font-size: 18px;
+  }
+
+  .product_price_display.product_price_large {
+    font-size: 22px;
+  }
+}
+
+/* ---------- Phone reviews: max-width 480px ---------- */
+/* The « Donner votre avis » page and the reviews under a product: less side padding (the text had only about 230px of a 360px
+   screen), 15px reading text, 16px form fields (iOS zooms the page into smaller ones), full-width 48px buttons, no scroll box inside the page. */
+@media screen and (max-width: 480px) {
+  /* Leave-a-review page */
+  .reviews-page {
+    padding: 16px 12px 40px;
+  }
+
+  .reviews-page-section {
+    padding: 24px 16px;
+  }
+
+  .reviews-page-header {
+    margin-bottom: 16px;
+  }
+
+  .reviews-page-logo {
+    width: 64px;
+    margin-bottom: 10px;
+  }
+
+  .reviews-page-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .reviews-page-header p {
+    font-size: 15px;
+  }
+
+  .reviews-page-form input,
+  .reviews-page-form select,
+  .reviews-page-form textarea {
+    font-size: 16px;
+    padding: 12px;
+  }
+
+  .reviews-page-form label {
+    font-size: 14px;
+  }
+
+  .reviews-page-btn {
+    min-height: 48px;
+    width: 100%;
+  }
+
+  /* « Se connecter » / « Créer un compte » (leave-review page and under a product) */
+  .review_login_prompt {
+    padding: 4px 0 0;
+  }
+
+  .review_login_prompt p {
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+
+  .review_login_prompt_actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .review_login_prompt_btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 16px;
+    font-size: 16px;
+    text-align: center;
+  }
+
+  /* Reviews under a product */
+  .product_reviews_section {
+    padding: 0 12px;
+    margin: 32px auto 24px;
+  }
+
+  .product_reviews_container {
+    padding: 16px;
+  }
+
+  .product_reviews_heading {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .product_reviews_summary_header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+
+  .product_reviews_cards {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+    gap: 12px;
+  }
+
+  .product_review_card {
+    padding: 14px;
+  }
+
+  .review_author {
+    font-size: 15px;
+  }
+
+  .review_stars {
+    font-size: 15px;
+  }
+
+  .review_text {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .review_date {
+    font-size: 12px;
+  }
+
+  .product_review_form_wrapper {
+    padding: 16px;
+  }
+
+  .compact_form_title {
+    font-size: 16px;
+  }
+
+  .compact_form_group label {
+    font-size: 14px;
+  }
+
+  .compact_form_group input,
+  .compact_form_group select,
+  .compact_form_group textarea {
+    font-size: 16px;
+    padding: 12px;
+  }
+
+  .compact_submit_btn {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .form_message {
+    font-size: 14px;
+  }
 }

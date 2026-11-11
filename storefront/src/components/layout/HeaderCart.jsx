@@ -40,9 +40,10 @@ function HeaderCart() {
 
   return (
     <div className="action_item cart_dropdown_container">
-      <Link to="/cart" className="cart_link">
+      <Link to="/cart" className="cart_link" aria-label={`${t('nav.cart')}${itemCount > 0 ? ` (${itemCount})` : ''}`}>
         <img src="/pictures/cart.png" alt={t('nav.cart')} className="action_icon_img" />
         <span>{t('nav.cart')}{itemCount > 0 ? ` (${itemCount})` : ''}</span>
+        {itemCount > 0 && <b className="cart_badge" aria-hidden="true">{itemCount > 99 ? '99+' : itemCount}</b>}
       </Link>
 
       <div className={`cart_dropdown_box${isAutoOpen ? ' is_visible' : ''}`}>

@@ -6,7 +6,8 @@ import { useAuth } from '../../stores/auth';
 import { withIsland } from '../../lib/island';
 import { ADMIN_URL } from '../../lib/adminUrl';
 
-function HeaderAccount() {
+// inDrawer: the second copy of this island, inside the phone menu. The admin tools must load once, from the copy in the bar.
+function HeaderAccount({ inDrawer = false }) {
   const navigate = useNavigate();
   const { t } = useT();
   const { isAuthenticated, isAdmin, logout } = useAuth();
@@ -14,8 +15,8 @@ function HeaderAccount() {
   // A valid admin token (useAuth has checked it with the API): load the admin tools, a separate chunk that visitors
   // never download. It finds the marked places of the page (hidden products, recommendations, ...) and fills them.
   useEffect(() => {
-    if (isAdmin) import('../../admin/enhance').then((module) => module.enhancePage());
-  }, [isAdmin]);
+    if (isAdmin && !inDrawer) import('../../admin/enhance').then((module) => module.enhancePage());
+  }, [isAdmin, inDrawer]);
 
   if (!isAuthenticated) {
     return (

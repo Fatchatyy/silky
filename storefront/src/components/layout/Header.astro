@@ -1,5 +1,9 @@
 ---
 // Static header (links are real <a href>); only the search box, the cart and the account link are islands.
+// Phones (up to 480 px): the top bar collapses into ONE row (menu button, reviews icon, cart); the logo, Femme / Enfant
+// and the search stay on the second row as on desktop. Favourites, account, language, phone and social links move into
+// a drawer. The desktop markup is the same; the CSS (shop.css, "Phone header") decides what is shown, and the small
+// script below opens the drawer.
 import { localizePath, switchLocalePath } from '../../../shared/locales.js';
 import { translator } from '../../lib/i18n.ts';
 import type { Locale } from '../../lib/seo/types.ts';
@@ -12,8 +16,14 @@ const t = translator(locale);
 const href = (path: string) => localizePath(path, locale);
 const otherLocale: Locale = locale === 'ar' ? 'fr' : 'ar';
 const switchHref = switchLocalePath(Astro.url.pathname, Astro.url.search, otherLocale);
+const frHref = locale === 'fr' ? undefined : switchHref;
+const arHref = locale === 'ar' ? undefined : switchHref;
 ---
-<div class="header_wrapper">
+<div class="header_wrapper" id="site_header">
+  <button type="button" class="m_menu_btn" id="m_menu_btn" aria-label={t('header.menu')} aria-controls="m_drawer" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+  </button>
+
   <div class="top_utility_bar">
     <div class="contact_section">
       <div class="social_icons">
@@ -68,4 +78,107 @@ const switchHref = switchLocalePath(Astro.url.pathname, Astro.url.search, otherL
 
     <HeaderSearch client:load locale={locale} />
   </header>
+
+  <div class="m_overlay" id="m_overlay"></div>
+  <aside class="m_drawer" id="m_drawer" aria-label={t('header.menu')}>
+    <div class="m_drawer_head">
+      <a href={href('/')} class="logo">
+        <img class="logo_img" src="/pictures/logo.png" alt="Silky Logo" />
+      </a>
+      <button type="button" class="m_drawer_close" id="m_drawer_close" aria-label={t('header.closeMenu')}>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+
+    <nav class="m_drawer_nav">
+      <a href={href('/')} class="m_drawer_link">
+        <img src="/pictures/home.png" alt="" class="action_icon_img" />
+        <span>{t('nav.home')}</span>
+      </a>
+      <a href={href('/favorites')} class="m_drawer_link">
+        <img src="/pictures/heart.png" alt="" class="action_icon_img" />
+        <span>{t('nav.favorites')}</span>
+      </a>
+      <div class="m_drawer_account">
+        <HeaderAccount client:load locale={locale} inDrawer />
+      </div>
+    </nav>
+
+    <div class="m_drawer_foot">
+      <div class="m_drawer_lang" role="group" aria-label={t('header.language')}>
+        {frHref ? <a href={frHref} class="m_lang_pill" lang="fr" hreflang="fr">Français</a> : <span class="m_lang_pill on" aria-current="true">Français</span>}
+        {arHref ? <a href={arHref} class="m_lang_pill" lang="ar" hreflang="ar">العربية</a> : <span class="m_lang_pill on" aria-current="true">العربية</span>}
+      </div>
+      <a href="tel:+21625274800" class="m_drawer_phone" aria-label={t('header.phoneLabel')}>
+        <span class="m_drawer_phone_text">{t('header.contactLine')}</span>
+        <strong dir="ltr">+216 25 274 800</strong>
+      </a>
+      <div class="m_drawer_social">
+        <a href="https://www.instagram.com/silky.tn/" target="_blank" rel="noreferrer"><img src="/pictures/instagram.png" alt="Instagram" class="icon_img" /></a>
+        <a href="https://www.tiktok.com/@silky4042" target="_blank" rel="noreferrer"><img src="/pictures/tiktok.png" alt="TikTok" class="icon_img" /></a>
+        <a href="https://www.facebook.com/profile.php?id=61560630851600" target="_blank" rel="noreferrer"><img src="/pictures/facebook.png" alt="Facebook" class="icon_img" /></a>
+        <a href="mailto:silky26tn@gmail.com"><img src="/pictures/gmail.png" alt="Email" class="icon_img" /></a>
+      </div>
+    </div>
+  </aside>
 </div>
+
+<script>
+  // Phone header: the menu drawer. Plain DOM code, no framework; the links stay real <a href>.
+  const wrapper = document.getElementById('site_header');
+  const menuBtn = document.getElementById('m_menu_btn');
+  const drawer = document.getElementById('m_drawer');
+  const overlay = document.getElementById('m_overlay');
+  const closeBtn = document.getElementById('m_drawer_close');
+  const phone = window.matchMedia('(max-width: 480px)');
+
+  const focusables = () =>
+    Array.from(drawer?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []).filter((el) => el.offsetParent !== null);
+
+  function openMenu() {
+    if (!wrapper || !menuBtn) return;
+    wrapper.classList.add('menu_open');
+    menuBtn.setAttribute('aria-expanded', 'true');
+    document.documentElement.classList.add('m_scroll_lock');
+    // After the slide-in has started: a link of a hidden drawer cannot take the focus.
+    setTimeout(() => (closeBtn ?? focusables()[0])?.focus(), 60);
+  }
+  function closeMenu(returnFocus = true) {
+    if (!wrapper || !menuBtn || !wrapper.classList.contains('menu_open')) return;
+    wrapper.classList.remove('menu_open');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    document.documentElement.classList.remove('m_scroll_lock');
+    if (returnFocus) menuBtn.focus();
+  }
+  menuBtn?.addEventListener('click', openMenu);
+  closeBtn?.addEventListener('click', () => closeMenu());
+  overlay?.addEventListener('click', () => closeMenu());
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeMenu();
+      return;
+    }
+    // Keep Tab inside the open drawer.
+    if (e.key === 'Tab' && wrapper?.classList.contains('menu_open')) {
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+
+  // Rotating the phone or widening the window past the phone layout: nothing stays open.
+  phone.addEventListener('change', () => {
+    if (!phone.matches) {
+      closeMenu(false);
+    }
+  });
+</script>

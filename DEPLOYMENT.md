@@ -155,7 +155,7 @@ Render's free plan limits that matter for Silky (from Render's documentation, ch
 - No shell, SSH or one-off jobs: run `db:init`, `admin:create`, `preflight` and `uploads:copy-to-r2` from your own computer with the production environment variables.
 - Render may restart the service at any time: what the API keeps only in memory (rate-limit counters, the GOODEX failure back-off, the claim-types cache) starts again from empty.
 - Traffic the service starts itself (Neon, R2, GOODEX, Resend) counts as "service-initiated traffic"; an uncommonly high volume can get the service suspended. A small shop is far below it; large video uploads to R2 are the heaviest part.
-- While asleep (midnight to 07:00), the first request waits about a minute. GOODEX webhooks are not used: delivery statuses come from the background poll (`GOODEX_POLL_INTERVAL_MINUTES`, off by default) and the manual refresh, and the poll only runs while the API is awake.
+- Since 2026-11-10 the keep-awake window is 24 hours a day (`KEEPALIVE_FROM_HOUR=0`, `KEEPALIVE_TO_HOUR=24` in `server/keepalive/wrangler.jsonc`): about 744 instance hours in a 31-day month, under the 750 free hours, so no margin for any other free Render service in the workspace (watch Render's hours counter). To go back to sleeping at night set `KEEPALIVE_FROM_HOUR` to `7`. If the API is asleep for any reason, the first request waits about a minute. GOODEX webhooks are not used: delivery statuses come from the background poll (`GOODEX_POLL_INTERVAL_MINUTES`, off by default) and the manual refresh, and the poll only runs while the API is awake.
 
 ## 7. Rollback
 

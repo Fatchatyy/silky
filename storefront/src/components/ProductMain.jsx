@@ -321,6 +321,13 @@ function ProductMain({ product: staticProduct, breadcrumb = null }) {
   const publicView = (
     <>
       <main className="product_page_wrapper">
+        {/* The breadcrumb is the first line of the page, above the photos (it spans every column). */}
+        {breadcrumb && (
+          <div className="product_breadcrumb_row">
+            <Breadcrumb {...breadcrumb} />
+          </div>
+        )}
+
         {/* Vertical Thumbnails Column (Left) */}
         <div className="thumbnails_vertical_container">
           <button type="button" className="scroll_arrow" onClick={() => handleVerticalArrow('up')} aria-label={t('marquee.up')}>
@@ -401,10 +408,8 @@ function ProductMain({ product: staticProduct, breadcrumb = null }) {
 
         {/* Product Details Panel (Right) */}
         <div className="product_info_panel">
-          {breadcrumb && <Breadcrumb {...breadcrumb} />}
           <h1 className="product_title">{productName(product, locale)}</h1>
 
-          <h2 className="section_subtitle">{t('product.details')}</h2>
           <p className="product_description">{productDescription(product, locale)}</p>
 
           {/* Color Section */}

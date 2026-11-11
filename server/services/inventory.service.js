@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/orm.js';
-import { products, productVariants } from '../models/index.js';
+import { products, productVariants, categories } from '../models/index.js';
 import { productRepository } from '../repositories/product.repository.js';
 import { AppError } from '../utils/errors.js';
 
@@ -18,9 +18,12 @@ export async function getInventory() {
     sku: productVariants.sku,
     stockQuantity: productVariants.stockQuantity,
     colorImageUrl: productVariants.colorImageUrl,
+    categoryName: categories.name,
+    categorySlug: categories.slug,
   })
   .from(productVariants)
-  .innerJoin(products, eq(productVariants.productId, products.id));
+  .innerJoin(products, eq(productVariants.productId, products.id))
+  .leftJoin(categories, eq(products.categoryId, categories.id));
 
   const result = rows.map((row) => ({
     variantId: row.variantId,
@@ -33,6 +36,8 @@ export async function getInventory() {
     sku: row.sku,
     stockQuantity: row.stockQuantity,
     colorImageUrl: row.colorImageUrl,
+    categoryName: row.categoryName || '',
+    categorySlug: row.categorySlug || '',
     lowStock: row.stockQuantity <= LOW_STOCK_THRESHOLD,
   }));
 

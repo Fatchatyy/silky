@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { mediaUrl } from '@shared/media';
 import { adminApi as api } from '../../admin/adminApi';
 import { formatPrice } from '@shared/formatPrice';
+import ArticlePicker from '../components/ArticlePicker';
 
 const TUNISIAN_GOVERNORATES = [
   'Tunis',
@@ -31,138 +32,6 @@ const TUNISIAN_GOVERNORATES = [
 ];
 
 const EMPTY_LINE = { variantId: '', quantity: 1 };
-
-function VariantSearchSelect({ inventory, value, onChange, required, index }) {
-  const [query, setQuery] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const wrapperRef = useRef(null);
-
-  const selectedItem = inventory.find((item) => item.variantId === value);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSelect = (item) => {
-    onChange(item.variantId);
-    setQuery('');
-    setIsOpen(false);
-  };
-
-  const handleClear = (e) => {
-    e.stopPropagation();
-    onChange('');
-    setQuery('');
-    setIsOpen(true);
-  };
-
-  const filteredInventory = inventory.filter((item) => {
-    if (!query.trim()) return true;
-    const q = query.toLowerCase().trim();
-    const titleMatch = item.productTitle?.toLowerCase().includes(q);
-    const colorMatch = item.colorName?.toLowerCase().includes(q);
-    const sizeMatch = item.size?.toLowerCase().includes(q);
-    const skuMatch = item.sku?.toLowerCase().includes(q);
-    return titleMatch || colorMatch || sizeMatch || skuMatch;
-  });
-
-  return (
-    <div className="admin-variant-select-wrapper" ref={wrapperRef}>
-      <div
-        className={`admin-variant-select-input-container ${isOpen ? 'is-open' : ''} ${selectedItem ? 'has-value' : ''}`}
-        onClick={() => {
-          if (!isOpen) setIsOpen(true);
-        }}
-      >
-        {selectedItem && !isOpen ? (
-          <div className="admin-variant-selected-display">
-            {selectedItem.colorImageUrl ? (
-              <img src={mediaUrl(selectedItem.colorImageUrl)} alt="" className="admin-variant-thumb" />
-            ) : (
-              <div className="admin-variant-thumb-placeholder" />
-            )}
-            <span className="admin-variant-text">
-              <strong>{selectedItem.productTitle}</strong> — {selectedItem.colorName} — Taille{' '}
-              <span className="admin-variant-size-tag">{selectedItem.size}</span> ({selectedItem.stockQuantity} dispo.)
-            </span>
-          </div>
-        ) : (
-          <input
-            type="text"
-            className="admin-variant-search-input"
-            placeholder={
-              selectedItem
-                ? `${selectedItem.productTitle} — ${selectedItem.colorName} — Taille ${selectedItem.size}`
-                : 'Rechercher par nom, couleur, taille...'
-            }
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              if (!isOpen) setIsOpen(true);
-            }}
-            onFocus={() => setIsOpen(true)}
-            required={required && !value}
-            aria-label={`Recherche variante article ${index + 1}`}
-          />
-        )}
-
-        {(value || query) && (
-          <button
-            type="button"
-            className="admin-variant-clear-btn"
-            onClick={handleClear}
-            title="Effacer la sélection"
-            aria-label="Effacer la sélection"
-          >
-            ×
-          </button>
-        )}
-      </div>
-
-      {isOpen && (
-        <div className="admin-variant-dropdown">
-          {filteredInventory.length === 0 ? (
-            <div className="admin-variant-dropdown-empty">
-              Aucune variante trouvée {query ? `pour "${query}"` : ''}
-            </div>
-          ) : (
-            filteredInventory.map((item) => {
-              const isSelected = item.variantId === value;
-              return (
-                <div
-                  key={item.variantId}
-                  className={`admin-variant-dropdown-item ${isSelected ? 'selected' : ''}`}
-                  onClick={() => handleSelect(item)}
-                >
-                  {item.colorImageUrl ? (
-                    <img src={mediaUrl(item.colorImageUrl)} alt="" className="admin-variant-thumb" />
-                  ) : (
-                    <div className="admin-variant-thumb-placeholder" />
-                  )}
-                  <div className="admin-variant-item-info">
-                    <span className="admin-variant-title">{item.productTitle}</span>
-                    <span className="admin-variant-details">
-                      Couleur: <strong>{item.colorName}</strong> | Taille: <strong>{item.size}</strong>
-                    </span>
-                  </div>
-                  <span className={`admin-variant-stock ${item.stockQuantity <= 5 ? 'low' : ''}`}>
-                    {item.stockQuantity} dispo.
-                  </span>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function AdminManualOrderModal({ open, onClose, onSuccess }) {
   const [inventory, setInventory] = useState([]);
@@ -218,28 +87,6 @@ export default function AdminManualOrderModal({ open, onClose, onSuccess }) {
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: '' }));
     }
-  };
-
-  const updateItem = (index, field, value) => {
-    setForm((prev) => {
-      const items = [...prev.items];
-      items[index] = { ...items[index], [field]: value };
-      return { ...prev, items };
-    });
-    if (fieldErrors.items) {
-      setFieldErrors((prev) => ({ ...prev, items: '' }));
-    }
-  };
-
-  const addLine = () => {
-    setForm((prev) => ({ ...prev, items: [...prev.items, { ...EMPTY_LINE }] }));
-  };
-
-  const removeLine = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.length > 1 ? prev.items.filter((_, i) => i !== index) : prev.items,
-    }));
   };
 
   const validateForm = () => {
@@ -434,42 +281,21 @@ export default function AdminManualOrderModal({ open, onClose, onSuccess }) {
             <p className="admin-loading">Chargement des variantes...</p>
           ) : (
             <div className="admin-manual-order-lines">
-              {form.items.map((line, index) => (
-                <div key={index} className="admin-manual-order-line">
-                  <VariantSearchSelect
-                    inventory={inventory}
-                    value={line.variantId}
-                    onChange={(variantId) => updateItem(index, 'variantId', variantId)}
-                    required={index === 0}
-                    index={index}
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={line.quantity}
-                    onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                    aria-label={`Quantité article ${index + 1}`}
-                  />
-                  {form.items.length > 1 && (
-                    <button
-                      type="button"
-                      className="admin-btn danger"
-                      onClick={() => removeLine(index)}
-                    >
-                      Retirer
-                    </button>
-                  )}
-                </div>
-              ))}
+              <ArticlePicker
+                inventory={inventory}
+                lines={form.items.filter((line) => line.variantId)}
+                onChange={(lines) => {
+                  setForm((prev) => ({ ...prev, items: lines }));
+                  if (fieldErrors.items) {
+                    setFieldErrors((prev) => ({ ...prev, items: '' }));
+                  }
+                }}
+              />
               {fieldErrors.items && (
                 <span className="field-error-msg" style={{ marginBottom: '8px' }}>
                   {fieldErrors.items}
                 </span>
               )}
-              <button type="button" className="admin-btn secondary" onClick={addLine}>
-                + Ajouter un article
-              </button>
             </div>
           )}
 
